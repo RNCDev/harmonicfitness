@@ -2,6 +2,31 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.80.0] - 2026-11-11
+
+Easier to hand on. A listener can send a friend one message from `SHARE-HARMONIC.md`. Google's Antigravity joins Claude Code and Codex, though it hasn't been tried end to end yet. A voice key goes from the clipboard to `me/.env` with one command, so nobody edits the key file by hand.
+
+### Added
+- **Antigravity.** It reads `AGENTS.md` and `.agents/skills/`, the files Codex reads, so `harness sync` now writes `AGENTS.md` for both.
+  - Rules that hold everywhere come first. Then a section for Codex: the sandbox rule, and ChatGPT's "Improve the model for everyone" line.
+  - Then a section for Antigravity:
+    - Its command permissions are the listener's own settings, not the project's, so the assistant says what they may allow and never edits those settings itself.
+    - If `me/` can't be read or written, Strict Mode is the likely cause, since it respects `.gitignore`.
+  - The README covers it in Start here, Where it runs and the For Claude handoff.
+  - Not yet tried end to end. Only the instructions keep it out of `me/.env`, as on Codex.
+- **`./harmonicfitness keys paste <service>`** saves the key on the clipboard to `me/.env`, private to this user, and never shows it.
+  - The clipboard is read with `pbpaste` on a Mac, PowerShell's `Get-Clipboard` on Windows, and `wl-paste`, `xclip` or `xsel` on Linux.
+  - It refuses what can't be a key and saves nothing: an empty clipboard, a web address, a space or line break, or anything shorter than 16 or longer than 1024 characters (the web app's bounds).
+  - A key already set is kept unless `--replace` is given, since a service may show a key only once.
+  - Every other line in the file is kept. On the web app and on Claude Code on the web it says where keys go instead, as `init` does.
+  - The setup skill's key step now asks the listener to copy the key and say so, then runs it. `keys init` and `keys open` remain the fallback.
+- **`SHARE-HARMONIC.md`:** the invite, moved out of the README. It adds a shorter version for a text message, a note for Antigravity and what a friend will need. The README links to it.
+
+### For forks
+- `AGENTS.md` is regenerated with a new structure: shared rules, then "On ChatGPT's Codex" and "On Google's Antigravity". A fork that edits `agents_md()` in `tools/harness.py` should merge, then run `./harmonicfitness harness sync`.
+- The README's "Invite a friend" section is now `SHARE-HARMONIC.md`. A fork that links to the old heading should link to the file.
+- `keys.py` imports `fileio` and gains `paste`, `save`, `read_clipboard` and `KeyExists` (exit 1). A fork that wraps the `keys` command should pass the new `paste` subcommand through.
+
 ## [0.79.0] - 2026-11-10
 
 Leaner script writing. A token bench measured where a workout's writing spends (`docs/benchmark-script-writing/`). The cuts it pointed to are made, each kept only when three bench runs held every quality check. A 15-minute workout on Gemini now costs about 14 cents to write, down from 18, in 9 model requests rather than 11. OpenRouter now writes with Gemini too, at about 11 cents.
