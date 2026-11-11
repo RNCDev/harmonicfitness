@@ -159,6 +159,100 @@ class Keys(unittest.TestCase):
 
 
 @unittest.skipUnless(shutil.which("git"), "git not installed")
+class Paste(unittest.TestCase):
+    """keys paste: the key goes from the clipboard to me/.env without passing through the chat or the output."""
+
+    def setUp(self):
+        self.d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.d)
+        self.env = os.path.join(self.d, ".env")
+        clean = {k: v for k, v in os.environ.items() if k not in keys.SERVICE_VARS.values()}
+        patcher = mock.patch.dict(os.environ, clean, clear=True)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    @staticmethod
+    def clipboard(text, code=0):
+        def run(argv, **kw):
+            return subprocess.CompletedProcess(argv, code, stdout=text.encode("utf-8"), stderr=b"")
+        return run
+
+    def test_a_copied_key_is_saved_private_and_read_back(self):
+        keys.paste("fish", path=self.env, run=self.clipboard(f"  {SECRET}\r\n"))
+        self.assertEqual(keys.get("fish", path=self.env), SECRET)
+        if os.name != "nt":
+            self.assertEqual(os.stat(self.env).st_mode & 0o777, 0o600)
+        self.assertEqual(os.listdir(self.d), [".env"])   # no temporary file left
+
+    def test_it_fills_the_empty_line_init_made_and_keeps_every_other_line(self):
+        keys.init("fish", path=self.env)
+        with open(self.env, "a", encoding="utf-8") as f:
+            f.write("GEMINI_API_KEY=gemini-test-key-0123456789\n# a note of their own\n")
+        keys.paste("fish", path=self.env, run=self.clipboard(SECRET))
+        with open(self.env, encoding="utf-8") as f:
+            text = f.read()
+        self.assertEqual(text.count("FISH_AUDIO_API_KEY="), 1)
+        self.assertIn("# a note of their own", text)
+        self.assertIn("fish.audio", text)   # init's comment kept
+        self.assertEqual(keys.get("gemini", path=self.env), "gemini-test-key-0123456789")
+        self.assertEqual(keys.get("fish", path=self.env), SECRET)
+
+    def test_a_set_key_is_replaced_only_when_asked(self):
+        keys.paste("fish", path=self.env, run=self.clipboard(SECRET))
+        newer = "sk-test-NEWER-KEY-456789"
+        with self.assertRaises(keys.KeyExists) as e:
+            keys.paste("fish", path=self.env, run=self.clipboard(newer))
+        self.assertIn("--replace", str(e.exception))
+        self.assertEqual(keys.get("fish", path=self.env), SECRET)
+        keys.paste("fish", path=self.env, replace=True, run=self.clipboard(newer))
+        self.assertEqual(keys.get("fish", path=self.env), newer)
+
+    def test_what_cant_be_a_key_is_refused_unsaved_and_unshown(self):
+        for text in ("", "   ", "two words here and more", "https://example.test/zq-made-up-page", "zq7k",
+                     "x" * 1025, "key-with-ünïcode-chars-0123"):
+            with self.subTest(text=text[:20]):
+                with self.assertRaises(keys.BadKey) as e:
+                    keys.paste("fish", path=self.env, run=self.clipboard(text))
+                if text.strip():
+                    self.assertNotIn(text.strip(), str(e.exception))
+                self.assertIn("Nothing was saved", str(e.exception))
+                self.assertFalse(keys.is_set("fish", path=self.env))
+
+    def test_each_system_has_a_reader_and_none_found_says_what_to_do(self):
+        seen = []
+
+        def run(argv, **kw):
+            seen.append(argv[0])
+            raise FileNotFoundError(2, "No such file", argv[0])
+        for platform, first in (("darwin", "pbpaste"), ("win32", "powershell"), ("linux", "wl-paste")):
+            with mock.patch.object(keys.sys, "platform", platform), self.assertRaises(errors.PROBLEMS) as e:
+                keys.read_clipboard(run)
+            self.assertIn(first, seen)
+            self.assertIn("keys open", str(e.exception))
+        self.assertIn("xclip", seen)   # Linux tries the next tool
+
+    def test_the_command_never_prints_the_key(self):
+        out = io.StringIO()
+        with redirect_stdout(out), mock.patch.object(keys.paths, "ENV_FILE", self.env), \
+                mock.patch.object(keys.paths, "WEB", False), mock.patch.object(keys.paths, "REMOTE", False), \
+                mock.patch.object(keys, "read_clipboard", lambda run=None: SECRET):
+            self.assertEqual(keys.main(["paste", "fish"]), errors.OK)
+        self.assertNotIn(SECRET, out.getvalue())
+        self.assertIn("FISH_AUDIO_API_KEY", out.getvalue())
+        self.assertEqual(keys.get("fish", path=self.env), SECRET)
+
+    def test_on_the_web_it_points_elsewhere_and_reads_nothing(self):
+        def never(*a, **kw):
+            raise AssertionError("the clipboard must not be read")
+        for flag, needle in (("WEB", "settings"), ("REMOTE", "Environment variables")):
+            out = io.StringIO()
+            with redirect_stdout(out), mock.patch.object(keys.paths, "WEB", flag == "WEB"), \
+                    mock.patch.object(keys.paths, "REMOTE", flag == "REMOTE"), \
+                    mock.patch.object(keys, "read_clipboard", never):
+                self.assertEqual(keys.main(["paste", "fish"]), errors.OK)
+            self.assertIn(needle, out.getvalue())
+
+
 class BackupRefusesKeys(unittest.TestCase):
     def test_backup_refuses_env_without_the_ignore_rule(self):
         with tempfile.TemporaryDirectory() as d:

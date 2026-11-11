@@ -5,10 +5,13 @@ committed (me/.gitignore leaves it out, and ./harmonicfitness backup refuses it 
 module never prints a value: only whether one is set. The cloud engines call get() at the
 moment they send a request; nothing else reads a key.
 
-A key pasted into Claude Code would stay in the transcript, so the listener pastes it into the
-file themselves: `./harmonicfitness keys init <service>` makes the line for them.
+A key pasted into the chat would stay in the transcript, so it never passes through it: the listener
+copies the key from the service's page and `./harmonicfitness keys paste <service>` saves it from the
+clipboard, or they paste it into the file themselves (`keys init <service>` makes the line, `keys open`
+opens the file).
 
     ./harmonicfitness keys                 # which services have a key set (never the key)
+    ./harmonicfitness keys paste fish      # save the key on the clipboard as FISH_AUDIO_API_KEY (never shown)
     ./harmonicfitness keys init fish       # add an empty FISH_AUDIO_API_KEY= line to me/.env
     ./harmonicfitness keys open            # open me/.env in the system's editor, to paste a key
     ./harmonicfitness keys upload          # send them to your key store on the web app (tools/webkeys.py)
@@ -21,6 +24,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import errors  # noqa: E402
+import fileio  # noqa: E402
 import services  # noqa: E402  (knowledge/services.toml; not cloud.py, which reads keys)
 import paths  # noqa: E402
 
@@ -187,6 +191,91 @@ def init(service, path=None):
     return path
 
 
+# What reads the clipboard, by system, tried in order (Linux has no one tool). Windows' PowerShell runs from Git Bash.
+CLIPBOARD_READERS = {
+    "darwin": (["pbpaste"],),
+    "win32": (["powershell", "-NoProfile", "-Command", "Get-Clipboard -Raw"],),
+    "linux": (["wl-paste", "--no-newline"], ["xclip", "-selection", "clipboard", "-o"],
+              ["xsel", "--clipboard", "--output"]),
+}
+KEY_LENGTH = (16, 1024)   # the web app's bounds (webapp/routes/settings.py), so a key saved here is taken there too
+
+
+class KeyExists(errors.HarmonicFitnessError):
+    """A key is already set and `--replace` wasn't given: a working key may not be shown again by its service,
+    so it's never overwritten by surprise. Exit 1."""
+
+
+def read_clipboard(run=subprocess.run):
+    """The clipboard's text, decoded as UTF-8 (anything undecodable becomes a character a key can't hold).
+    Never printed. HarmonicFitnessError when there's no tool to read it here."""
+    readers = CLIPBOARD_READERS.get(sys.platform, CLIPBOARD_READERS["linux"])
+    for argv in readers:
+        try:
+            done = run(argv, capture_output=True, timeout=10)
+        except (OSError, subprocess.SubprocessError):
+            continue
+        if done.returncode == 0:
+            return (done.stdout or b"").decode("utf-8", "replace")
+    raise errors.HarmonicFitnessError(
+        f"Couldn't read the clipboard here (tried {', '.join(a[0] for a in readers)}; on Linux an empty clipboard "
+        "reads as none). Copy the key again, or paste it into the file instead: ./harmonicfitness keys init "
+        "<service>, then ./harmonicfitness keys open.")
+
+
+def _clipboard_key(service, text):
+    """The key on the clipboard, or BadKey naming what's wrong with it (never the value)."""
+    var = _var(service)
+    again = f"Copy just the key from {_key_pages()[service]}, then run this again. Nothing was saved."
+    value = (text or "").strip()
+    if not value:
+        raise BadKey(f"The clipboard is empty. {again}")
+    try:
+        value = clean_value(var, value)
+    except BadKey:
+        raise BadKey(f"What's on the clipboard can't be a {service} key (it holds a space, a line break or a "
+                     f"symbol). {again}") from None
+    if "://" in value:
+        raise BadKey(f"The clipboard holds a web address, not a key. {again}")
+    if not KEY_LENGTH[0] <= len(value) <= KEY_LENGTH[1]:
+        raise BadKey(f"What's on the clipboard is too {'short' if len(value) < KEY_LENGTH[0] else 'long'} to be "
+                     f"a {service} key. {again}")
+    return value
+
+
+def save(service, value, path=None, replace=False):
+    """Write the key as the service's line in the key file, every other line kept, private to this user.
+    KeyExists when one is set there and `replace` is false. Returns the path."""
+    var = _var(service)
+    path = path or paths.ENV_FILE
+    _make_file(path)
+    if not replace and _read(path).get(var):
+        raise KeyExists(f"A {service} key is already set in {paths.show(path)}. To put this one in its place, "
+                        f"run ./harmonicfitness keys paste {service} --replace.")
+    with open(path, encoding="utf-8-sig") as f:
+        lines = f.read().splitlines()
+    out, placed = [], False
+    for line in lines:
+        m = None if line.lstrip().startswith("#") else LINE_RE.match(line)
+        if m and m.group(1) == var:
+            if not placed:
+                out.append(f"{var}={value}")
+                placed = True
+            continue   # a second line for the same key would shadow this one: dropped
+        out.append(line)
+    if not placed:
+        out += ["", f"# {service}: from {_key_pages()[service]}.", f"{var}={value}"]
+    fileio.atomic_write(path, "\n".join(out) + "\n")   # a temporary file, private to this user, renamed into place
+    if os.name != "nt":
+        os.chmod(path, 0o600)
+    return path
+
+
+def paste(service, path=None, replace=False, run=subprocess.run):
+    """Save the key on the clipboard for the service (read_clipboard, then save). Returns the path."""
+    return save(service, _clipboard_key(service, read_clipboard(run)), path=path, replace=replace)
+
+
 def web_instructions(service=None):
     """What to do on Claude Code on the web, where a key file wouldn't outlast the session."""
     names = [_service_vars()[service]] if service else list(_service_vars().values())
@@ -230,13 +319,24 @@ def main(argv=None):
     i = sub.add_parser("init", help="add the service's key line to me/.env (making the file if needed)")
     i.add_argument("service", choices=list(_service_vars()))
     sub.add_parser("open", help="open me/.env in the system's editor, to paste a key")
+    p = sub.add_parser("paste", help="save the key on the clipboard for the service in me/.env (never shown)")
+    p.add_argument("service", choices=list(_service_vars()))
+    p.add_argument("--replace", action="store_true", help="put it in place of a key already set")
     # `keys upload` is tools/webkeys.py's (the dispatcher sends it there), above this module and webpull
     args = ap.parse_args(argv)
-    if args.cmd == "init" and paths.WEB:
+    if args.cmd in ("init", "paste") and paths.WEB:
         print(f"Add your {args.service} key in {APP_SETTINGS}. Never paste it into the chat.")
         return errors.OK
-    if args.cmd == "init" and paths.REMOTE:
+    if args.cmd in ("init", "paste") and paths.REMOTE:
         print(web_instructions(args.service))
+        return errors.OK
+    if args.cmd == "paste":
+        path = paste(args.service, replace=args.replace)
+        var = _service_vars()[args.service]
+        print(f"Saved the {args.service} key from the clipboard as {var} in {paths.show(path)} (never shown). "
+              "Its first use checks it with the service.")
+        if os.environ.get(var):
+            print(f"Note: {var} is also set in the environment, and that one wins.")
         return errors.OK
     if args.cmd == "open":
         argv_run = open_env()

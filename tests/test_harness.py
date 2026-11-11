@@ -1,4 +1,4 @@
-"""The two assistants' files: ChatGPT's Codex files stay in step with the Claude Code ones."""
+"""The assistants' files: the Codex and Antigravity files (AGENTS.md, .agents/skills/) stay in step with the Claude Code ones."""
 import os
 import shutil
 import subprocess
@@ -70,7 +70,17 @@ class Harness(unittest.TestCase):
     def test_agents_md_sends_codex_to_claude_md_and_guards_the_keys(self):
         with open(os.path.join(ROOT, "AGENTS.md"), encoding="utf-8") as f:
             text = f.read()
-        for needle in ("CLAUDE.md", "me/.env", "./harmonicfitness show", "AskUserQuestion", "Data Controls"):
+        for needle in ("CLAUDE.md", "me/.env", "./harmonicfitness show", "AskUserQuestion", "Data Controls",
+                       "keys paste"):
+            self.assertIn(needle, text)
+
+    def test_agents_md_tells_antigravity_what_the_project_cant_set(self):
+        """Antigravity keeps permissions in the listener's own settings: AGENTS.md says what they may allow, never
+        to edit those settings, and that Strict Mode hides the git-ignored me/."""
+        with open(os.path.join(ROOT, "AGENTS.md"), encoding="utf-8") as f:
+            text = f.read()
+        for needle in ("Antigravity", "command(./harmonicfitness)", "Never edit those settings yourself",
+                       "Strict Mode"):
             self.assertIn(needle, text)
 
     def test_an_edited_description_is_caught_and_synced(self):

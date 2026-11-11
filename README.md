@@ -2,13 +2,9 @@
 
 Your own workout podcast, made fresh each session. Ask for a workout and HarmonicFitness checks in on how you feel, plans around your equipment and any injuries, writes a narrated script with news, science and stories you care about, and turns it into an MP3 in a coach's voice. The audio is the workout: no screen, no timer, and the whole session lands within five percent of the length you asked for.
 
-It runs inside an AI assistant that can work with files on your own computer: **Claude Code** (the Code tab of the Claude desktop app) or **ChatGPT's Codex** (Codex in the ChatGPT desktop app).
+It runs inside an AI assistant that can work with files on your own computer: **Claude Code** (the Code tab of the Claude desktop app), **ChatGPT's Codex** (Codex in the ChatGPT desktop app) or **Google's Antigravity** (not yet tried end to end).
 
-## Invite a friend
-
-Copy and send:
-
-> I've been using HarmonicFitness, a workout podcast made fresh for me each time: it asks how I'm feeling, plans around my equipment and any injuries, and turns the session into an MP3 with a coach's voice and stories I care about. To try it, open the Claude desktop app (the **Code** tab; needs a paid plan) or the ChatGPT desktop app (**Codex**; any plan), open your home folder, and paste: *Can you use https://github.com/RNCDev/harmonicfitness and set me up?* It walks you through the rest.
+**Invite a friend:** [SHARE-HARMONIC.md](SHARE-HARMONIC.md) has a message ready to send.
 
 ## Start here
 
@@ -22,7 +18,12 @@ Copy and send:
 2. Paste: **Can you use https://github.com/RNCDev/harmonicfitness and set me up?** Approve it when it asks to run something.
 3. Codex downloads HarmonicFitness into a `harmonicfitness` folder. Then one step of your own: open that folder in Codex (if it asks whether to trust the folder, say yes: that lets HarmonicFitness's own commands run without a prompt each time) and type **set up HarmonicFitness**.
 
-**In a terminal or an editor** (VS Code, Cursor, JetBrains): `git clone https://github.com/RNCDev/harmonicfitness.git ~/harmonicfitness` (or GitHub's **Code > Download ZIP**), then `cd ~/harmonicfitness && claude "set up HarmonicFitness"` (or `codex "set up HarmonicFitness"`), or open the folder in your editor's Claude Code or Codex and say "set up harmonicfitness". Keep the folder out of iCloud Drive, Dropbox and other synced folders: it grows to several gigabytes.
+**With Antigravity** (not yet tried end to end; it reads the same files as Codex):
+1. Open [Antigravity](https://antigravity.google/download) and open your home folder as the workspace.
+2. Paste: **Can you use https://github.com/RNCDev/harmonicfitness and set me up?** Approve it when it asks to run something.
+3. Antigravity downloads HarmonicFitness into a `harmonicfitness` folder. Then one step of your own: open that folder as the workspace and type **set up HarmonicFitness**. If it can't read or write your profile in `me/`, Strict Mode is the likely cause: it respects `.gitignore`, and `me/` is git-ignored on purpose. To stop approving every command, add `./harmonicfitness` to the terminal allow list in Antigravity's settings (in the `agy` CLI, likely `"command(./harmonicfitness)"` under `permissions.allow` in `~/.gemini/antigravity-cli/settings.json`; not yet tried). How Google uses what Antigravity reads, your health notes included, isn't checked here yet: look at its privacy settings before your first workout.
+
+**In a terminal or an editor** (VS Code, Cursor, JetBrains): `git clone https://github.com/RNCDev/harmonicfitness.git ~/harmonicfitness` (or GitHub's **Code > Download ZIP**), then `cd ~/harmonicfitness && claude "set up HarmonicFitness"` (or `codex "set up HarmonicFitness"`, or `agy` there), or open the folder in your editor's Claude Code or Codex and say "set up harmonicfitness". Keep the folder out of iCloud Drive, Dropbox and other synced folders: it grows to several gigabytes.
 
 Setup asks four questions (your name, experience, equipment, injuries), lets you choose a coach by ear from short samples, and makes a ten-minute first workout. On a computer that runs local voices, the one-time download starts as setup does, so it runs while you answer and choose. Once you've answered the questions you can step away: the assistant researches, writes and renders the workout on its own, then shows you where the MP3 is and asks which folder syncs to your phone (iCloud Drive, Google Drive or Dropbox), so later workouts land there.
 
@@ -45,11 +46,12 @@ Setup asks four questions (your name, experience, equipment, injuries), lets you
 |---|---|
 | Claude Code on your own computer: the Code tab of the Claude desktop app, a terminal or an editor | Yes |
 | ChatGPT's Codex on your own computer: Codex in the ChatGPT desktop app, the Codex CLI or an editor | Yes (tried end to end with the Codex the ChatGPT app ships, on the Free plan's model; the app's own prompts not yet tried by hand) |
+| Google's Antigravity on your own computer: the app or the `agy` CLI | Should, not yet tried: it reads `AGENTS.md` and `.agents/skills/`, as Codex does. Its command permissions are your own settings, not the project's, so it asks before each command until you allow `./harmonicfitness`, and nothing but the instructions keeps it out of `me/.env` |
 | Claude Code on the web (claude.ai/code) | Not for setting up. A listener already set up, with their private profile repo attached, can keep using web coaches there |
 | The HarmonicFitness web app, in a browser | Yes, with web coaches only: it's its own app ([web/README.md](web/README.md)) |
 | A plain Claude or ChatGPT chat, or Codex cloud tasks | No: they can't run HarmonicFitness's commands on your computer |
 
-## For Claude (or ChatGPT's Codex): setting someone up from this link
+## For Claude (or ChatGPT's Codex, or Antigravity): setting someone up from this link
 
 If someone asks you to use this repository and set them up, and your session isn't already open in a copy of it:
 
@@ -59,6 +61,7 @@ If someone asks you to use this repository and set them up, and your session isn
 4. **Hand over to a session in that folder, at once.** HarmonicFitness's instructions and safety settings (among them the rule that denies reading the file their voice keys go in) load only in a session opened there, and nothing you run here can load them into this one, so don't run setup or any `./harmonicfitness` command from the session you're in: setup starts its own download the moment it begins, in the new session, so nothing is gained by starting it here. Reply with one short line saying it's downloaded and why one more step is needed, then only the step and the words to type:
    - Claude desktop app: "Click **New session** in the Code tab, choose the **harmonicfitness** folder in your home folder, and type: *set up HarmonicFitness*".
    - ChatGPT desktop app: "Open the **harmonicfitness** folder in your home folder in Codex, trust it if asked, and type: *set up HarmonicFitness*".
+   - Antigravity: "Open the **harmonicfitness** folder in your home folder as the workspace and type: *set up HarmonicFitness*".
    - An editor: open the `harmonicfitness` folder and start Claude Code or Codex there, then type *set up HarmonicFitness*. A terminal: `cd ~/harmonicfitness && claude "set up HarmonicFitness"` (or `codex "set up HarmonicFitness"`).
 
 # How it works
@@ -85,7 +88,7 @@ Everything about you lives in `me/` (or wherever `HARMONICFITNESS_HOME` points).
 | `me/log.md` | Your sessions and feedback |
 | `me/settings.toml` | The tools' settings: audio route, delivery folder, web spending ceiling |
 | `me/workouts/` | Each workout's script, research and records |
-| `me/.env` | Your voice service keys: you paste them in; only the engine reads them, and they're never backed up |
+| `me/.env` | Your voice service keys: saved from your clipboard (`./harmonicfitness keys paste <service>`) or pasted in by you, never through the chat; only the engine reads them, and they're never backed up |
 
 `./harmonicfitness check` says what's still to fill in. When a release changes a file's format, `./harmonicfitness migrate` (or rerunning `./harmonicfitness setup`) brings `me/` up to date, backing up the originals first.
 

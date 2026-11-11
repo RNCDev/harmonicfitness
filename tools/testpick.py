@@ -9,7 +9,7 @@ import os
 import re
 import subprocess
 
-# Rules every file keeps (exit codes, imports, atomic writes, the two assistants' files): any change can break them.
+# Rules every file keeps (exit codes, imports, atomic writes, the assistants' files): any change can break them.
 ENFORCERS = ("test_contract", "test_imports", "test_integrity", "test_harness")
 
 

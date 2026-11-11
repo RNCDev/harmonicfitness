@@ -1,15 +1,16 @@
-"""The two assistants HarmonicFitness runs under: Claude Code and ChatGPT's Codex.
+"""The assistants HarmonicFitness runs under: Claude Code, ChatGPT's Codex and Google's Antigravity.
 
 Claude Code's files are the source: CLAUDE.md, .claude/skills/<name>/SKILL.md and .claude/settings.json.
-Codex reads AGENTS.md and .agents/skills/ instead, so those are generated here: AGENTS.md sends Codex to
-CLAUDE.md, with what to use in place of Claude Code's own tools, and .agents/skills/<name>/ is an exact copy
-of .claude/skills/<name>/ (the ChatGPT app's own import of Claude skills makes the same copy, so it changes
-nothing).
+Codex and Antigravity both read AGENTS.md and .agents/skills/ instead, so those are generated here: AGENTS.md
+sends them to CLAUDE.md, with what to use in place of Claude Code's own tools and what differs on each, and
+.agents/skills/<name>/ is an exact copy of .claude/skills/<name>/ (the ChatGPT app's own import of Claude skills
+makes the same copy, so it changes nothing).
 .codex/config.toml (network on) and .codex/rules/harmonicfitness.rules (./harmonicfitness runs outside Codex's
 sandbox, as .claude/settings.json allows it in Claude Code) are written by hand; check makes sure the
-rule and the allow list still name the same command.
+rule and the allow list still name the same command. Antigravity keeps its permissions in the listener's own
+settings, not the project's, so nothing here writes them: AGENTS.md says what the listener may allow.
 
-    ./harmonicfitness harness          # check: exit 1 and a list when the Codex files are out of step
+    ./harmonicfitness harness          # check: exit 1 and a list when the generated files are out of step
     ./harmonicfitness harness sync     # rewrite AGENTS.md and .agents/skills/ from the Claude files
 """
 import os
@@ -51,11 +52,11 @@ def skills(root):
 
 def agents_md(names):
     listed = "\n".join(f"- `{n}`: `.claude/skills/{n}/SKILL.md`" for n in names)
-    return f"""# HarmonicFitness: instructions for ChatGPT's Codex
+    return f"""# HarmonicFitness: instructions for ChatGPT's Codex and Google's Antigravity
 
 <!-- {GENERATED} -->
 
-Read `CLAUDE.md` in full before doing anything else, and follow it as your own instructions: it's written for Claude Code and kept for both assistants, and where it says "Claude", it means you.
+Read `CLAUDE.md` in full before doing anything else, and follow it as your own instructions: it's written for Claude Code and kept for every assistant, and where it says "Claude", it means you.
 
 The skills, copied whole into `.agents/skills/`:
 {listed}
@@ -69,10 +70,17 @@ Where the instructions name a Claude Code tool, use the nearest one you have:
 - **Read on a photo** (Kits from photos): look at the image the listener attached or named; if you can't see images here, ask them to list the kit instead.
 
 Rules that always hold:
-- Never read, print or copy `me/.env`, not even through a search over a folder: it holds the listener's voice keys.
-- Run HarmonicFitness's tools only as `./harmonicfitness <command>` from this folder. This project's rule (`{CODEX_RULES}`) runs them outside the sandbox, since they need downloads, the Mac's GPU for a local voice, git's settings for the privacy hook, and `me/.env` for a web coach's key (HarmonicFitness reads it; you never do). If one fails with "Operation not permitted" or a GPU message, run it again outside the sandbox.
+- Never read, print or copy `me/.env`, not even through a search over a folder: it holds the listener's voice keys. A key reaches it from the listener's clipboard (`./harmonicfitness keys paste <service>`) or their own editor, never through the chat.
+- Run HarmonicFitness's tools only as `./harmonicfitness <command>` from this folder.
 - During a session, write only inside `me/`.
+
+On ChatGPT's Codex:
+- This project's rule (`{CODEX_RULES}`) runs `./harmonicfitness` outside the sandbox, since it needs downloads, the Mac's GPU for a local voice, git's settings for the privacy hook, and `me/.env` for a web coach's key (HarmonicFitness reads it; you never do). If one fails with "Operation not permitted" or a GPU message, run it again outside the sandbox.
 - Once, before the first workout, say plainly: ChatGPT may use what it reads here, including the listener's health notes, to improve its models unless "Improve the model for everyone" is off (Settings, Data Controls).
+
+On Google's Antigravity (not yet tried end to end):
+- Antigravity keeps command permissions in the listener's own settings, so this project can't allow `./harmonicfitness` for them. If approving each command wears on them, say once that they can add it to the terminal allow list: in the app, Settings, under the terminal's allow list; in the `agy` CLI, likely `"command(./harmonicfitness)"` under `permissions.allow` in `~/.gemini/antigravity-cli/settings.json` (not yet tried). Never edit those settings yourself.
+- `me/` is git-ignored. If its files can't be read or written, Strict Mode is the likely cause (it respects `.gitignore`): say so, and that HarmonicFitness needs it off for this folder.
 """
 
 
@@ -116,7 +124,7 @@ ENV_DENIES = ("Read(/me/.env)", "Edit(/me/.env)", "Write(/me/.env)")
 
 
 def problems(root=None):
-    """What's out of step between the two assistants' files, as lines; empty when they agree."""
+    """What's out of step between the assistants' files, as lines; empty when they agree."""
     root = root or paths.ROOT
     out = []
     want = expected(root)
@@ -173,7 +181,7 @@ def sync(root=None):
 
 def main(argv=None):
     ap = cli.ArgumentParser(prog="harmonicfitness harness",
-                            description="Keep ChatGPT's Codex files in step with the Claude Code ones.")
+                            description="Keep the Codex and Antigravity files (AGENTS.md, .agents/skills/) in step with the Claude Code ones.")
     ap.add_argument("action", nargs="?", choices=["check", "sync"], default="check")
     a = ap.parse_args(argv)
     if a.action == "sync":
@@ -189,7 +197,7 @@ def main(argv=None):
         print("\n".join(left) + "\nRun ./harmonicfitness harness sync (the rule and settings lines are edited by hand).",
               file=sys.stderr)
         return cli.ISSUES
-    print("Claude Code and Codex files are in step.")
+    print("The Claude Code, Codex and Antigravity files are in step.")
     return cli.OK
 
 
