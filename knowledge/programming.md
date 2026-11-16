@@ -70,6 +70,15 @@ The order of steps when load is capped is house policy: a few more reps, a slowe
 
 Rule: "too easy" moves the next session one step along that list; "too hard" moves one step back, or trims a set. Say in the audio what changed.
 
+## Variety
+
+- **Planned variation helps; random rotation doesn't.** A systematic review of eight trials found that some planned variation in exercise selection improves regional muscle growth and strength, while excessive, random rotation may compromise the gains. Source: https://pubmed.ncbi.nlm.nih.gov/35438660/
+- **Varied exercises keep people training.** Trained men whose exercises were varied every session gained strength and muscle much like those on a fixed set, and were more motivated to train. Source: https://pmc.ncbi.nlm.nih.gov/articles/PMC6934277/
+
+How much to keep is house policy: one or two main movements stay from session to session, so their loads can progress, and the rest rotate through the menu, warm-up and cool-down included. A harder or easier version of a movement (goblet squat to front squat) counts as new and carries its load forward. With no screen, a session that sounds like the last one is also the one the listener stops pressing play on.
+
+Rule: keep at most two of the main movements from the last two sessions, and build the rest of the session, warm-up and cool-down included, from movements the last four sessions didn't use (the brief lists them first in each group). Say in the audio what's new today.
+
 ## Readiness and adjusting on the day
 
 - **Effort by feel can set the day's load.** Zourdos and colleagues (2016, see Effort) offered the reps-left scale as a practical way to set each day's load from how the lifter feels that day. Source: https://pubmed.ncbi.nlm.nih.gov/26049792/ Tested on barbell squats, not light home loads.

@@ -192,6 +192,39 @@ class SecondSession(unittest.TestCase):
         self.assertNotIn("second session", yesterday)
 
 
+class Variety(unittest.TestCase):
+    """The brief counts each movement over the last four sessions, not just the last (programming.md, Variety)."""
+
+    def log(self):
+        a = ["arm circles", "inchworm", "reverse lunge", "overhead press", "kettlebell deadlift", "box breathing"]
+        b = ["cat-cow", "goblet squat", "push-up", "romanian deadlift", "bent-over row", "box breathing"]
+        return [sessionlog.Session(f"2026-11-{d:02d}", 30, "home", "Coach Freya", mv, "x")
+                for d, mv in ((3, a), (5, b), (8, a), (10, b))]
+
+    def test_the_week_names_the_movements_it_keeps_coming_back_to(self):
+        lines = "\n".join(brief._week_lines(CAT, self.log(), datetime.date(2026, 11, 16), []))
+        self.assertIn("box breathing (4 of 4)", lines)
+        self.assertIn("overhead press (2 of 4)", lines)
+        self.assertIn("Keep at most two main movements", lines)
+
+    def test_recent_uses_counts_the_last_four(self):
+        uses = brief.recent_uses(CAT, [sessionlog.Session("2026-10-01", 30, "home", "x", ["wall sit"], "x")]
+                                 + self.log())
+        self.assertNotIn("wall-sit", uses)
+        self.assertEqual(uses["box-breathing"], 4)
+        self.assertEqual(brief._use_tag("goblet-squat", set(), uses), "in 2 of the last 4 sessions")
+        self.assertEqual(brief._use_tag("box-breathing", {"box-breathing"}, uses),
+                         "in the last session, and 4 of the last 4")
+        self.assertEqual(brief._use_tag("wall-sit", set(), uses), "")
+
+    def test_the_day_order_is_stable_within_a_day_and_moves_between_days(self):
+        ids = sorted(CAT.movements)[:40]
+        day = datetime.date(2026, 11, 16)
+        one = sorted(ids, key=lambda i: brief._day_order(day, i))
+        self.assertEqual(one, sorted(ids, key=lambda i: brief._day_order(day, i)))
+        self.assertNotEqual(one, sorted(ids, key=lambda i: brief._day_order(day + datetime.timedelta(days=1), i)))
+
+
 class SeenClaims(unittest.TestCase):
     def test_more_claims_the_coach_cannot_make(self):
         for line in ("Solid work today, all executed with clean form.", "Your left knee is staying completely protected.",

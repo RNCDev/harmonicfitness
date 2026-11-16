@@ -173,6 +173,41 @@ def missing_patterns(cat, text: str, menu: dict) -> List[str]:
             "the menu (a light set or two is enough when the morning trained it)"] if gone else []
 
 
+SAME_SHARE = 0.5   # a draft sharing this much of its movements with a recent workout sounds like a rerun
+SAME_LEAST = 4     # and at least this many: a short session can share a warm-up without being one
+SAME_LAST = 2      # earlier days compared (programming.md, Variety: the last two sessions)
+
+
+def same_movements(cat, draft_path: str, text: str) -> List[str]:
+    """A warning when the draft's movements are mostly those of one of the last SAME_LAST days' workouts (the last
+    draft of each earlier day, so a same-day rewrite isn't compared with itself): the sessions ran as two
+    alternating templates while the menu held a hundred more movements."""
+    def ids(names):
+        return {m.id for m in (catalog.resolve(cat, n) for n in names) if m}
+    mine = ids(draft.declared(text))
+    if len(mine) < SAME_LEAST:
+        return []
+    today = os.path.basename(os.path.dirname(os.path.abspath(draft_path)))[:10]
+    by_day = {}
+    for path in earlier(draft_path, last=50):
+        day = os.path.basename(os.path.dirname(path))[:10]
+        if day < today:
+            by_day[day] = path   # sorted, so the day's last draft wins
+    out = []
+    for day in sorted(by_day)[-SAME_LAST:]:
+        try:
+            with open(by_day[day], encoding="utf-8") as f:
+                shared = mine & ids(draft.declared(f.read()))
+        except (OSError, UnicodeDecodeError, errors.HarmonicFitnessError):
+            continue
+        if len(shared) >= SAME_LEAST and len(shared) >= SAME_SHARE * len(mine):
+            names = sorted(cat.movements[i].name for i in shared)
+            out.append(f"{len(shared)} of today's {len(mine)} movements were in the {day} workout too ("
+                       + ", ".join(names) + "): keep at most two main ones to progress, and swap the rest, warm-up "
+                       "and cool-down included, for movements the menu shows untagged")
+    return out
+
+
 def seen_claims(text: str) -> List[str]:
     """Warnings for coaching sentences that claim to have seen the listener (SEEN), outside [story] tags."""
     out = []

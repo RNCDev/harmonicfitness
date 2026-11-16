@@ -17,6 +17,7 @@ without it. The safety screen (tools/screen.py) applies the limits, clinician Av
 and level, and refuses when a [[limits]] row can't be read.
 """
 import datetime
+import hashlib
 import os
 import sys
 from typing import Dict, List, Optional
@@ -130,12 +131,40 @@ def _limited(m: catalog.Movement, limits: List[catalog.Limit], side: str = "") -
     return ", ".join(parts)
 
 
+RECENT = 4   # sessions the menu's freshness looks back over (programming.md, Variety)
+
+
+def recent_uses(cat: catalog.Catalog, log, n: int = RECENT) -> Dict[str, int]:
+    """How many of the last `n` logged sessions used each movement, by id."""
+    counts: Dict[str, int] = {}
+    for e in log[-n:] if log else []:
+        for i in screen.ids(cat, e.movements):
+            counts[i] = counts.get(i, 0) + 1
+    return counts
+
+
+def _day_order(today: Optional[datetime.date], mid: str) -> str:
+    """A stable order that changes each day, so the same movement doesn't head its group every session."""
+    return hashlib.sha256(f"{today.isoformat() if today else ''}:{mid}".encode("utf-8")).hexdigest()
+
+
+def _use_tag(mid: str, last_ids, uses: Dict[str, int]) -> str:
+    k = uses.get(mid, 0)
+    if mid in last_ids:
+        return "in the last session" + (f", and {k} of the last {RECENT}" if k > 1 else "")
+    return f"in {k} of the last {RECENT} sessions" if k else ""
+
+
 def menu_lines(cat: catalog.Catalog, scr, sides: Dict[str, str], likes, last_ids, compact=False,
-               pace: float = 1.0) -> List[str]:
+               pace: float = 1.0, uses: Optional[Dict[str, int]] = None,
+               today: Optional[datetime.date] = None) -> List[str]:
     """The safe menu: every allowed movement under its primary pattern, then the healthy-side-only
     ones, each with its facts and the catalog's coaching notes. `compact` keeps the facts and the easier and
     harder versions (what designing needs) and leaves the coaching notes to `./harmonicfitness movements --about`,
-    except for a movement that loads one of today's limited areas or works one side only: its notes stay."""
+    except for a movement that loads one of today's limited areas or works one side only: its notes stay.
+    Within each group, the movements the recent sessions (`uses`) didn't touch come first, in an order that
+    changes each day: a writer leans on what's listed first, and a fixed order made every session alike."""
+    uses = uses or {}
 
     def entry(m, side=None):
         where = f"{side} side only" if side else ("one side at a time" if m.sided else "")
@@ -147,7 +176,7 @@ def menu_lines(cat: catalog.Catalog, scr, sides: Dict[str, str], likes, last_ids
         if load:
             facts.append(f"load on today's limits: {load}")
             facts.append("LIGHT ONLY today")
-        tags = [t for t, on in (("liked", m.id in likes), ("in the last session", m.id in last_ids)) if on]
+        tags = [t for t in ("liked" if m.id in likes else "", _use_tag(m.id, last_ids, uses)) if t]
         head = f"- **{m.name}** (`{m.id}`{', ' + ', '.join(tags) if tags else ''}): " + "; ".join(facts) + "."
         notes = ["  " + line.strip() for line in catalog.about(cat, m, allowed=on_menu)[1:]]
         if compact:   # the coaching notes come with `movements --about` for the movements chosen
@@ -157,7 +186,8 @@ def menu_lines(cat: catalog.Catalog, scr, sides: Dict[str, str], likes, last_ids
     out = []
     on_menu = {m.id for m in scr.sel.allowed + scr.sel.healthy_side_only}
     for p in cat.patterns:
-        group = [m for m in scr.sel.allowed if m.patterns and m.patterns[0] == p]
+        group = sorted((m for m in scr.sel.allowed if m.patterns and m.patterns[0] == p),
+                       key=lambda m: (uses.get(m.id, 0) + (m.id in last_ids), _day_order(today, m.id)))
         if group:
             out += ["", f"### {p}"]
             for m in group:
@@ -196,9 +226,20 @@ def _week_lines(cat: catalog.Catalog, log, today: datetime.date, feedback: List[
         out.append("- Not trained in the last seven days: " + ", ".join(none) + ".")
     if once:
         out.append("- Trained once in the last seven days: " + ", ".join(once) + ".")
+    uses = recent_uses(cat, log)
+    often = sorted(((k, i) for i, k in uses.items() if k > 1 and i in cat.movements),
+                   key=lambda ki: (-ki[0], cat.movements[ki[1]].name))
+    if often:
+        n = min(len(log), RECENT)
+        out.append(f"- Variety: the last {n} sessions used {len(uses)} different movements, and kept coming back to "
+                   + ", ".join(f"{cat.movements[i].name} ({k} of {n})" for k, i in often[:10])
+                   + ". Keep at most two main movements from the last two sessions, to progress them; the rest of "
+                   "today, warm-up and cool-down included, comes from movements the menu shows untagged (listed first "
+                   "in each group). A harder version of one done before counts as new. Say what's new today.")
     loads = coverage.last_loads(log, cat=cat)
     if loads:
-        out.append("- Last loads (progress from these): " + "; ".join(
+        out.append("- Last loads (for a movement you keep, progress from its load; a new one starts from the nearest "
+                   "movement here, a step lighter, and is never chosen just because it has a load): " + "; ".join(
             f"{mv}: {load} ({date})" for mv, (date, load) in sorted(loads.items(), key=lambda kv: kv[1][0], reverse=True)) + ".")
     if feedback:
         out.append(f"- Latest feedback (honour it, and say so): {feedback[-1]}")
@@ -369,8 +410,8 @@ def _programming_lines(sess: sessions.Sessions, request: dict, scr, log) -> List
 # the writer reads that doesn't apply is one more it has to weigh.
 _COMMON = {"Effort", "Readiness and adjusting on the day", "Warm-up, finisher and cool-down"}
 RULES_FOR = {
-    "strength": _COMMON | {"Load range", "Rest and pairing", "Exercise order", "Tempo", "Progression"},
-    "general": _COMMON | {"Load range", "Rest and pairing", "Exercise order", "Tempo", "Progression",
+    "strength": _COMMON | {"Load range", "Rest and pairing", "Exercise order", "Tempo", "Progression", "Variety"},
+    "general": _COMMON | {"Load range", "Rest and pairing", "Exercise order", "Tempo", "Progression", "Variety",
                           "Rest between intervals", "Effort by ear"},
     "conditioning": _COMMON | {"Rest between intervals", "Effort by ear"},
     "mobility": _COMMON | {"Stretching dose"},
@@ -563,7 +604,8 @@ def build(request: dict, cat: catalog.Catalog, sess: sessions.Sessions, profile,
         out.append("Coaching notes: after designing, run `./harmonicfitness movements --about <the ids you chose, comma "
                    "separated>` and coach from them.")
     if scr.sel.allowed or scr.sel.healthy_side_only:
-        out += menu_lines(cat, scr, sides, scr.likes, last_ids, compact=compact, pace=sess.rep_pace)
+        out += menu_lines(cat, scr, sides, scr.likes, last_ids, compact=compact, pace=sess.rep_pace,
+                          uses=recent_uses(cat, log), today=today)
     weights = context.kit_weights(profile).get(request.get("kit") or "")
     loads = screen.loads_line(weights, scr.equipment) if weights else ""
     opens = screen.would_open(cat, scr.sel, scr.equipment, scr.level, scr.limits, scr.avoid, scr.dislikes)

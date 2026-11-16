@@ -2,6 +2,25 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.81.0] - 2026-11-16
+
+More variety from session to session. The brief only knew the last session, so the writer avoided it and picked the one before. The sessions settled into two templates taking turns, about 25 movements from a home menu of about 120. The brief now looks back four sessions and puts what they didn't use first, and the build warns when a draft reruns a recent workout.
+
+### Added
+- **`## Variety` in `knowledge/programming.md`**, sourced: planned variation helps strength and growth while random rotation may not (a systematic review), and varied exercises keep trained people more motivated (a trial). House rule: keep at most two main movements from the last two sessions so their loads progress, and rotate the rest, warm-up and cool-down included. Strength and general briefs carry the rule.
+- **A variety warning in the build** (`repeats.same_movements`). It warns when four or more, and at least half, of a draft's movements match those of one of the last two days' workouts, naming them. An earlier draft from the same day isn't compared. It shows from the skeleton on, while movements can still change.
+
+### Changed
+- **The brief's menu tags each movement with its recent use** ("in 2 of the last 4 sessions"; "in the last session, and 3 of the last 4"), not only "in the last session".
+- **Movements the last four sessions didn't use come first in each menu group, in an order that changes each day** but holds within a day. The writer leaned on whatever came first.
+- **The week section names the movements it keeps coming back to**, with counts, and asks for what's new to be said in the audio.
+- **"Last loads (progress from these)" is reworded:** progress from a load for a movement you keep; a new movement starts from the nearest one a step lighter, and is never chosen just because it has a load.
+
+### For forks
+- `brief.menu_lines` takes `uses` and `today` (both optional) and orders each group by recent use and then by day; the menu's order is no longer the catalog's. A fork that reads the brief's menu in catalog order should read it by id.
+- The menu tag "in the last session" can now carry a count after it. A fork that matches the tag exactly should match its start.
+- `tests/test_catalog.py` now requires `## Variety` in `knowledge/programming.md`.
+
 ## [0.80.0] - 2026-11-11
 
 Easier to hand on. A listener can send a friend one message from `SHARE-HARMONIC.md`. Google's Antigravity joins Claude Code and Codex, though it hasn't been tried end to end yet. A voice key goes from the clipboard to `me/.env` with one command, so nobody edits the key file by hand.

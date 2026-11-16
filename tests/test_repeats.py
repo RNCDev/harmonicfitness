@@ -6,6 +6,7 @@ import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools"))
 
+import catalog  # noqa: E402
 import helpers  # noqa: E402
 import repeats  # noqa: E402
 
@@ -48,6 +49,42 @@ class Repeats(unittest.TestCase):
             self.assertEqual(repeats.repeats(now, f.read()), [])
         self.assertEqual(repeats.earlier(os.path.join(self.tmp.name, "x.draft.txt")), [])
         self.assertTrue(later)
+
+
+class SameMovements(unittest.TestCase):
+    """A draft whose movements are mostly a recent workout's is named (programming.md, Variety)."""
+    SAME = "arm circles, leg swings, inchworm, reverse lunge, overhead press, kettlebell deadlift, box breathing"
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.home = helpers.home(os.path.join(self.tmp.name, "me"))
+        self.root = self.home.__enter__()
+        self.addCleanup(self.home.__exit__, None, None, None)
+        self.cat = catalog.load()
+
+    def draft(self, stem, movements):
+        path = os.path.join(self.root, "workouts", stem, f"{stem}.draft.txt")
+        write(path, f"movements: {movements}\n@@ 60 | A\nGo.\n")
+        return path
+
+    def check(self, path):
+        with open(path, encoding="utf-8") as f:
+            return repeats.same_movements(self.cat, path, f.read())
+
+    def test_a_rerun_of_a_recent_workout_is_named(self):
+        self.draft("2026-11-08-strength-30", self.SAME)
+        got = self.check(self.draft("2026-11-16-strength-40", self.SAME + ", bent-over row"))
+        self.assertEqual(len(got), 1, got)
+        self.assertIn("2026-11-08", got[0])
+        self.assertIn("overhead press", got[0])
+
+    def test_a_fresh_session_a_same_day_rewrite_and_an_older_one_pass(self):
+        self.draft("2026-11-01-strength-30", self.SAME)   # three days back: only the last two days count
+        self.draft("2026-11-05-strength-30", "cat-cow, goblet squat, push-up, romanian deadlift, bent-over row")
+        self.draft("2026-11-08-strength-30", "wall sit, floor press, farmer carry, dead bug, child's pose")
+        self.draft("2026-11-16-strength-40", self.SAME)   # today's earlier take isn't compared
+        self.assertEqual(self.check(self.draft("2026-11-16-strength-40-2", self.SAME)), [])
 
 
 class SeenClaims(unittest.TestCase):

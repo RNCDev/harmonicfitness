@@ -534,6 +534,9 @@ def _run(b, text):
         gaps = repeats.missing_patterns(catalog.default(), text, menu.load(draft.menu_path(opts.draft)) or {})
         if gaps:   # a warning: a whole-body session missing a main pattern
             b.say("\nWhole body:\n" + "\n".join(f"  warning: {w}" for w in gaps))
+        rerun = repeats.same_movements(catalog.default(), opts.draft, text)
+        if rerun:   # a warning: the same movements as a recent session
+            b.say("\nVariety:\n" + "\n".join(f"  warning: {w}" for w in rerun))
     if issues:   # the lint's own issues listed above count too, so the work left isn't hidden behind one menu issue
         lint_left = f" and {report.problems} lint issue(s)" if report.problems and not smoke else ""
         b.fail(f"\n{len(issues)} menu issue(s){lint_left}. Fix and rerun. Nothing exported.")

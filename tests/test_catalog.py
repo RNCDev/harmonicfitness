@@ -609,7 +609,7 @@ class KnowledgeFiles(unittest.TestCase):
         with open(os.path.join(ROOT, "knowledge", "programming.md"), encoding="utf-8") as f:
             text = f.read()
         for heading in ("## Effort", "## Load range", "## Weekly dose", "## Rest and pairing", "## Tempo",
-                        "## Progression", "## Warm-up, finisher and cool-down", "## One-sided training",
+                        "## Progression", "## Variety", "## Warm-up, finisher and cool-down", "## One-sided training",
                         "## Conditioning sources"):
             self.assertIn(heading, text)
         self.assertGreaterEqual(text.count("Source: https://"), 8)
