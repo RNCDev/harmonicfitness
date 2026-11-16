@@ -537,6 +537,15 @@ def _run(b, text):
         rerun = repeats.same_movements(catalog.default(), opts.draft, text)
         if rerun:   # a warning: the same movements as a recent session
             b.say("\nVariety:\n" + "\n".join(f"  warning: {w}" for w in rerun))
+        import content
+        r = content.recipe()
+        told, spoken = repeats.story_share(text)
+        lean = repeats.story_balance(text, r.story_share,
+                                     content.band(r, round(sum(s["seconds"] for s in segments) / 60)).in_work)
+        if spoken or lean:   # a warning: a session of mostly instruction, against the content plan's balance
+            b.say("\nBalance:" + (f"\n  stories {told / spoken:.0%} of the spoken words, the plan's aim about "
+                                  f"{r.story_share:.0%}" if spoken else "")
+                  + "".join(f"\n  warning: {w}" for w in lean))
     if issues:   # the lint's own issues listed above count too, so the work left isn't hidden behind one menu issue
         lint_left = f" and {report.problems} lint issue(s)" if report.problems and not smoke else ""
         b.fail(f"\n{len(issues)} menu issue(s){lint_left}. Fix and rerun. Nothing exported.")

@@ -296,6 +296,12 @@ in_work = 8
 # its format and told four results in a row; the one that worked asked a quiz and paid it off, and linked a
 # story to the one before).
 [mix]
+# The share of a session's spoken words told as stories, the rest the coaching (house default, the listener's
+# feedback: 2026-11-08 "maybe too much coaching instruction, I would prefer 50/50 or even 60/40", 2026-11-10 "a bit
+# more content and a bit less coaching, not less exercise"; their sessions then measured 28 to 30 percent). The
+# build reports each draft's share and names one well under it; the coaching that goes is repetition, never a cue
+# the listener must catch or a safety line.
+story_share = 0.5
 rules = [
     "Never say a format's name or announce a segment (\"on this day\", \"a quick dispatch\", \"news from\"): tell the thing, the way a friend starts a story.",
     "Never two news items back to back: two or three small results become one roundup, with a reaction.",
@@ -303,6 +309,7 @@ rules = [
     "Hard efforts and counted sets carry none: the listener is working or counting.",
     "A shape: something light and theirs early, the serial or the big story through the middle, a question paid off before the end, something calm at the close.",
     "Every piece ends on its point (the coach's take, a question back to them, a link to the work, what's next), and links to the one before when it's true (\"since the Devils came up\").",
+    "Never two pieces on the same idea in one session (two takes on private equity fees are one piece), and never three heavy ones in a row (research, finance, ideas): a light one (their team, a show, a quirk) goes between, most of all in the last rounds, when they're tired.",
 ]
 
 # What the listener has shown they like (tools/interests.py): evidence from feedback, ratings and what they

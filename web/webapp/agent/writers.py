@@ -22,8 +22,11 @@ from pydantic_ai.messages import NativeToolCallPart
 from . import tools
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-STORY_SHARE = 0.7      # of a rest's words, about the story's: a rest whose share is under SMALLEST_STORY carries none
-WORK_STORY_SHARE = 0.55   # of a steady timed set's: its setup, go, first cue, time checks and finish take the rest
+# Of a rest's words, about the story's: a rest whose share is under SMALLEST_STORY carries none. Raised from 0.7 and
+# 0.55 in 0.82.0: the listener asked for half the session to be stories (content.toml's story_share), and their
+# sessions measured 28 to 30 percent; COACHING_FLOOR still keeps a short slot's breath, setup and cues whole.
+STORY_SHARE = 0.8
+WORK_STORY_SHARE = 0.65   # of a steady timed set's: its setup, go, first cue, time checks and finish take the rest
 SMALLEST_STORY = 40
 # The fewest words a story slot leaves its coaching: a breath, the self-check where one falls and what's next (or a
 # set's setup, go and time checks) took about this many wherever they went, so a short rest's 30 percent was written

@@ -398,6 +398,34 @@ class Switch(unittest.TestCase):
         deps.writers = "one"
         self.assertIs(agent._chain(ctx, "me/x.draft.txt", clean, "W", "Coach Freya"), clean)
 
+    def test_a_skeleton_of_counted_sets_is_held_back_once(self):
+        """0.82.0: a clean skeleton whose Balance warns of too few timed sets comes back for a fix, once."""
+        deps = tools.Deps(engine_root=ROOT, home=ROOT, keys={}, today="2026-11-01", now="2026-11-01 Sunday 08:00",
+                          writers="three")
+        deps.reports["me/x.draft.txt"] = "the budgets"
+        ctx = type("Ctx", (), {"deps": deps})()
+        filled = []
+
+        async def fill(ctx_, path, name, coach):
+            filled.append(path)
+            return tools.ToolResult(code=0, output="priced")
+        import asyncio
+        import threading
+        loop = asyncio.new_event_loop()
+        threading.Thread(target=loop.run_forever, daemon=True).start()
+        self.addCleanup(loop.call_soon_threadsafe, loop.stop)
+        deps.loop = loop
+        from unittest import mock
+        lean = tools.ToolResult(code=1, output="Balance:\n  warning: this skeleton marks 1 timed set(s) for a piece and "
+                                "has 9 counted set(s)", error="A skeleton, no words yet")
+        with mock.patch.object(agent, "_fill", fill):
+            held = agent._chain(ctx, "me/x.draft.txt", lean, "W", "Coach Freya")
+            self.assertEqual(filled, [])
+            self.assertIn("The writers haven't started", held.output)
+            again = agent._chain(ctx, "me/x.draft.txt", lean, "W", "Coach Freya")
+        self.assertEqual(filled, ["me/x.draft.txt"])
+        self.assertIn("the writers filled it at once", again.output)
+
     def test_stop_ends_a_writers_room_a_clean_skeleton_started(self):
         import asyncio
         import threading

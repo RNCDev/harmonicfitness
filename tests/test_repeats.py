@@ -95,11 +95,51 @@ class SeenClaims(unittest.TestCase):
             with self.subTest(line=line):
                 self.assertEqual(len(repeats.seen_claims(f"@@ 30 | A\nGood. {line}\n")), 1)
 
+    def test_a_rests_praise_for_how_it_went_is_named(self):
+        """0.82.0: the lines a 40-minute session's rests said, none named then."""
+        for line in ("Every single movement pattern is dialed in, and the tempo has been rock solid.",
+                     "You're moving with tremendous focus today.",
+                     "That was sharp, controlled work across all five stations.",
+                     "You crushed all three rounds of that circuit.",
+                     "Outstanding strength, sharp control, and great focus across all fifteen sets."):
+            with self.subTest(line=line):
+                self.assertEqual(len(repeats.seen_claims(f"@@ 30 | A\n{line}\n")), 1)
+        for line in ("Halfway through the reps, torso rock solid.", "Keep the tempo rock solid.",
+                     "Get your stance dialed in before the go.", "That was thirty heavy reps logged today.",
+                     "Mighty proud of your work today."):
+            with self.subTest(line=line):
+                self.assertEqual(repeats.seen_claims(f"@@ 30 | A\n{line}\n"), [])
+
     def test_questions_plans_and_stories_pass(self):
         text = ("@@ 30 | A\nHow did that one feel? If it was a grind, stay at this weight. That's all eight efforts "
                 "done, and a good session to build on next week starts here. "
                 "[story] His best lap yet came in the rain, and the crowd saw it. [/story]\n")
         self.assertEqual(repeats.seen_claims(text), [])
+
+
+class Balance(unittest.TestCase):
+    """0.82.0: the share of the words told as stories, against the content plan's."""
+
+    def test_the_share_counts_spoken_words_inside_and_outside_the_stories(self):
+        text = ("movements: x\n@@ 60 | Rest\nBreathe in. [pause 3s] And out, slow and easy.\n"
+                "[story] The Devils won seven to four in Washington. [/story]\n")
+        self.assertEqual(repeats.story_share(text), (8, 15))
+
+    def test_a_draft_of_mostly_instruction_is_named(self):
+        coaching = " ".join(["Drive through the heels."] * 12)
+        text = f"movements: x\n@@ 60 | Rest\n{coaching} [story] A short story here. [/story]\n"
+        self.assertTrue(repeats.story_balance(text, 0.5, 3))
+        even = f"movements: x\n@@ 60 | Rest\nDrive through the heels. [story] {coaching} [/story]\n"
+        self.assertEqual(repeats.story_balance(even, 0.5, 3), [])
+        self.assertEqual(repeats.story_balance(text, 0.0, 3), [])   # no aim, no warning
+
+    def test_a_skeleton_of_counted_sets_is_named_by_its_plan(self):
+        counted = "@@ 40 | Squat set {n}\n[count 3 go] [reps 8]\n@@ 60 | Rest\n"
+        timed = "@@ 45 | Bugs set {n}\n[count 3 go] [story] [/story]\n@@ 60 | Rest\n"
+        lean = "movements: x\n" + "".join(counted.format(n=n) for n in range(4)) + timed.format(n=1)
+        self.assertIn("marks 1 timed set(s)", repeats.story_balance(lean, 0.5, 3)[0])
+        full = "movements: x\n" + counted.format(n=1) + "".join(timed.format(n=n) for n in range(3))
+        self.assertEqual(repeats.story_balance(full, 0.5, 3), [])
 
 
 if __name__ == "__main__":

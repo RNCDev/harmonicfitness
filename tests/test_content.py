@@ -225,6 +225,8 @@ class Record(unittest.TestCase):
         text = "\n".join(content.plan(25, TODAY, r, p, [], []))
         self.assertIn("- The Bell House: comedy and music", text)
         self.assertIn(f"In the work: about {f['in_work']} pieces", text)
+        self.assertEqual(f["story_share"], 0.5)   # 0.82.0: the listener asked for half the words as stories
+        self.assertIn("The balance: about 50% of the spoken words are the stories", text)
         none = "\n".join(content.plan(25, TODAY, r, profile("- Jazz\n"), [], []))
         self.assertIn("No venues yet", none)
 

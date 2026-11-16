@@ -372,7 +372,9 @@ def _programming_lines(sess: sessions.Sessions, request: dict, scr, log) -> List
             out.append(f"- This session's work: about {sets} hard sets in its {work} s (a counted set with its rest is "
                        f"about two minutes; a timed set of forty-five seconds with its rest about a minute and a half, "
                        f"so about {max(round(work / 90), 1)} of those): three sets of each main movement when the time "
-                       "holds them, never two, and no more movements than leaves room for that. Rests and timed sets are the dose's, never longer to "
+                       "holds them, never two, and no more movements than leaves room for that. Make most of them timed, "
+                       "each carrying a piece, and keep counted sets for the heaviest lifts: a counted set carries cues "
+                       "only, and about half the session's words are the stories. Rests and timed sets are the dose's, never longer to "
                        "fit a story, and the welcome stays under a minute: a story fits its moment, not the moment the "
                        "story.")
         out += ["", f"Formats that suit a {minutes} minute {goal} session at this level with this kit "

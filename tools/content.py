@@ -85,6 +85,7 @@ class Recipe(NamedTuple):
     per_topic: int
     per_run: int
     mix: Tuple[str, ...] = ()   # how the pieces sit together across a session
+    story_share: float = 0.0    # of a session's spoken words, told as stories ([mix] story_share)
 
 
 class Piece(NamedTuple):
@@ -117,6 +118,7 @@ def recipe(path=RECIPE) -> Recipe:
         stock = data.get("stock", {})
         per_topic, per_run = int(stock.get("per_topic", 2)), int(stock.get("per_run", 6))
         mix = tuple(str(x) for x in data.get("mix", {}).get("rules", ()))
+        story_share = float(data.get("mix", {}).get("story_share", 0.0))
     except (KeyError, TypeError, ValueError) as e:
         raise errors.ContextError(f"{paths.show(path)}: a format or band is missing a field or has the wrong type "
                                   f"({e})") from e
@@ -130,7 +132,10 @@ def recipe(path=RECIPE) -> Recipe:
                                   f"(not for {', '.join(bad)})")
     if not bands:
         raise errors.ContextError(f"{paths.show(path)}: no [[band]]")
-    return Recipe(formats, bands, per_topic, per_run, mix)
+    if not 0 <= story_share < 1:
+        raise errors.ContextError(f"{paths.show(path)}: [mix] story_share must be a fraction under one "
+                                  f"(not {story_share})")
+    return Recipe(formats, bands, per_topic, per_run, mix, story_share)
 
 
 def band(r: Recipe, minutes: int) -> Band:
@@ -303,7 +308,8 @@ def restock(r: Recipe, topics: List[context.Topic], items, pieces) -> List[tuple
 def plan_facts(minutes: int, today: datetime.date, r: Recipe = None, profile=None, items=None,
                pieces=None) -> dict:
     """The plan as data (content plan --json): minutes; topics (how many the rests touch), spares, serial
-    (whether the session carries one thread), in_work (pieces told during steady timed work), mix [rules]; venues [{name, note}] (whose
+    (whether the session carries one thread), in_work (pieces told during steady timed work), story_share (of the
+    spoken words, told as stories), mix [rules]; venues [{name, note}] (whose
     upcoming shows they want to hear about); due [{topic, note, last_told (a date or null), spare}]; formats
     [{id, name, group, what, words, research, across, fits, tell, ends, avoid}] and skipped [ids]; recent_days and told_recent
     [{date, topic, format, title}]; reserve [{slug, title, topic, format, source, good_until, path}]; restock
@@ -321,7 +327,7 @@ def plan_facts(minutes: int, today: datetime.date, r: Recipe = None, profile=Non
     picked = due(tops, items, b.topics + b.spares, lr.strength, today)
     return {
         "minutes": minutes, "topics": b.topics, "spares": b.spares, "serial": b.serial, "in_work": b.in_work,
-        "mix": list(r.mix),
+        "story_share": r.story_share, "mix": list(r.mix),
         "venues": [{"name": v.name, "note": v.note or None, "learned": False}
                    for v in (context.venues(profile) if profile is not None else [])]
         + [{"name": x.name, "note": x.note or None, "learned": True} for x in lr.venues],
@@ -357,6 +363,12 @@ def plan(minutes: int, today: datetime.date, r: Recipe = None, profile=None, ite
            + (", and carries one serial thread told across it" if f["serial"] else "")
            + ". Pick each item's format by what there is to tell and where it lands, not by habit; the brief's "
              "Talk to time line says how much each part holds.", ""]
+    if f["story_share"]:
+        out += [f"The balance: about {f['story_share']:.0%} of the spoken words are the stories, the rest the "
+                "coaching. The coaching keeps every cue the listener must catch and every safety line; what makes "
+                "room is set-ups said again in later rounds and cues that only rephrase a form point. Plan most of "
+                "the work as timed sets, each carrying a piece, and keep counted sets for the heaviest lifts: a "
+                "counted set carries cues only. The build reports each draft's share.", ""]
     if f["in_work"]:
         out += [f"In the work: about {f['in_work']} pieces. Steady timed work is set up before the go (the movement, "
                 "its one or two form points, the target), gets a cue in its first seconds, then carries a piece while "

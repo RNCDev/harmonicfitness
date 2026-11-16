@@ -554,7 +554,7 @@ class FreshFork(unittest.TestCase):
                              "avoid"} <= set(plan["formats"][0]))
             self.assertEqual(sorted(plan), ["due", "formats", "in_work", "minutes", "mix", "recent_days", "reserve",
                                             "restock",
-                                            "serial", "skipped", "spares", "taste", "threads", "told_recent",
+                                            "serial", "skipped", "spares", "story_share", "taste", "threads", "told_recent",
                                             "topics", "unreadable", "venues"])
             coaches_ = got["coaches list"]
             self.assertEqual(sorted(coaches_), ["coaches", "default", "note"])

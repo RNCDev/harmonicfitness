@@ -2,6 +2,33 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.82.0] - 2026-11-16
+
+More stories, less instruction. The listener asked for half of each session to be stories. Their last three sessions measured 28 to 30 percent: most of the work was counted sets, which carry cues only, and later rounds repeated the first round's set-ups. The content plan now sets a balance, the build reports it, and a skeleton made almost entirely of counted sets is named before any words are written. Every cue the listener must catch and every safety line stays.
+
+### Added
+- **`story_share` in `knowledge/content.toml`'s `[mix]`** (house default 0.5, from the listener's feedback of 2026-11-08 and 2026-11-10). The content plan states the balance and what makes room for it.
+- **A Balance section in the build** (`repeats.story_share`, `repeats.story_balance`):
+  - A draft with words reports its stories' share of the spoken words, and warns when it's more than ten points under the plan.
+  - A skeleton warns when it marks fewer timed sets for a piece than the plan's In the work and has more counted sets than marked ones.
+- **The web app holds such a skeleton back once** before the writers start, so the agent can make the steady sets timed. Sent again unchanged, it goes on, so a heavy day that needs its counted sets is never stuck.
+
+### Changed
+- **The web writers give stories more of each slot:** 80 percent of a rest (was 70) and 65 percent of a timed set (was 55). The coaching floor still keeps a short slot's breath, set-up and cues whole.
+- **The skeleton favors timed sets.** The brief's work line and the web agent's instructions say to make most sets timed, each carrying a piece, and keep counted sets for the heaviest lifts.
+- **`knowledge/script.md`:**
+  - From a movement's second round, its set-up is one line: the movement, the load, the side and the one point that matters.
+  - A counted set's cues say only what the listener needs (the side, the tempo, the switch, how many are left).
+  - A piece is a story with a person, a moment or a turn, never a finding summed up as claim, result and moral.
+  - Two pieces on the same idea count as one.
+- **A new `[mix]` rule:** never two pieces on the same idea, and never three heavy ones in a row, most of all in the last rounds.
+- **The can't-see-them check names more praise for how it went:** "the tempo has been rock solid", "dialed in", "you're moving with tremendous focus", "that was sharp", "crushed all three rounds", "sharp control", "great focus". Instructions such as "torso rock solid" still pass.
+
+### For forks
+- `content.Recipe` has a new field, `story_share`, and `content plan --json` has a new key of the same name. A fork that builds a `Recipe` positionally, or pins the plan's keys, should add it.
+- `[mix] story_share` must be a fraction from 0 up to, but not including, 1; anything else stops the plan as a context error. Leaving it out (0) turns the balance warning off.
+- The build prints a `Balance:` section after `Variety:`. A fork that parses the build's output should allow it.
+
 ## [0.81.0] - 2026-11-16
 
 More variety from session to session. The brief only knew the last session, so the writer avoided it and picked the one before. The sessions settled into two templates taking turns, about 25 movements from a home menu of about 120. The brief now looks back four sessions and puts what they didn't use first, and the build warns when a draft reruns a recent workout.

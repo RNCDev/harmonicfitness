@@ -733,6 +733,8 @@ async def write_script(ctx: RunContext[Deps], path: str, build_name: str | None 
 
 # what a skeleton's lint says when it's clean: its budgets are ready, and nothing in it needs fixing first
 CLEAN_SKELETON = "A skeleton, no words yet"
+# what the build's Balance section warns of a skeleton (repeats.story_balance): too few timed sets marked for a piece
+BALANCE_WARNING = "timed set(s) for a piece"
 
 
 def _chain(ctx: RunContext[Deps], path: object, result: ToolResult, name: str | None, coach: str | None) -> ToolResult:
@@ -742,6 +744,14 @@ def _chain(ctx: RunContext[Deps], path: object, result: ToolResult, name: str | 
     if not (deps.writers == "three" and isinstance(path, str) and deps.loop is not None
             and CLEAN_SKELETON in result.output + result.error and path in deps.reports):
         return result
+    if BALANCE_WARNING in result.output and not deps.balance_held:   # once: too few timed sets marked for a piece
+        deps.balance_held = True
+        writers.logline(deps, "skeleton held: too few timed sets marked for a piece")
+        return result.model_copy(update={"output": result.output + "\n\nThe writers haven't started: the Balance "
+                                         "warning above says this skeleton makes a script of mostly instruction. "
+                                         "Make the steady sets timed and mark each for a piece in one edit_segments "
+                                         "(with build_name and coach), which goes on to the writers; or, where the "
+                                         "day's heavy lifts need their counted sets, send it again as it is."})
     writers.logline(deps, "skeleton clean: straight to the writers")
     job = deps.room_job = asyncio.run_coroutine_threadsafe(_fill(ctx, path, name, coach), deps.loop)
     tools.show_plan(deps, path)   # the workout's shape, in the chat while the room writes its words

@@ -70,6 +70,9 @@ class Deps:
     coach_done: bool = False         # a candidate was kept or the audition closed: the next turn needs no skill
     steps: int = 0                   # the last step id said this turn
     lint_failed: bool = False        # the last check of the script failed: the next draft is a fix, not a first go
+    # a skeleton's Balance warning was handed back once this turn: the next clean skeleton goes to the writers as it
+    # is, so a day whose heavy work needs its counted sets is never held twice (0.82.0)
+    balance_held: bool = False
     # the draft just written is a "skeleton" (no words yet) or "partial" (segments still empty): its build is a
     # lint, whose report is the word budgets; "" otherwise
     skeleton: str = ""

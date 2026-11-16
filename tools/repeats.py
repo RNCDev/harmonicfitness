@@ -90,13 +90,20 @@ SEEN = re.compile(
     r"|\bthat'?s (?:exactly |just )?(?:where|what) (?:we|I) want(?:ed)? (?:it|you|to see)?\b"
     r"|\b(?:that was a|that's a|what a|and a) (?:really )?(?:strong|great|solid|excellent|powerful|fantastic) "
     r"(?:first |last )?(?:ride|session|workout|set|effort|climb|surge|round|sprint|interval|one)\b"
-    r"|\b(?:nailed|crushed|smashed) (?:it|that)\b"
+    r"|\b(?:nailed|crushed|smashed) (?:it|that|all|every|those|each)\b"
+    # 0.82.0, from a 40-minute session's rests: "the tempo has been rock solid", "every movement pattern is dialed
+    # in", "you're moving with tremendous focus", "that was sharp, controlled work"
+    r"|\b(?:has|have|had) been (?:rock solid|rock steady|spot on|dialed in|flawless|perfect|sharp|smooth|clean)\b"
+    r"|\b(?:is|are|was|were|looks|looked) (?:all |totally |completely )?dialed in\b"
+    r"|\byou(?:'re| are| were|'ve been| have been) moving (?:with|well|beautifully|smoothly|great)\b"
+    r"|\bthat was (?:sharp|smooth|clean|crisp|tight|controlled|solid|flawless)\b"
     r"|\byou(?:'re| are) (?:flying|crushing it|killing it)\b"
     r"|\b(?:executed|done|performed) with (?:clean|perfect|great|good|solid) (?:form|technique)\b"
     r"|\b(?:solid|great|real|good) (?:discipline|work stepping|control)\b|\bsolid work\b"
     r"|\b(?:completely|totally|perfectly) (?:safe|protected|stable)\b"
     r"|\b(?:clean|crisp|smooth|solid) (?:dumbbell |kettlebell |barbell )?(?:pressing|presses|deadlifts|squats|rows|reps|form|technique)\b"
-    r"|\b(?:great|excellent|perfect|beautiful|fantastic|outstanding) (?:execution|control|posture|form|technique)\b"
+    r"|\b(?:great|excellent|perfect|beautiful|fantastic|outstanding|sharp|tremendous) (?:execution|control|posture|form"
+    r"|technique|strength|focus|tempo)\b"
     r"|\b(?:outstanding|beautiful|perfect|excellent|fantastic) (?:set|rep|round|carry|press|pull|lift|squat|lunge)s?\b"
     r"|\bwith (?:fantastic|great|excellent|perfect|beautiful|total|real) control\b"
     r"|\b(?:held|kept) your (?:posture|form|back|spine|core|hips|chest) (?:clean|perfect|tight|steady|straight|neutral"
@@ -123,6 +130,52 @@ def stacked_stories(text: str) -> List[str]:
             out.append(f'segment "{seg["label"]}" tells {len(stories)} stories in a row; one story to a rest (a longer '
                        "rest gets a bigger story, not two or three), the others to other rests or left untold")
     return out[:SHOWN]
+
+
+EMPTY_STORY = re.compile(r"\[story\]\s*\[/story\]", re.IGNORECASE)   # a skeleton's mark for a piece told in the work
+WORD = re.compile(r"[A-Za-z][A-Za-z']*")
+# How far under the content plan's story share a draft may land before it's named: a session's stories move with
+# what research found, so only a clear shortfall is worth a warning (0.82.0).
+BALANCE_SLACK = 0.1
+
+
+def _spoken_words(text: str) -> int:
+    return len(WORD.findall(draft.STORY_TAG_RE.sub(" ", draft.MARK_RE.sub(" ", text))))
+
+
+def story_share(text: str) -> tuple:
+    """(the words told inside [story] tags, all the words spoken) across a draft; (0, 0) for a skeleton."""
+    told = spoken = 0
+    for seg in draft.parse(text):
+        coaching, stories, _ = draft.story_split(seg)
+        n = sum(_spoken_words(s) for s in stories)
+        told, spoken = told + n, spoken + n + _spoken_words(coaching)
+    return told, spoken
+
+
+def story_balance(text: str, share: float, in_work: int) -> List[str]:
+    """Warnings for a session whose talk is mostly instruction, against the content plan's `share` of the spoken
+    words told as stories and its `in_work` pieces told during steady timed sets. A skeleton is checked by its plan:
+    a counted set carries cues only, so a skeleton of counted sets with few timed sets marked for a piece makes a
+    script of instruction however the rests are written (the listener's 2026-11-16 40-minute session: twelve
+    counted sets, three marked, 29 percent stories against the half they asked for)."""
+    told, spoken = story_share(text)
+    if not spoken:
+        segs = [("\n".join(line for _, line in seg["lines"])) for seg in draft.parse(text)]
+        marked = sum(1 for body in segs if EMPTY_STORY.search(body))
+        counted = sum(1 for body in segs if draft.REPS_RE.search(body))
+        if in_work and marked < in_work and counted > marked:
+            return [f"this skeleton marks {marked} timed set(s) for a piece and has {counted} counted set(s), and the "
+                    f"content plan tells about {in_work} pieces in the work: a counted set carries cues only, so make "
+                    "the steady sets timed (forty to sixty seconds at the dose's load) and mark each with an empty "
+                    "[story] [/story] after its go, keeping counted sets for the heaviest lifts"]
+        return []
+    if share and told / spoken < share - BALANCE_SLACK:
+        return [f"stories are {told / spoken:.0%} of the spoken words and the content plan aims for about {share:.0%}: "
+                "the set-ups after a movement's first round are one line, a counted set's cues say only what the "
+                "listener needs (the side, the tempo, the switch), and the time that frees goes to the rests' "
+                "stories and the timed sets' pieces"]
+    return []
 
 
 # a figure said aloud: digits, or a run of number words holding a magnitude ("sixteen point three billion")
