@@ -62,7 +62,7 @@ class Plan(unittest.TestCase):
         _, segs = writers.split(SKELETON)
         rests = writers.slots(segs, writers.budgets(REPORT))
         # the welcome, the sets, a twenty-second rest and the breathing close carry none
-        self.assertEqual(rests, {3: (219 - 153, 153)})
+        self.assertEqual(rests, {3: (writers.COACHING_FLOOR, 219 - writers.COACHING_FLOOR)})   # 0.82.0: was 66 and 153
 
     def test_a_short_rests_story_leaves_its_coaching_the_words_it_takes(self):
         _, segs = writers.split(SKELETON)

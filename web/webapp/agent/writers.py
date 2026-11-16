@@ -33,6 +33,10 @@ SMALLEST_STORY = 40
 # 80 percent over (0.59.0's bench, 2026-11-03); the story gives way to it rather than the segment running long, down
 # to SMALLEST_STORY: a session of thirty-second rests with the floor in full carried no story at all.
 COACHING_FLOOR = 60
+# The fewest words a slot needs to carry a story at all: under it, a SMALLEST_STORY story would leave the breath and
+# the handback under twenty words. The 0.7 share kept a slot under about 57 words story-free; 0.82.0's 0.8 would
+# have told a 40-word story in a 50-word rest, so the cutoff is said outright.
+SHORTEST_SLOT = 60
 STORY_WORDS = 140      # what a story is asked to run to, before the skeleton says how long each rest is
 # The host writes over the words it is asked for, and paragraph breaks add time of their own, so it's asked for this
 # share of each segment's words (all of them where a bare [hold] keeps the segment its length, since a word short
@@ -205,6 +209,8 @@ def slots(segs: list, budget: dict[int, int]) -> dict[int, tuple[int, int]]:
         if n not in marked and (n in (1, len(segs)) or not STORY_REST.search(label) or NOT_STORY.search(label)):
             continue
         whole = budget.get(n, 0)
+        if whole < SHORTEST_SLOT:
+            continue
         story = round(whole * (WORK_STORY_SHARE if n in marked else STORY_SHARE))
         if whole - story < COACHING_FLOOR:   # the coaching's floor, as far as a short story still fits
             story = max(whole - COACHING_FLOOR, min(story, SMALLEST_STORY))
