@@ -22,7 +22,7 @@ This step reads only what the check-in's questions need.
 - `./harmonicfitness content plan`: the content plan (topics due, a serial or not, the stock).
 - `./harmonicfitness get limits`: loosening signs; red flags.
 - `./harmonicfitness get coach`: who's coaching (the coach used last, else their own web coach, else a stand-in that works here); the check-in's Coach question offers them first. Exit 1 (that coach is archived): ask the Coach question with `./harmonicfitness coaches`' list.
-- Read `me/profile.md`, `me/training.md`, `me/health.md` and `me/log.md` (not `me/content.md`: research reads that). No `me/profile.md` means this copy isn't set up: run the `setup` skill. On Claude Code on the web (`./harmonicfitness doctor` says so), only web coaches speak and the MP3 arrives as a web copy (step 7). A tool that says the context folder is in an older format: run `./harmonicfitness migrate`, then rerun.
+- Read `me/profile.md`, `me/training.md`, `me/health.md` and `me/log.md` (not `me/content.md`: research reads that). No `me/profile.md` means this copy isn't set up: run the `setup` skill. On Claude Code on the web (`./harmonicfitness doctor` says so), only web coaches speak and the MP3 arrives as a web copy (step 7). A tool that says the context folder is in an older format: run `./harmonicfitness migrate`, then rerun; one from before 0.12.0 can't be brought up, and the tool's message says how to start again from the template.
 
 Feeds, knowledge files and the brief come after the check-in.
 <!-- web: end -->

@@ -1,5 +1,5 @@
 """The context folder's files on disk: read, written and held to their schema (SCHEMA for the context files,
-PERSONA_SCHEMA for a coach's persona.md). A file at an older schema stops a tool with ./harmonicfitness migrate."""
+PERSONA_SCHEMA for a coach's persona.md). A file at an older schema stops a tool: support for it was removed."""
 import os
 import sys
 import tomllib
@@ -14,6 +14,10 @@ from frontmatter import TOML_FRONT_RE, front, body, dump_settings  # noqa: E402
 
 SCHEMA = 6   # 6 (0.12.0) splits the profile into profile.md, training.md, content.md and settings.toml
 PERSONA_SCHEMA = 5   # me/coaches/<slug>/persona.md (me/personas/ before 0.15.0), new in HarmonicFitness 0.9; 5 (0.10.0) adds kind and web coaches
+# What a file at an older schema is told: no step brings it up any more.
+OLDER = ("Support for folders older than HarmonicFitness 0.12.0 was removed. Start again from the template "
+         "(move me/ aside, then ./harmonicfitness setup, which copies me.example/, and carry your details across "
+         "by hand), or ask on GitHub: https://github.com/RNCDev/harmonicfitness/issues")
 
 
 def split(path, text):
@@ -54,7 +58,7 @@ def schema_problem(path, text):
         return None
     if found < SCHEMA:
         return (f"{show(path)} is in an older HarmonicFitness format (schema {found}; this engine reads "
-                f"schema {SCHEMA}). Bring the context folder up to date with: ./harmonicfitness migrate")
+                f"schema {SCHEMA} only). {OLDER}")
     return (f"{show(path)} is in a newer format (schema {found}) than this engine reads (schema {SCHEMA}). "
             "Pull the latest harmonicfitness.")
 

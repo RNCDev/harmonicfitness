@@ -9,49 +9,28 @@ Run it again and it changes nothing.
     ./harmonicfitness migrate             # migrate, with a backup
     ./harmonicfitness migrate --dry-run   # say what would change, change nothing
 
-This engine migrates from context schema 4 (HarmonicFitness 0.9.x) and coach schema 4 (0.10.0). An older
-folder (HarmonicFitness 0.8 and before) goes through HarmonicFitness 0.12 first: `git checkout v0.12.0 &&
-./harmonicfitness migrate`, then back to this version and `./harmonicfitness migrate` again.
+This engine reads context schema 6 (HarmonicFitness 0.12.0 and later) and coach schema 5. Support for older
+folders was removed: a file at an older schema stops migrate, which says to start again from me.example/
+(./harmonicfitness setup) or to ask on GitHub.
 
-Steps:
-    4 to 5 (HarmonicFitness 0.9.1): a folder per workout. Each draft in workouts/drafts/ moves, with its
-        brief and menu, to workouts/<stem>/, and each build's script and record (and an MP3 not
-        yet delivered) moves beside the draft its record names (or, with no record, the one draft
-        from the same date). Smoke tests, and anything that can't be placed for sure, go to
-        workouts/checks/; each day's research sheet and feeds to workouts/research/daily/. Nothing
-        is overwritten. The files' text changes only its schema number.
-    5 to 6 (HarmonicFitness 0.12.0): the profile splits by how often each part changes and who reads it.
-        profile.md keeps who you are (name, experience, and every prose section but these);
-        training.md gets the kits, likes and dislikes and the Equipment kits and Default session
-        sections; content.md the interests, feeds, YouTube favorites and puzzles and the Content and
-        Taste sections; settings.toml setup, render, cloud_max_chars, deliver_to and
-        words_per_minute. Each setting keeps its value (comments are the template's; the originals
-        are in the backup). health.md and log.md change only their schema number. It backs up before
-        overwriting a training.md, content.md or settings.toml already there (each goes to the backup first).
-    Coaches (HarmonicFitness 0.15.0, a folder step with no schema change): personas/ becomes coaches/; each local
-        coach of the listener's own moves to coaches/.archive/ (local coaches are now the ten HarmonicFitness ships,
-        and a voice of one's own is a web coach); and an unmade copy of a stock web coach (Reed, Ellis, Nolan,
-        Owen, still pending design) goes to the backup, since the engine ships them now. A made one stays and
-        is used over the stock copy. me/.gitignore's personas/ rules become coaches/ rules.
-
-The folder steps (the split, the folder per workout, the reserve's old name, the .gitignore rules for
-coaches) run whenever they still have something to do, whatever the files' schema says, so a run that
-stopped halfway finishes on the next. The reserve's old name (HarmonicFitness 0.14): before 0.10.2 the reserve
-was research/pantry/ and told.jsonl named a piece under `pantry`; each sheet moves into research/reserve/
-(one already there by that name was the one read, so the pantry's copy goes to the backup unless it's
-the same), and each `pantry` key becomes `reserve`.
-
-Topics (HarmonicFitness 0.35.0, a folder step with no schema change, so the web client, which can't migrate, still
-reads a folder from before it): content.md's [[interests]] rows become lines under `## Topics` ("- name: detail"),
-leaving out the rows that named a way of telling (video, news, puzzle, trivia: the formats in
-knowledge/content.toml cover those). The old content.md goes to the backup as content.md.before-topics.
-
-Coach files (me/personas/<coach>/persona.md, and the archive's) carry their own schema, migrated
-beside the context files, even when those are already current:
-    4 to 5 (HarmonicFitness 0.10.0): web coaches. Each coach's settings gain `kind = "local"` after the
-        schema line; nothing else in the file changes. me/.gitignore keeps each web coach's
-        sample.mp3 (archived ones too) and leaves out auditions in progress (personas/.auditions/) and a
-        make's in-between files (.made.json, .made.wav).
+Its steps are folder steps with no schema change; each runs whenever it still has something to do, so a run that
+stopped halfway finishes on the next:
+    Strays: a setting still in profile.md whose home is another of the four files (training.md, content.md,
+        settings.toml) moves to that file, or is dropped when that file already sets it (its value was the one in
+        effect). A profile.md written as one file, with none of the other three there, splits into the four.
+    The reserve's old name (HarmonicFitness 0.14): before 0.10.2 the reserve was research/pantry/ and told.jsonl
+        named a piece under `pantry`; each sheet moves into research/reserve/ (one already there by that name was
+        the one read, so the pantry's copy goes to the backup unless it's the same), and each `pantry` key becomes
+        `reserve`.
+    Coaches (HarmonicFitness 0.15.0): personas/ becomes coaches/; each local coach of the listener's own moves to
+        coaches/.archive/ (local coaches are now the ten HarmonicFitness ships, and a voice of one's own is a web
+        coach); and an unmade copy of a stock web coach (still pending design) goes to the backup, since the
+        engine ships them now. A made one stays and is used over the stock copy. me/.gitignore's personas/ rules
+        become coaches/ rules, and it keeps each web coach's sample.mp3 and leaves out auditions in progress.
+    Topics (HarmonicFitness 0.35.0, so the web client, which can't migrate, still reads a folder from before it):
+        content.md's [[interests]] rows become lines under `## Topics` ("- name: detail"), leaving out the rows
+        that named a way of telling (video, news, puzzle, trivia: the formats in knowledge/content.toml cover
+        those). The old content.md goes to the backup as content.md.before-topics.
 """
 import filecmp
 import json
@@ -72,26 +51,7 @@ import fileio  # noqa: E402
 import frontmatter  # noqa: E402
 import locks  # noqa: E402
 import paths  # noqa: E402
-import workouts  # noqa: E402
 from paths import show  # noqa: E402
-
-
-def to_5(text, path):
-    """Schema 4 to 5: only the schema number; the workouts folder moves once, in migrate()."""
-    m = frontmatter.TOML_FRONT_RE.match(text)
-    if not m:
-        return store.with_front_matter(text, 5)
-    block = re.sub(r"(?m)^schema\s*=\s*4\b", "schema = 5", m.group(1), count=1)
-    return frontmatter.wrap(block, text[m.end():])
-
-
-def to_6(text, path):
-    """Schema 5 to 6: only the schema number; the profile splits once, in migrate()."""
-    m = frontmatter.TOML_FRONT_RE.match(text)
-    if not m:
-        return store.with_front_matter(text, 6)
-    block = re.sub(r"(?m)^schema\s*=\s*5\b", "schema = 6", m.group(1), count=1)
-    return frontmatter.wrap(block, text[m.end():])
 
 
 # The settings each split file writes, in order, and the comment above each (the template's words).
@@ -182,7 +142,7 @@ def split_profile_text(text):
 
 
 def split_profile(home):
-    """Write training.md, content.md and settings.toml from profile.md (already at schema 6), and profile.md
+    """Write training.md, content.md and settings.toml from a profile.md written as one file, and profile.md
     with what stays."""
     path = os.path.join(home, "profile.md")
     with open(path, encoding="utf-8") as f:
@@ -191,28 +151,6 @@ def split_profile(home):
         fileio.atomic_write(os.path.join(home, name), text)
 
 
-STEPS = {4: to_5, 5: to_6}   # from schema N, the function that makes it N + 1
-FLOOR = min(STEPS)           # the oldest context schema this engine migrates (HarmonicFitness 0.9.x)
-
-
-def persona_to_5(text, path):
-    """A coach file, schema 4 to 5: `kind = "local"` after the schema line (unless it names a kind), as a
-    text edit, so every other byte stays as it was."""
-    m = frontmatter.TOML_FRONT_RE.match(text)
-    block = m.group(1) if m else ""
-    line = re.search(r"(?m)^schema\s*=\s*4\b.*$", block)
-    if not m or not line:
-        raise errors.MigrateError(f"{show(path)}: no schema = 4 line in its settings block to migrate.")
-    kind = "" if re.search(r"(?m)^kind\s*=", block) else '\nkind = "local"'
-    new = block[:line.start()] + "schema = 5" + kind + block[line.end():]
-    tomllib.loads(new)   # never write a block that doesn't parse
-    return text[:m.start(1)] + new + text[m.end(1):]
-
-
-PERSONA_STEPS = {4: persona_to_5}   # coach files, from schema N
-
-GITIGNORE_ADD_5 = ("# A workout's web copy (Claude Code on the web) is kept: the private repo is how it reaches you.",
-                   "!*.web-*.mp3")
 GITIGNORE_ADD_PERSONA_5 = ("# Each web coach's approved sample is kept (archived ones too); auditions in progress, "
                            "and a make between saving a voice and writing the coach, are not.",
                            "!coaches/*/sample.mp3", "!coaches/.archive/*/sample.mp3", "coaches/.auditions/",
@@ -422,7 +360,8 @@ def rename_gitignore(home):
     return new != have
 
 
-def _behind(path, current, floor, what):
+def _schema_check(path, current, what):
+    """Stop on a file this engine can't read: not UTF-8, newer than it, or older than it (no steps up remain)."""
     try:
         with open(path, encoding="utf-8-sig") as f:
             text = f.read()
@@ -432,32 +371,20 @@ def _behind(path, current, floor, what):
     found = store.schema_of(text, path)
     if found > current:
         raise errors.MigrateError(f"{show(path)} is schema {found}, newer than this engine (schema "
-                         f"{current}). Pull the latest HarmonicFitness instead of migrating.")
-    if found < floor:
-        raise errors.MigrateError(f"{show(path)} is schema {found}, older than this engine migrates ({what} from schema {floor}). "
-                         "Go through HarmonicFitness 0.12 first: git checkout v0.12.0 && ./harmonicfitness migrate, then "
-                         "git checkout main && ./harmonicfitness migrate again.")
-    return found if found < current else None
+                                  f"{current}). Pull the latest HarmonicFitness instead of migrating.")
+    if found < current:
+        raise errors.MigrateError(f"{show(path)} is schema {found}; this engine reads {what} at schema {current} "
+                                  f"only. {store.OLDER}")
 
 
-def plan():
-    """[(path, from schema)] for each context file that's behind, then each coach file that's behind
-    (coach files are at store.PERSONA_SCHEMA). Stops on a file older than this engine migrates."""
-    out = []
+def check_schemas():
+    """Stop on any context or coach file at a schema other than this engine's (coach files are at
+    store.PERSONA_SCHEMA)."""
     for path in context.files():
         if os.path.exists(path):
-            found = _behind(path, store.SCHEMA, FLOOR, "the context files")
-            if found is not None:
-                out.append((path, found))
+            _schema_check(path, store.SCHEMA, "the context files")
     for path in persona_files():
-        found = _behind(path, store.PERSONA_SCHEMA, min(PERSONA_STEPS), "coach files")
-        if found is not None:
-            out.append((path, found))
-    return out
-
-
-def _is_persona(path):
-    return os.path.basename(path) == "persona.md"
+        _schema_check(path, store.PERSONA_SCHEMA, "coach files")
 
 
 def strays(home):
@@ -573,62 +500,37 @@ def convert_interests(home, backup):
 
 
 def folder_steps_due(home):
-    """(the stray settings a split would move, the workout moves a relayout would make, what retiring the
-    reserve's old name would do, what the coaches step would do, what the topics step would do)."""
-    return (strays(home), workouts.reorganize(home, dry_run=True), pantry_due(home), coaches_due(home),
-            topics_due(home))
+    """(the stray settings a split would move, what retiring the reserve's old name would do, what the coaches
+    step would do, what the topics step would do)."""
+    return strays(home), pantry_due(home), coaches_due(home), topics_due(home)
 
 
-def migrate(dry_run=False, stamp=None, moves=None):
-    """Apply every file step to every file that's behind, then the folder steps still due. Returns (backup folder
-    or None, [changed paths]). `moves`, a list, gets the workout files moved (src, dst)."""
-    todo = plan()
+def migrate(dry_run=False, stamp=None):
+    """Run the folder steps still due, after stopping on any file at another schema. Returns (backup folder or
+    None, [changed paths])."""
+    check_schemas()
     home = paths.HOME
-    stray, due_moves, pantry, coach_steps, topic_steps = folder_steps_due(home)
+    stray, pantry, coach_steps, topic_steps = folder_steps_due(home)
     coach_steps = acting(coach_steps)
-    if dry_run or not (todo or stray or due_moves or pantry or coach_steps or topic_steps):
-        if moves is not None:
-            moves.extend(due_moves)
-        return None, [p for p, _ in todo]
+    if dry_run or not (stray or pantry or coach_steps or topic_steps):
+        return None, []
     backup = os.path.join(home, f".backup-{stamp or time.strftime('%Y%m%d-%H%M%S')}")
     os.makedirs(backup, exist_ok=True)
     if os.path.exists(os.path.join(home, ".gitignore")):
         shutil.copy2(os.path.join(home, ".gitignore"), os.path.join(backup, ".gitignore"))
-    if coach_steps and rename_coaches(home):   # first, so every later step finds the coaches in coaches/
-        todo = plan()
-    for path, _ in todo:
-        if _is_persona(path):   # by their place in the folder: every coach's file is persona.md
-            dest = os.path.join(backup, os.path.relpath(path, home))
-            os.makedirs(os.path.dirname(dest), exist_ok=True)
-            shutil.copy2(path, dest)
-        else:
-            shutil.copy2(path, os.path.join(backup, os.path.basename(path)))
-    if stray:   # the split rewrites every part, so each one there is backed up first
+    if coach_steps:   # first, so every later step finds the coaches in coaches/
+        rename_coaches(home)
+    changed = []
+    if stray:
+        # the split rewrites every part, so each one there is backed up first. A profile.md written as one file
+        # (none of the other three there) splits; otherwise each stray moves to its home file, or is dropped
+        # when the home file sets it (the home file's value was the one in effect).
         for name in context.PROFILE_PARTS:
             if os.path.exists(os.path.join(home, name)):
                 shutil.copy2(os.path.join(home, name), os.path.join(backup, name))
-    changed = [p for p, _ in todo]
-    for path, found in todo:
-        with open(path, encoding="utf-8") as f:
-            text = f.read()
-        steps = PERSONA_STEPS if _is_persona(path) else STEPS
-        current = store.PERSONA_SCHEMA if _is_persona(path) else store.SCHEMA
-        for n in range(found, current):
-            text = steps[n](text, path)
-        fileio.atomic_write(path, text)
-    if stray:
-        # A profile that was below schema 6 this run held everything: it splits, and a part file already there
-        # (a template copy, say) is replaced, backed up above. A folder already split gets each stray moved
-        # to its home file, or dropped when the home file sets it (the home file's value was the one in effect).
-        unsplit = any(os.path.basename(p) == "profile.md" and found < 6 for p, found in todo) \
-            or not any(os.path.exists(os.path.join(home, n)) for n in context.PROFILE_PARTS[1:])
+        unsplit = not any(os.path.exists(os.path.join(home, n)) for n in context.PROFILE_PARTS[1:])
         (split_profile if unsplit else move_strays)(home)
-        changed += [os.path.join(home, n) for n in context.PROFILE_PARTS if os.path.join(home, n) not in changed]
-    if due_moves:
-        update_gitignore(home, GITIGNORE_ADD_5)
-        moved = workouts.reorganize(home)
-        if moves is not None:
-            moves.extend(moved)
+        changed += [os.path.join(home, n) for n in context.PROFILE_PARTS]
     if pantry:
         retire_pantry(home, backup)
     if coach_steps:
@@ -642,10 +544,6 @@ def migrate(dry_run=False, stamp=None, moves=None):
     return backup, changed
 
 
-def _rel(path):
-    return os.path.relpath(path, os.path.join(paths.HOME, "workouts"))
-
-
 def main(argv=None):
     ap = cli.ArgumentParser(description=__doc__)
     ap.add_argument("--dry-run", action="store_true", help="say what would change; change nothing")
@@ -654,25 +552,20 @@ def main(argv=None):
     if len(missing) == len(context.files()):
         raise errors.MigrateError(f"No context files in {show(paths.HOME)}. A new copy starts with ./harmonicfitness setup.")
 
+    check_schemas()
     if not args.dry_run and update_gitignore(paths.HOME, GITIGNORE_ADD_LOCKS):
         print(f"{show(os.path.join(paths.HOME, '.gitignore'))}: added *.lock (lock files never go into a backup).")
     if not args.dry_run and update_gitignore(paths.HOME, GITIGNORE_ADD_WEB):
         print(f"{show(os.path.join(paths.HOME, '.gitignore'))}: added web/ (pulls and syncs are this computer's own).")
-    todo = plan()
-    stray, due_moves, pantry, coach_steps, topic_steps = folder_steps_due(paths.HOME)
+    stray, pantry, coach_steps, topic_steps = folder_steps_due(paths.HOME)
     for line in coaches_lines([s for s in coach_steps if s not in acting(coach_steps)]):
         print(line, file=sys.stderr)   # an unreadable coach: reported, never moved
     coach_steps = acting(coach_steps)
-    if not (todo or stray or due_moves or pantry or coach_steps or topic_steps):
+    if not (stray or pantry or coach_steps or topic_steps):
         print(f"{show(paths.HOME)} is already at schema {store.SCHEMA}; nothing to do.")
     else:
-        for path, found in todo:
-            print(f"{show(path)}: schema {found} to "
-                  f"{store.PERSONA_SCHEMA if _is_persona(path) else store.SCHEMA}")
         if stray:
             print(f"profile.md: {', '.join(stray)} move to their home files (training.md, content.md, settings.toml)")
-        if due_moves:
-            print(f"{len(due_moves)} workout file(s) move into a folder per workout (and checks/, research/daily/)")
         for line in pantry:
             print(line)
         for line in coaches_lines(coach_steps):
@@ -680,14 +573,9 @@ def main(argv=None):
         for line in topic_steps:
             print(line)
         if args.dry_run:
-            for src, dst in due_moves:
-                print(f"  {_rel(src)} would move to {_rel(dst)}")
             print("Dry run: nothing changed.")
             return cli.OK
-        moves = []
-        backup, _ = migrate(moves=moves)
-        if moves:
-            print(f"  Moved {len(moves)} workout file(s) into a folder per workout (and checks/, research/daily/).")
+        backup, _ = migrate()
         print(f"Backed up the originals to {show(backup)}.")
 
     issues = check.check()

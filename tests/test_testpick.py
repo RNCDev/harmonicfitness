@@ -33,6 +33,29 @@ class Pick(unittest.TestCase):
         self.assertEqual(testpick.pick(["tests/helpers.py"], TESTS, TOOLS), sorted(TESTS))
         self.assertEqual(testpick.pick(["tests/fixtures/stock/coach-x/persona.md"], TESTS, TOOLS), sorted(TESTS))
 
+    def test_a_name_in_passing_and_the_hubs_reach_nothing(self):
+        """2026-11-17: "content.md" in a path table isn't a use of content.py, a data file paths names doesn't reach
+        everything through paths, and the docs and the release's files reach no test."""
+        tools = {"content": "import json\n", "paths": "CONTENT = 'content.md'\nTOML = 'content.toml'\n",
+                 "context": "import paths\nimport content\n", "tokens": "import paths\n"}
+        tests = dict.fromkeys(ENFORCERS, "") | {"test_content": "import content\n",
+                                                "test_tokens": "import paths\nimport tokens\n",
+                                                "test_context": "import context\n"}
+        # content's own tests, and the hub that imports it (one step up), never what only names content.md
+        self.assertEqual(testpick.pick(["tools/content.py"], tests, tools),
+                         sorted(ENFORCERS + ["test_content", "test_context"]))
+        self.assertEqual(testpick.pick(["knowledge/content.toml"], tests, tools), ENFORCERS)
+        self.assertEqual(testpick.pick(["CHANGELOG.md", "VERSION", "docs/index.html"], tests, tools), ENFORCERS)
+        self.assertEqual(testpick.pick(["tools/paths.py"], tests, tools),   # a hub that changed is everyone's
+                         sorted(ENFORCERS + ["test_context", "test_tokens"]))
+
+    def test_the_real_suite_picks_few_for_one_tool(self):
+        here = os.path.dirname(os.path.abspath(__file__))
+        tests = testpick.sources(here, "test_")
+        tools = testpick.sources(os.path.join(here, "..", "tools"))
+        picked = testpick.pick(["tools/repeats.py"], tests, tools)
+        self.assertLess(len(picked), len(tests) // 2, picked)
+
     def test_the_real_suite_is_found(self):
         tests = testpick.sources(os.path.dirname(os.path.abspath(__file__)), "test_")
         self.assertIn("test_testpick", tests)

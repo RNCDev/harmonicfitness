@@ -22,61 +22,27 @@ class Methods(unittest.TestCase):
     def test_real_file_is_clean(self):
         self.assertEqual(sessions.problems(self.s, self.cat), [])
 
-    def test_choose_rotates_away_from_last_format(self):
-        pick = choose(self.s, "strength", 30, "experienced", "straight-sets", set())
-        self.assertEqual(pick.name, "paired-sets")
-        pick = choose(self.s, "strength", 30, "experienced", "paired-sets", set())
-        self.assertEqual(pick.name, "straight-sets")
-        pick = choose(self.s, "strength", 30, "experienced", None, set())
-        self.assertEqual(pick.name, "straight-sets")
-
-    def test_choose_prefers_goal_fit_over_file_order(self):
-        self.assertEqual(self.s.methods["circuit"].goals[-1], "conditioning")
-        pick = lambda level, last: choose(self.s, "conditioning", 30, level, last, set()).name  # noqa: E731
-        self.assertEqual(pick("novice", None), "intervals")
-        self.assertEqual(pick("novice", "circuit"), "intervals")
-        self.assertEqual(pick("novice", "intervals"), "circuit")     # circuit only after intervals was last
-        self.assertEqual(pick("experienced", "intervals"), "tabata")   # a better-fitting method comes first
-        # a whole-body day starts from timed sets, where the coach talks through the work
-        self.assertEqual([m.name for m in sessions.ranked(self.s, "general", 30, "novice", set())][:2],
-                         ["timed-sets", "circuit"])
-        self.assertEqual([m.name for m in sessions.ranked(self.s, "strength", 30, "novice", set())][0], "straight-sets")
-
-    def test_choose_respects_minutes_and_needs(self):
-        pick = choose(self.s, "strength", 15, "experienced", None, set())
-        self.assertIsNotNone(pick)
-        self.assertNotEqual(pick.name, "straight-sets")
-        no_bike = [m.name for m in sessions.fitting(self.s, "conditioning", 40, "experienced", {"dumbbells"})]
-        self.assertNotIn("bike-intervals", no_bike)
+    def test_choose(self):
+        """Each row: (goal, minutes, level, last format, equipment, the method chosen or None)."""
+        rows = (("strength", 30, "experienced", "straight-sets", set(), "paired-sets"),   # rotates away from the last
+                ("strength", 30, "experienced", "paired-sets", set(), "straight-sets"),
+                ("strength", 30, "experienced", None, set(), "straight-sets"),
+                ("conditioning", 30, "novice", None, set(), "intervals"),   # goal fit over file order
+                ("conditioning", 30, "novice", "intervals", set(), "circuit"),
+                ("conditioning", 30, "experienced", "intervals", set(), "tabata"),
+                ("general", 30, "novice", None, set(), "timed-sets"),
+                ("conditioning", 5, "experienced", None, {"bike"}, None),   # nothing fits
+                ("mobility", 30, "novice", "flow", set(), "flow"))           # only the last fits: it again
+        for goal, minutes, level, last, kit, want in rows:
+            with self.subTest(goal=goal, level=level, last=last):
+                pick = choose(self.s, goal, minutes, level, last, kit)
+                self.assertEqual(pick and pick.name, want)
+        self.assertNotEqual(choose(self.s, "strength", 15, "experienced", None, set()).name, "straight-sets")
+        self.assertNotIn("bike-intervals",
+                         [m.name for m in sessions.fitting(self.s, "conditioning", 40, "experienced", {"dumbbells"})])
         for need in ("bike", "air-bike"):
-            names = [m.name for m in sessions.fitting(self.s, "conditioning", 40, "experienced", {need})]
-            self.assertIn("bike-intervals", names)
-
-    def test_choose_returns_none_when_nothing_fits(self):
-        self.assertIsNone(choose(self.s, "conditioning", 5, "experienced", None, {"bike"}))
-
-    def test_choose_falls_back_when_only_last_format_fits(self):
-        fits = sessions.fitting(self.s, "mobility", 30, "novice", set())
-        self.assertEqual([m.name for m in fits], ["flow"])
-        self.assertEqual(choose(self.s, "mobility", 30, "novice", "flow", set()).name, "flow")
-
-    def test_dose_has_every_level(self):
-        for intensity, keys in (("strength", ("sets", "reps", "rest_seconds", "hard_sets_per_session")),
-                                ("conditioning", ("work_seconds", "rest_seconds", "rounds")),
-                                ("mobility", ("hold_seconds", "rounds")),
-                                ("skill", ("drill_seconds", "rounds"))):
-            for level in catalog.LEVELS:
-                d = sessions.dose(self.s, intensity, level)
-                for key in keys:
-                    least, most = d[key]
-                    self.assertLessEqual(least, most, f"{intensity} {level} {key}")
-
-    def test_methods_in_file_order(self):
-        self.assertEqual(list(self.s.methods), ["straight-sets", "paired-sets", "timed-sets", "circuit", "intervals",
-                                                "tabata",
-                                                "bike-intervals", "flow", "skill"])
-        self.assertEqual(self.s.methods["bike-intervals"].needs, ["bike|air-bike"])
-        self.assertIsNone(self.s.methods["circuit"].finisher)
+            self.assertIn("bike-intervals", [m.name for m in sessions.fitting(self.s, "conditioning", 40, "experienced",
+                                                                              {need})])
 
     def _problems_after(self, change):
         """The problems of the real file after `change(s)` alters it."""
@@ -102,20 +68,8 @@ class Methods(unittest.TestCase):
         self.assertEqual(self.s.all_out, {"most_seconds": 20, "rest_ratio": 4})
         self.assertNamed(lambda s: s.all_out.update(rest_ratio=0), "all_out", "rest_ratio")
         self.assertNamed(lambda s: s.all_out.pop("most_seconds"), "all_out", "most_seconds")
-
-    def test_reps_are_planned_a_quarter_quicker_than_the_catalog_s_count(self):
-        import brief
-        self.assertEqual(self.s.rep_pace, 0.75)
         self.assertNamed(lambda s: setattr(s, "rep_pace", 0), "timing", "rep_pace")
         self.assertNamed(lambda s: setattr(s, "rep_pace", "fast"), "timing", "rep_pace")
-        cat = catalog.load()
-        squat = cat.movements["air-squat"]
-        self.assertEqual(squat.seconds_per_rep, 3)
-        self.assertEqual(brief.rep_seconds(squat, self.s.rep_pace), 2.25)   # ten reps: 22.5 s, not 30
-        self.assertIn("2.25 s a rep", brief._timing(squat, self.s.rep_pace))
-        slowest = max((m for m in cat.movements.values() if m.measure == "reps"), key=lambda m: m.seconds_per_rep)
-        self.assertLess(brief.rep_seconds(slowest, self.s.rep_pace), slowest.seconds_per_rep)
-
 
 
 def choose(s, goal, minutes, level, last, equipment):

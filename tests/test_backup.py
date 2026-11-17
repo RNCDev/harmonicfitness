@@ -88,16 +88,6 @@ class Backup(unittest.TestCase):
         self.assertIn("No remote", out)
         self.assertEqual(git(self.home, "status", "--porcelain"), "")
 
-    def test_public_github_remote_is_refused(self):
-        new_repo(self.home)
-        git(self.home, "remote", "add", "origin", "https://github.com/someone/harmonicfitness-me.git")
-        with mock.patch.object(backup, "visibility", return_value="PUBLIC") as seen, \
-             mock.patch.object(backup, "git", wraps=backup.git) as calls:
-            code, out = run(self.home)
-        seen.assert_called_once_with("someone/harmonicfitness-me")
-        self.assertEqual(code, cli.ISSUES)
-        self.assertIn("is public", out)
-        self.assertFalse([c for c in calls.call_args_list if "push" in c.args])
     def test_any_env_file_is_refused(self):
         new_repo(self.home)
         for name in ("keys.env", ".env.bak"):
@@ -134,54 +124,75 @@ class Backup(unittest.TestCase):
         self.assertEqual(out.returncode, 1)
         self.assertIn("no answer from git add in 60 seconds", out.stderr)
 
-    def test_an_unverifiable_github_remote_is_refused_unless_asked(self):
+    def test_a_public_or_unconfirmed_github_remote_is_never_pushed_to(self):
+        """Public: refused. GitHub silent: refused unless --unverified, then remembered for that remote only; a
+        private verdict is remembered too; a remembered remote that turned public is refused."""
         new_repo(self.home)
         git(self.home, "add", "-A")
         git(self.home, "commit", "-q", "-m", "first")
         git(self.home, "remote", "add", "origin", "https://github.com/someone/harmonicfitness-me.git")
-        with mock.patch.object(backup, "visibility", return_value=None), \
-                mock.patch.object(backup, "_push", return_value=subprocess.CompletedProcess([], 0, "", "")) as pushed:
-            code, out = run(self.home)
+        done = subprocess.CompletedProcess([], 0, "", "")
+        with mock.patch.object(backup, "_push", return_value=done) as pushed:
+            with mock.patch.object(backup, "visibility", return_value="PUBLIC") as seen:
+                code, out = run(self.home)
+            seen.assert_called_once_with("someone/harmonicfitness-me")
             self.assertEqual(code, cli.ISSUES)
-            self.assertIn("couldn't confirm", out)
-            self.assertIn("--unverified", out)
+            self.assertIn("is public", out)
             self.assertFalse(pushed.called)
-            out = io.StringIO()
-            with redirect_stdout(out):
-                code = backup.backup(self.home, "Workout", push=True, unverified=True)
-            self.assertEqual(code, cli.OK)
-            self.assertTrue(pushed.called)
-            # the verdict is remembered for this remote: the next plain run pushes without asking again
+            with mock.patch.object(backup, "visibility", return_value=None):
+                code, out = run(self.home)
+                self.assertEqual(code, cli.ISSUES)
+                self.assertIn("couldn't confirm", out)
+                self.assertIn("--unverified", out)
+                self.assertFalse(pushed.called)
+                with redirect_stdout(io.StringIO()):
+                    code = backup.backup(self.home, "Workout", push=True, unverified=True)
+                self.assertEqual(code, cli.OK)
+                self.assertTrue(pushed.called)
+                pushed.reset_mock()
+                code, out = run(self.home)   # remembered: the next plain run pushes without asking again
+                self.assertEqual(code, cli.OK, out)
+                self.assertTrue(pushed.called)
             pushed.reset_mock()
-            code, out = run(self.home)
-            self.assertEqual(code, cli.OK, out)
-            self.assertTrue(pushed.called)
-            git(self.home, "remote", "set-url", "origin", "https://github.com/someone/another-repo.git")
-            code, out = run(self.home)   # another remote: not remembered
+            with mock.patch.object(backup, "visibility", return_value="PUBLIC"):   # remembered, then turned public
+                code, out = run(self.home)
             self.assertEqual(code, cli.ISSUES)
+            self.assertIn("is public", out)
+            self.assertFalse(pushed.called)
+            git(self.home, "remote", "set-url", "origin", "https://github.com/someone/another-repo.git")
+            with mock.patch.object(backup, "visibility", return_value=None):
+                self.assertEqual(run(self.home)[0], cli.ISSUES)   # another remote: not remembered
+            with mock.patch.object(backup, "visibility", side_effect=["PRIVATE", None]):
+                self.assertEqual(run(self.home)[0], cli.OK)   # GitHub said private
+                self.assertEqual(run(self.home)[0], cli.OK)   # GitHub silent: remembered
 
-    def test_a_private_verdict_is_remembered(self):
-        new_repo(self.home)
-        git(self.home, "add", "-A")
-        git(self.home, "commit", "-q", "-m", "first")
-        git(self.home, "remote", "add", "origin", "https://github.com/someone/harmonicfitness-me.git")
-        with mock.patch.object(backup, "visibility", side_effect=["PRIVATE", None]), \
-                mock.patch.object(backup, "_push", return_value=subprocess.CompletedProcess([], 0, "", "")):
-            self.assertEqual(run(self.home)[0], cli.OK)   # GitHub said private
-            self.assertEqual(run(self.home)[0], cli.OK)   # GitHub silent: remembered
+    def serve(self, status, body):
+        import http.server
+        import threading
 
-    def test_a_remembered_remote_that_turned_public_is_refused(self):
-        new_repo(self.home)
-        git(self.home, "add", "-A")
-        git(self.home, "commit", "-q", "-m", "first")
-        git(self.home, "remote", "add", "origin", "https://github.com/someone/harmonicfitness-me.git")
-        backup.remember_private(self.home, "someone/harmonicfitness-me", "github")
-        with mock.patch.object(backup, "visibility", return_value="PUBLIC"), \
-                mock.patch.object(backup, "_push", return_value=subprocess.CompletedProcess([], 0, "", "")) as pushed:
-            code, out = run(self.home)
-        self.assertEqual(code, cli.ISSUES)
-        self.assertIn("is public", out)
-        self.assertFalse(pushed.called)
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                self.send_response(status)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(body.encode())
+
+            def log_message(self, *a):
+                pass
+
+        server = http.server.HTTPServer(("127.0.0.1", 0), Handler)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.server_close)   # cleanups run last first: shut down, then close the socket
+        self.addCleanup(server.shutdown)
+        return f"http://127.0.0.1:{server.server_address[1]}/repos/"
+
+    def test_visibility_without_gh(self):
+        """Without gh (Claude Code on the web), GitHub's API still says whether a repo is public."""
+        with mock.patch.object(backup.shutil, "which", return_value=None):
+            with mock.patch.object(backup, "API", self.serve(200, '{"private": false, "visibility": "public"}')):
+                self.assertEqual(backup.visibility("x/harmonicfitness-me"), "PUBLIC")
+            with mock.patch.object(backup, "API", self.serve(404, '{"message": "Not Found"}')):
+                self.assertIsNone(backup.visibility("x/harmonicfitness-me"))
 
     def test_a_push_that_hangs_gives_up(self):
         with mock.patch.object(backup.subprocess, "run", side_effect=subprocess.TimeoutExpired(["git"], 1)):
@@ -246,37 +257,6 @@ class Template(unittest.TestCase):
         with open(os.path.join(paths.ROOT, "tools", "setup.sh"), encoding="utf-8") as f:
             self.assertIn(f"grep -qxF '{rule}'", f.read())
         self.assertTrue(backup._memory_path("/h").replace(os.sep, "/").endswith(rule))
-
-
-class Visibility(unittest.TestCase):
-    """Without gh (Claude Code on the web), GitHub's API still says whether a repo is public."""
-
-    def serve(self, status, body):
-        import http.server
-        import threading
-
-        class Handler(http.server.BaseHTTPRequestHandler):
-            def do_GET(self):
-                self.send_response(status)
-                self.send_header("Content-Type", "application/json")
-                self.end_headers()
-                self.wfile.write(body.encode())
-
-            def log_message(self, *a):
-                pass
-
-        server = http.server.HTTPServer(("127.0.0.1", 0), Handler)
-        threading.Thread(target=server.serve_forever, daemon=True).start()
-        self.addCleanup(server.server_close)   # cleanups run last first: shut down, then close the socket
-        self.addCleanup(server.shutdown)
-        return f"http://127.0.0.1:{server.server_address[1]}/repos/"
-
-    def test_visibility_without_gh(self):
-        with mock.patch.object(backup.shutil, "which", return_value=None):
-            with mock.patch.object(backup, "API", self.serve(200, '{"private": false, "visibility": "public"}')):
-                self.assertEqual(backup.visibility("x/harmonicfitness-me"), "PUBLIC")
-            with mock.patch.object(backup, "API", self.serve(404, '{"message": "Not Found"}')):
-                self.assertIsNone(backup.visibility("x/harmonicfitness-me"))
 
 
 if __name__ == "__main__":

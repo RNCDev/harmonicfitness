@@ -61,90 +61,63 @@ class Topics(unittest.TestCase):
     def feeds(self):
         return tomllib.loads(frontmatter.TOML_FRONT_RE.match(self.text()).group(1))["feeds"]
 
-    def test_a_topic_goes_under_topics_and_the_template_s_hints_go(self):
+    def test_a_topic_goes_under_its_section_once(self):
         code, out = self.run_cli("add", "Formula 1: race weekends", "Sourdough baking")
         self.assertEqual(code, errors.OK)
         self.assertIn("Added under Topics: Formula 1, Sourdough baking.", out)
         lines = [line for _, line in frontmatter.section(frontmatter.body(self.text()), "Topics")]
         self.assertIn("- Formula 1: race weekends", lines)
         self.assertIn("- Sourdough baking", lines)
-        self.assertFalse(any(line.startswith("- [") for line in lines))   # check stops asking about them
+        self.assertFalse(any(line.startswith("- [") for line in lines))   # check stops asking about the hints
         self.assertIn("## Venues", self.text())   # every other section kept
-
-    def test_a_name_already_there_is_left_as_it_is(self):
-        self.run_cli("add", "Formula 1: race weekends")
         code, out = self.run_cli("add", "formula 1: something else")
-        self.assertEqual(code, errors.OK)
         self.assertIn("Already under Topics, left as it is: formula 1.", out)
         self.assertEqual(self.text().count("Formula 1"), 1)
-
-    def test_a_venue_goes_under_venues(self):
         self.run_cli("add", "The Example Room: comedy", "--venue")
         self.assertEqual([t.name for t in context.venues(context.profile())], ["The Example Room"])
-
-    def test_a_line_that_isn_t_a_topic_writes_nothing(self):
         before = self.text()
-        with self.assertRaises(errors.UsageError):
+        with self.assertRaises(errors.UsageError):   # a line that isn't a topic writes nothing
             context.add_topic_lines(["Fine one", "[a hint]"])
         self.assertEqual(self.text(), before)
-
-    def test_a_page_s_own_feed_link_is_found_and_added(self):
-        with web({"https://letter.example/": PAGE, "https://letter.example/letter.rss": WEEKLY}):
-            code, out = self.run_cli("add", "Example Letter: ideas", "--feed", "https://letter.example/")
-        self.assertEqual(code, errors.OK)
-        self.assertIn("Feed added: https://letter.example/letter.rss (weekly)", out)
-        self.assertIn("The feed's own words", out)
-        self.assertEqual(self.feeds()[-1], {"label": "Example Letter", "kind": "weekly",
-                                            "value": "https://letter.example/letter.rss"})
-
-    def test_an_address_that_is_a_feed_is_used_and_a_daily_one_is_rss(self):
-        with web({"https://daily.example/atom": DAILY}):
-            self.run_cli("add", "Science: what's new", "--feed", "https://daily.example/atom")
-        self.assertEqual(self.feeds()[-1], {"label": "Science, Example Daily", "kind": "rss",
-                                            "value": "https://daily.example/atom"})
-
-    def test_the_usual_places_are_tried_and_a_bare_domain_gets_www(self):
-        with web({"https://www.letter.example": b"<html></html>", "https://www.letter.example/feed": WEEKLY}):
-            _, out = self.run_cli("add", "Example Letter", "--feed", "letter.example")
-        self.assertIn("Feed added: https://www.letter.example/feed", out)
-
-    def test_a_podcast_is_found_by_its_name(self):
-        answer = json.dumps({"results": [{"collectionName": "Other Show", "feedUrl": "https://pods.example/other"},
-                                         {"collectionName": "Example Show", "feedUrl": "https://pods.example/show"}]})
-        with web({topics.ITUNES + "Example%20Show": answer.encode(), "https://pods.example/show": WEEKLY,
-                  "https://pods.example/other": DAILY}):
-            _, out = self.run_cli("add", "Example Show: the week in tech", "--feed", "Example Show")
-        self.assertIn("found as Apple's podcast directory", out)
-        self.assertEqual(self.feeds()[-1]["value"], "https://pods.example/show")   # the closest name, not the first
-
-    def test_no_feed_found_still_adds_the_topic(self):
-        with web({}):
-            code, out = self.run_cli("add", "Example Letter", "--feed", "https://nothing.example/")
-        self.assertEqual(code, errors.OK)
-        self.assertIn("No feed found", out)
-        self.assertIn("Example Letter", [t.name for t in context.topics(context.profile())])
-
-    def test_a_feed_already_there_isn_t_added_twice(self):
-        pages = {"https://daily.example/atom": DAILY}
-        with web(pages):
-            self.run_cli("add", "Science", "--feed", "https://daily.example/atom")
-            _, out = self.run_cli("add", "More science", "--feed", "https://daily.example/atom")
-        self.assertIn("Already a feed", out)
-        self.assertEqual([f["value"] for f in self.feeds()].count("https://daily.example/atom"), 1)
-
-    def test_feed_goes_with_one_topic(self):
-        with self.assertRaises(cli.Usage):
+        with self.assertRaises(cli.Usage):   # a feed goes with one topic
             self.run_cli("add", "One", "Two", "--feed", "https://x.example/")
+        code, out = self.run_cli("--json")
+        self.assertEqual(json.loads(out)["topics"][-1], {"name": "Sourdough baking", "note": ""})
+
+    def test_its_feed_is_found_without_a_web_search(self):
+        """Each row: the pages the fake web holds, the --feed given, what's said and the feed row added (None: no
+        row)."""
+        podcasts = json.dumps({"results": [{"collectionName": "Other Show", "feedUrl": "https://pods.example/other"},
+                                           {"collectionName": "Example Show", "feedUrl": "https://pods.example/show"}]})
+        rows = (
+            ({"https://letter.example/": PAGE, "https://letter.example/letter.rss": WEEKLY}, "Example Letter: ideas",
+             "https://letter.example/", "Feed added: https://letter.example/letter.rss (weekly)",
+             {"label": "Example Letter", "kind": "weekly", "value": "https://letter.example/letter.rss"}),
+            ({"https://daily.example/atom": DAILY}, "Science: what's new", "https://daily.example/atom", "Feed added",
+             {"label": "Science, Example Daily", "kind": "rss", "value": "https://daily.example/atom"}),
+            ({"https://daily.example/atom": DAILY}, "More science", "https://daily.example/atom", "Already a feed", None),
+            ({"https://www.letter.example": b"<html></html>", "https://www.letter.example/feed": WEEKLY},
+             "Letter two", "letter.example", "Feed added: https://www.letter.example/feed", None),
+            ({topics.ITUNES + "Example%20Show": podcasts.encode(), "https://pods.example/show": WEEKLY,
+              "https://pods.example/other": DAILY}, "Example Show: the week in tech", "Example Show",
+             "found as Apple's podcast directory", None),
+            ({}, "Nothing here", "https://nothing.example/", "No feed found", None),
+        )
+        for pages, topic, feed, said, row in rows:
+            with self.subTest(feed=feed), web(pages):
+                code, out = self.run_cli("add", topic, "--feed", feed)
+                self.assertEqual(code, errors.OK)
+                self.assertIn(said, out)
+                if row:
+                    self.assertEqual(self.feeds()[-1], row)
+        values = [f["value"] for f in self.feeds()]
+        self.assertEqual(values.count("https://daily.example/atom"), 1)
+        self.assertIn("https://pods.example/show", values)   # the closest name, not the first
+        self.assertIn("Nothing here", [t.name for t in context.topics(context.profile())])
 
     def test_a_hostile_feed_is_refused_unparsed(self):
         evil = b'<?xml version="1.0"?><!DOCTYPE x [<!ENTITY a "aaaa">]><rss><channel><title>&a;</title></channel></rss>'
         self.assertIsNone(topics.read_feed(evil, "https://x.example/", "test"))
-
-    def test_the_listing_and_its_json(self):
-        self.run_cli("add", "Formula 1: race weekends")
-        code, out = self.run_cli("--json")
-        self.assertEqual(code, errors.OK)
-        self.assertEqual(json.loads(out)["topics"], [{"name": "Formula 1", "note": "race weekends"}])
 
 
 if __name__ == "__main__":

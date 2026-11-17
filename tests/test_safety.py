@@ -1,13 +1,15 @@
 """Checks for holes in the safety path: what the menu scan catches (jumping and sprint moves, one-word
 aliases, negations), what an off-limits area rules out, and how health.md's [[limits]] rows, Avoid:
 lines and injury prose are read. They run on the shipped catalog, with no models or network."""
+import contextlib
+import io
 import json
 import os
 import shutil
-import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools"))
 
@@ -16,6 +18,7 @@ import catalog  # noqa: E402
 # The shipped catalog only: a listener's private movements in me/ never change what the tests see.
 catalog.paths.MY_MOVEMENTS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "no-private-movements.toml")
 import check  # noqa: E402
+import cli  # noqa: E402
 import context  # noqa: E402
 import health as health_md  # noqa: E402
 import logsession  # noqa: E402
@@ -30,6 +33,16 @@ import sessions  # noqa: E402
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CAT = catalog.load()
 GOALS = sessions.load().goals
+LISTENER = os.path.join(ROOT, "tests", "fixtures", "listener")
+
+
+def brief(home, *args):
+    """./harmonicfitness brief over `home`, in this process: (exit code, stdout, stderr)."""
+    import brief as brief_tool
+    out, err = io.StringIO(), io.StringIO()
+    with helpers.home(home), mock.patch("machine.facts", return_value={"local": "yes"}),             contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+        code = cli.run(brief_tool.main, list(args))
+    return code, out.getvalue(), err.getvalue()
 
 
 def menu_for(*ids):
@@ -70,37 +83,45 @@ class JumpingMoves(unittest.TestCase):
     def test_the_catalog_stays_clean(self):
         self.assertEqual(catalog.problems(CAT), [])
 
+    def test_a_hotel_room_leaves_out_jumping(self):
+        code, out, err = brief(LISTENER, "--today", "2026-10-21", "--goal", "conditioning", "--minutes", "20",
+                               "--preset", "hotel-room", "--level", "advanced")
+        self.assertEqual(code, 0, err)
+        section = out.split("## Safe menu", 1)[1].split("## Programming guide", 1)[0]
+        ids = {line.split("(`", 1)[1].split("`", 1)[0] for line in section.splitlines() if line.startswith("- **")}
+        self.assertTrue(ids, out[:500])
+        self.assertFalse([i for i in ids if "impact" in CAT.movements[i].flags], ids)
+        self.assertIn("impact", out.split("Also left out of the menu today", 1)[1].splitlines()[0])
+
 
 class Negation(unittest.TestCase):
-    def test_a_negation_must_come_just_before_the_mention(self):
-        for line in ("No rest between jumping jacks.", "Do not stop your high knees!",
-                     "Don't stop doing jumping jacks.", "Not too fast on the high knees."):
-            self.assertTrue(any("isn't on today's menu" in i for i in issues_for(line)), line)
+    """What the scan counts as naming a movement: a negation only just before the mention, one-word aliases;
+    and what it reads past: true negations, everyday coaching words, the shipped drafts."""
 
-    def test_true_negations_still_pass(self):
-        for line in ("No burpees today.", "We're not doing jumping jacks.", "No more high knees.",
-                     "Skip the jump squats.", "Instead of burpees, a slow march.", "Rather than burpees, rest.",
-                     "Without any jumping jacks today.", "It should feel like a brisk walk.",
-                     "Today doesn't do burpees.", "We can't do jumping jacks in here."):   # as "does not", "cannot"
-            self.assertEqual(issues_for(line), [], line)
-
-
-class OneWordAliases(unittest.TestCase):
-    def test_one_word_aliases_are_scanned(self):
-        for line, mid in (("Ten pushups.", "push-up"), ("Now the rdl.", "romanian-deadlift"),
+    def test_named_movements_are_caught(self):
+        for line, mid in (("No rest between jumping jacks.", None), ("Do not stop your high knees!", None),
+                          ("Don't stop doing jumping jacks.", None), ("Not too fast on the high knees.", None),
+                          ("Ten pushups.", "push-up"), ("Now the rdl.", "romanian-deadlift"),
                           ("Then a pulldown.", "lat-pulldown"), ("Ten kickbacks.", "seated-triceps-kickback"),
                           ("Start shadowboxing.", "shadow-boxing"), ("Jog for a minute.", "treadmill-run"),
                           ("Ten birddogs.", "bird-dog"), ("Five walkouts.", "inchworm")):
-            issues = issues_for(line)
-            self.assertTrue(any(mid in i for i in issues), (line, issues))
+            with self.subTest(line):
+                issues = issues_for(line)
+                if mid is None:
+                    self.assertTrue(any("isn't on today's menu" in i for i in issues), issues)
+                else:
+                    self.assertTrue(any(mid in i for i in issues), issues)
 
-    def test_everyday_coaching_words_are_not(self):
-        for line in ("Swing your arms, squat down, plank strong, then bridge up.", "Curl the toes, run the reps.",
+    def test_negations_and_coaching_words_pass(self):
+        for line in ("No burpees today.", "We're not doing jumping jacks.", "No more high knees.",
+                     "Skip the jump squats.", "Instead of burpees, a slow march.", "Rather than burpees, rest.",
+                     "Without any jumping jacks today.", "It should feel like a brisk walk.",
+                     "Today doesn't do burpees.", "We can't do jumping jacks in here.",   # as "does not", "cannot"
+                     "Swing your arms, squat down, plank strong, then bridge up.", "Curl the toes, run the reps.",
                      "Press through your heels and row the arms back.", "Keep marching, take the stairs.",
                      "A windmill of the arms.", "Skiing season is coming."):
-            self.assertEqual(issues_for(line), [], line)
-
-    def test_no_false_alarm_in_the_shipped_drafts(self):
+            with self.subTest(line):
+                self.assertEqual(issues_for(line), [])
         for path, named in (("knowledge/smoke-test.draft.txt", {"arm-circles"}),
                             ("tests/fixtures/example.draft.txt", {"arm-circles", "seated-dumbbell-curl", "box-breathing"})):
             with open(os.path.join(ROOT, path), encoding="utf-8") as f:
@@ -221,11 +242,9 @@ class MenuTampering(unittest.TestCase):
         os.makedirs(os.path.dirname(cls.draft))
         with open(cls.draft, "w", encoding="utf-8") as f:
             f.write(cls.TEXT)
-        env = dict(os.environ, HARMONICFITNESS_PYTHON=sys.executable, HARMONICFITNESS_HOME=cls.home)
-        r = subprocess.run(["sh", os.path.join(ROOT, "harmonicfitness"), "brief", "--today", cls.TODAY, "--goal", "general",
-                            "--minutes", "5", "--kit", "home", "--save", cls.draft],
-                           capture_output=True, text=True, encoding="utf-8", env=env, cwd=ROOT, timeout=120)
-        assert r.returncode == 0, r.stderr
+        code, _, err = brief(cls.home, "--today", cls.TODAY, "--goal", "general", "--minutes", "5", "--kit", "home",
+                             "--save", cls.draft)
+        assert code == 0, err
         with open(draft.menu_path(cls.draft), encoding="utf-8") as f:
             cls.saved = json.load(f)
 
@@ -250,8 +269,10 @@ class MenuTampering(unittest.TestCase):
     def edited(self, **changes):
         return dict(json.loads(json.dumps(self.saved)), **changes)
 
-    def test_the_brief_menu_passes(self):
+    def test_the_brief_menu_passes_and_so_does_one_with_a_movement_removed(self):
         self.assertEqual(self.gate(self.saved), ([], []))
+        fewer = self.edited(movements=[e for e in self.saved["movements"] if e["id"] != "box-breathing"])
+        self.assertEqual(self.gate(fewer), ([], []))
 
     def test_malformed_menus_are_issues_not_tracebacks(self):
         for bad in (json.dumps([1, 2]),
@@ -261,29 +282,31 @@ class MenuTampering(unittest.TestCase):
             issues, _ = self.gate(bad)
             self.assertTrue(issues, bad)
             self.assertTrue(all("brief" in i for i in issues), issues)
-
-    def test_validate_names_each_problem(self):
         self.assertEqual(menu.validate(self.saved), [])
         found = menu.validate(self.edited(seconds=0, movements=[{"id": "dead-bug", "side": 1}]))
         self.assertEqual(len(found), 2, found)
-
-    def test_a_menu_without_format_asks_for_a_rerun(self):
         old = self.edited()
         del old["format"]
         issues, _ = self.gate(old)
         self.assertTrue(any("format" in i and "brief ... --save" in i for i in issues), issues)
 
-    def test_a_movement_added_by_hand_is_refused(self):
+    def test_a_movement_added_by_hand_is_refused_and_a_request_never_loosens_health(self):
         on = {e["id"] for e in self.saved["movements"]}
         self.assertNotIn("push-up", on)   # the listener dislikes it
         added = self.edited(movements=self.saved["movements"] + [{"id": "push-up", "name": "Push-up", "aliases": []}])
         issues, _ = self.gate(added)
         self.assertTrue(any("push-up" in i and "screen doesn't allow" in i for i in issues), issues)
         self.assertEqual(self.gate(added, strict=False)[0], [])   # a lint checks the shape and the text only
-
-    def test_a_movement_removed_passes(self):
-        fewer = self.edited(movements=[e for e in self.saved["movements"] if e["id"] != "box-breathing"])
-        self.assertEqual(self.gate(fewer), ([], []))
+        # the request's own limit, kept in the menu, still applies: a knee limit rules out a knee movement
+        tight = self.edited()
+        tight["request"]["limits"] = tight["request"].get("limits", []) + ["knee=off-limits:both"]
+        issues, _ = self.gate(tight)
+        self.assertTrue(any("screen doesn't allow" in i for i in issues), issues)
+        # dropping health.md's own limit from the request changes nothing: the file is read again
+        loose = self.edited()
+        loose["request"].pop("limits", None)
+        loose["movements"] = loose["movements"] + [{"id": "push-up", "name": "Push-up", "aliases": []}]
+        self.assertTrue(any("push-up" in i for i in self.gate(loose)[0]))
 
     def test_a_healthy_side_only_movement_needs_its_side(self):
         sided = [e for e in self.saved["movements"] if "side" in e]
@@ -296,19 +319,7 @@ class MenuTampering(unittest.TestCase):
         issues, _ = self.gate(self.edited(movements=moves))
         self.assertTrue(any(sided[0]["id"] in i and "side" in i for i in issues), issues)
 
-    def test_a_request_can_tighten_but_never_loosen_health(self):
-        # the request's own limit, kept in the menu, still applies: a knee limit rules out a knee movement
-        tight = self.edited()
-        tight["request"]["limits"] = tight["request"].get("limits", []) + ["knee=off-limits:both"]
-        issues, _ = self.gate(tight)
-        self.assertTrue(any("screen doesn't allow" in i for i in issues), issues)
-        # dropping health.md's own limit from the request changes nothing: the file is read again
-        loose = self.edited()
-        loose["request"].pop("limits", None)
-        loose["movements"] = loose["movements"] + [{"id": "push-up", "name": "Push-up", "aliases": []}]
-        self.assertTrue(any("push-up" in i for i in self.gate(loose)[0]))
-
-    def test_a_missing_health_file_is_named_not_called_an_old_menu(self):
+    def test_a_missing_health_file_is_named_and_the_brief_refuses(self):
         health = os.path.join(self.home, "health.md")
         moved = health + ".away"
         os.rename(health, moved)
@@ -316,20 +327,12 @@ class MenuTampering(unittest.TestCase):
         issues, _ = self.gate(self.saved)
         self.assertTrue(any("no health.md" in i and "setup" in i for i in issues), issues)
         self.assertFalse(any("predates" in i for i in issues), issues)
-
-    def test_the_brief_refuses_without_health_md(self):
-        with tempfile.TemporaryDirectory() as d:
-            home = os.path.join(d, "me")
-            shutil.copytree(self.home, home)
-            os.remove(os.path.join(home, "health.md"))
-            target = os.path.join(home, "workouts", "y", "y.draft.txt")
-            env = dict(os.environ, HARMONICFITNESS_PYTHON=sys.executable, HARMONICFITNESS_HOME=home)
-            r = subprocess.run(["sh", os.path.join(ROOT, "harmonicfitness"), "brief", "--today", self.TODAY, "--goal",
-                                "general", "--minutes", "5", "--kit", "home", "--save", target],
-                               capture_output=True, text=True, encoding="utf-8", env=env, cwd=ROOT, timeout=120)
-            self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
-            self.assertIn("setup", r.stderr)
-            self.assertFalse(os.path.exists(draft.menu_path(target)))
+        target = os.path.join(self.home, "workouts", "y", "y.draft.txt")
+        code, out, err = brief(self.home, "--today", self.TODAY, "--goal", "general", "--minutes", "5", "--kit", "home",
+                               "--save", target)
+        self.assertEqual(code, 1, out + err)
+        self.assertIn("setup", err)
+        self.assertFalse(os.path.exists(draft.menu_path(target)))
 
     def test_log_session_refuses_a_malformed_menu(self):
         menu.write(draft.menu_path(self.draft), self.edited(movements="dead-bug"))
@@ -353,43 +356,36 @@ def bridge_issues(*lines, declared="single-leg glute bridge"):
 
 
 class OneSideOnly(unittest.TestCase):
-    def test_build_refuses_both_sides_for_a_one_sided_movement(self):
-        issues = bridge_issues("Right single-leg glute bridge, ten each side.")
-        self.assertTrue(any("each side" in i and "right side only" in i for i in issues), issues)
-        self.assertEqual(bridge_issues("Right single-leg glute bridge, ten."), [])
-
-    def test_another_sides_word_in_the_clause_is_refused(self):
-        issues = bridge_issues("Left single-leg glute bridge, ten.")
-        self.assertTrue(any("left side" in i for i in issues), issues)
-        self.assertTrue(bridge_issues("Ten single-leg glute bridges on both legs."))
-        self.assertTrue(bridge_issues("Single-leg glute bridges, alternating."))
-
-    def test_switch_in_the_segment_is_refused(self):
-        issues = bridge_issues("Right single-leg glute bridge, ten.", "Now switch to the other leg.")
-        self.assertTrue(any(('"switch"' in i or '"other leg"' in i) and "right side only" in i for i in issues), issues)
-        for phrase in ("Then the other side.", "Swap sides.", "Repeat on the other one.", "Other leg now."):
-            with self.subTest(phrase=phrase):
-                self.assertTrue(bridge_issues("Right single-leg glute bridge, ten.", phrase), phrase)
-
-    def test_a_dose_beyond_the_naming_sentence_is_refused(self):
+    def test_the_other_side_in_any_words_is_refused(self):
         bridge = "Right single-leg glute bridge"
-        for lines in [[f"{bridge}: ten each side."], [f"{bridge} (ten each side)."], [f"{bridge}. Ten each side."],
-                      [f"{bridge}, ten. Count reps on each side."], [f"{bridge}, ten. Then the left."],
-                      [f"{bridge}, ten.", "Now left leg."], [f"{bridge}, ten. Left leg next."],
-                      [f"{bridge}, ten. On to the left."], [f"{bridge}, ten. Then do the same on your left."],
-                      [f"{bridge}, ten.", "Then alternate."]] + [
-                [f"{bridge}, ten.", later] for later in (
-                    "Repeat with the left leg.", "Then ten on the left.", "Ten more on the left.",
-                    "Same again on the left.", "Do the left leg too.", "Left now.", "Next, left.", "Change legs.",
-                    "Change sides.", "Swap legs.", "Now the other one.", "Twenty total, ten a side.",
-                    "Switch arms.", "Ten per side.", "Then the other.", "Now the second leg.", "Trade legs.",
-                    "Change over.", "Flip around.", "Turn around.", "Mirror it.", "Ten apiece.", "Ten with each.",
-                    "Now do the opposite.", "Ten a side.", "Do 10 a side.")]:
+        only = ("right side only",)
+        rows = [([f"{bridge}, ten each side."], ("each side", "right side only")),
+                ([f"{bridge}, ten.", "Now switch to the other leg."], only),
+                (["Left single-leg glute bridge, ten."], ("left side",)),
+                (["Ten single-leg glute bridges on both legs."], ()),
+                (["Single-leg glute bridges, alternating."], ()),
+                ([f"{bridge}, ten.", "No single-leg glute bridge on the left side."], ()),   # a negation excuses no side
+                ([f"{bridge}: ten each side."], only), ([f"{bridge} (ten each side)."], only),
+                ([f"{bridge}. Ten each side."], only), ([f"{bridge}, ten. Count reps on each side."], only),
+                ([f"{bridge}, ten. Then the left."], only), ([f"{bridge}, ten.", "Now left leg."], only),
+                ([f"{bridge}, ten. Left leg next."], only), ([f"{bridge}, ten. On to the left."], only),
+                ([f"{bridge}, ten. Then do the same on your left."], only), ([f"{bridge}, ten.", "Then alternate."], only)]
+        rows += [([f"{bridge}, ten.", later], only) for later in (
+            "Then the other side.", "Swap sides.", "Repeat on the other one.", "Other leg now.",
+            "Repeat with the left leg.", "Then ten on the left.", "Ten more on the left.",
+            "Same again on the left.", "Do the left leg too.", "Left now.", "Next, left.", "Change legs.",
+            "Change sides.", "Swap legs.", "Now the other one.", "Twenty total, ten a side.",
+            "Switch arms.", "Ten per side.", "Then the other.", "Now the second leg.", "Trade legs.",
+            "Change over.", "Flip around.", "Turn around.", "Mirror it.", "Ten apiece.", "Ten with each.",
+            "Now do the opposite.", "Ten a side.", "Do 10 a side.")]
+        for lines, words in rows:
             with self.subTest(lines=lines):
                 issues = bridge_issues(*lines)
-                self.assertTrue(any("right side only" in i for i in issues), issues)
+                self.assertTrue(issues)
+                if words:
+                    self.assertTrue(any(all(w in i for w in words) for i in issues), issues)
 
-    def test_the_limited_side_named_without_left_or_right_is_refused(self):
+    def test_the_side_check_directly(self):
         for side in ("right", "healthy"):
             on_menu = {e["id"]: e for e in one_sided_menu(side)["movements"]}
             first = f"{'Right' if side == 'right' else 'Healthy side'} single-leg glute bridge, ten."
@@ -397,14 +393,23 @@ class OneSideOnly(unittest.TestCase):
                           "Now the non-working leg.", "Then the painful knee."):
                 with self.subTest(side=side, later=later):
                     self.assertTrue(menu.side_problems(CAT, on_menu, f"{first} {later}"), later)
+        on_menu = {e["id"]: e for e in one_sided_menu()["movements"]}
+        self.assertEqual(menu.side_problems(CAT, on_menu, "Right single-leg glute bridge, ten."), [])
+        self.assertEqual(menu.side_problems(CAT, on_menu, "Dead bug, ten each side."), [])
+        self.assertTrue(menu.side_problems(CAT, on_menu, "Right single-leg glute bridge, ten each side."))
+        self.assertIn("switch", menu.BOTH_SIDES)
+        self.assertEqual(menu.SIDES, ("left", "right", "both", "healthy"))
+        name = "single-leg glute bridge"
+        self.assertIsNone(menu.name_side_problem(f"right {name}", "right"))
+        self.assertIn("left", menu.name_side_problem(f"left {name}", "right"))
+        self.assertIn("right side only", menu.name_side_problem(name, "right"))
 
-    def test_ordinary_words_pass_beside_a_one_sided_movement(self):
+    def test_ordinary_words_and_the_shipped_limit_cues_pass(self):
+        self.assertEqual(bridge_issues("Right single-leg glute bridge, ten."), [])
         on_menu = {e["id"]: e for e in one_sided_menu()["movements"]}
         for later in ("Repeat for three sets.", "Hold a side plank for ten.", "Rest, then repeat."):
             with self.subTest(later=later):
                 self.assertEqual(menu.side_problems(CAT, on_menu, f"Right single-leg glute bridge, ten. {later}"), [])
-
-    def test_the_shipped_limit_cues_pass_beside_a_one_sided_movement(self):
         # the brief fills {side} with the limit's side: the one the menu doesn't allow, or injured / sore
         for area, levels in CAT.limit_cues.items():
             for level, lines in levels.items():
@@ -414,10 +419,6 @@ class OneSideOnly(unittest.TestCase):
                         with self.subTest(area=area, level=level, side=side):
                             self.assertEqual(bridge_issues("Right single-leg glute bridge, ten.", said), [], said)
 
-    def test_a_negation_doesnt_excuse_a_side(self):
-        self.assertTrue(bridge_issues("Right single-leg glute bridge, ten.",
-                                      "No single-leg glute bridge on the left side."))
-
     def test_one_issue_per_movement_and_other_segments_are_free(self):
         text = ("movements: single-leg glute bridge, dead bug\n@@ 150 | Bridge\n"
                 "Right single-leg glute bridge, ten each side. Then both legs.\n"
@@ -425,20 +426,6 @@ class OneSideOnly(unittest.TestCase):
         issues = menu.check(CAT, one_sided_menu(), text, draft.parse(text))[0]
         self.assertEqual(len([i for i in issues if "single-leg glute bridge" in i]), 1, issues)
         self.assertFalse(any("dead bug" in i.lower() for i in issues), issues)
-
-    def test_side_problems_directly(self):
-        on_menu = {e["id"]: e for e in one_sided_menu()["movements"]}
-        self.assertEqual(menu.side_problems(CAT, on_menu, "Right single-leg glute bridge, ten."), [])
-        self.assertEqual(menu.side_problems(CAT, on_menu, "Dead bug, ten each side."), [])
-        self.assertTrue(menu.side_problems(CAT, on_menu, "Right single-leg glute bridge, ten each side."))
-        self.assertIn("switch", menu.BOTH_SIDES)
-        self.assertEqual(menu.SIDES, ("left", "right", "both", "healthy"))
-
-    def test_a_name_must_carry_its_side(self):
-        name = "single-leg glute bridge"
-        self.assertIsNone(menu.name_side_problem(f"right {name}", "right"))
-        self.assertIn("left", menu.name_side_problem(f"left {name}", "right"))
-        self.assertIn("right side only", menu.name_side_problem(name, "right"))
 
 
 class Unlisted(unittest.TestCase):
@@ -463,11 +450,23 @@ class Unlisted(unittest.TestCase):
                 self.assertTrue(any("isn't in the catalog" in i for i in issues_for(line)), line)
 
     def test_a_movements_own_coaching_never_trips_unlisted(self):
+        """Every movement's own coaching, said with only that movement declared, names nothing unlisted. One pass
+        of the [unlisted] patterns over every movement's words finds the few that could (the scan only masks
+        words, never adds a match), and only those go through the whole menu check."""
+        unlisted = [rx for rx, mid, _ in menu._patterns(CAT) if mid == menu.UNLISTED]
+        self.assertTrue(unlisted)
+        texts = {}
         for m in CAT.movements.values():
             spoken = [m.setup or ""] + list(m.cues) + [m.rep or "", m.feel or ""] + list(m.faults)
-            text = f"movements: {m.name}\n@@ 300 | Work\n" + "\n\n".join(x for x in spoken if x) + "\n"
-            issues = menu.check(CAT, menu_for(m.id), text, draft.parse(text))[0]
-            self.assertFalse([i for i in issues if "isn't in the catalog" in i], m.id)
+            texts[m.id] = "\n\n".join(x for x in spoken if x)
+        maybe = [mid for mid, said in texts.items()
+                 if any(rx.search(" ".join(catalog.fold(said).split())) for rx in unlisted)]
+        tripped = []
+        for mid in maybe:
+            text = f"movements: {CAT.movements[mid].name}\n@@ 300 | Work\n{texts[mid]}\n"
+            issues = menu.check(CAT, menu_for(mid), text, draft.parse(text))[0]
+            tripped += [(mid, i) for i in issues if "isn't in the catalog" in i]
+        self.assertEqual(tripped, [])
 
     def test_the_shipped_limit_cues_pass_the_scan(self):
         for area, levels in CAT.limit_cues.items():
@@ -478,24 +477,28 @@ class Unlisted(unittest.TestCase):
                         self.assertFalse([i for i in issues_for(said) if "isn't in the catalog" in i], said)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class Stories(unittest.TestCase):
     """[story] ... [/story]: the listener's content, which the menu scan and the one-side check read past."""
 
-    def test_a_story_may_name_a_movement_off_the_menu(self):
+    def test_what_a_story_may_say(self):
         for story in ("Her deadlift record stood for ten years.", "Mountain climbers reached the summit at dawn.",
                       "They did lunges at the Olympics trials.", "The Navy trains with burpees and push-ups."):
             with self.subTest(story=story):
                 self.assertEqual(issues_for(f"[story] {story} [/story] Back to the dead bug."), [])
                 self.assertTrue(issues_for(story), story)   # outside a story, it's coaching
+        self.assertEqual(issues_for("[story] You'd never guess it: the Navy trains with sandbags. [/story]"), [])
+        self.assertEqual(issues_for("[story] And the answer is. [pause 1s] Paris. [/story]"), [])
+        self.assertEqual(bridge_issues("Right single-leg glute bridge, ten.",
+                                       "[story] He switched teams, and moved to the other side of the city. [/story]"), [])
+        for later in ("Aim for two left in the tank.", "Five seconds left.", "Three reps left, and slow.",
+                      "Keep one left in reserve."):   # "left" meaning remaining isn't a side
+            with self.subTest(later=later):
+                self.assertEqual(bridge_issues("Right single-leg glute bridge, ten.", later), [])
+        self.assertTrue(bridge_issues("Right single-leg glute bridge, ten.", "Then ten on the left."))
 
     def test_a_story_speaking_to_the_listener_about_an_off_menu_movement_is_refused(self):
         issues = issues_for("[story] Now you do ten burpees, like the Navy. [/story]")
         self.assertTrue(any("inside a [story]" in i for i in issues), issues)
-        self.assertEqual(issues_for("[story] You'd never guess it: the Navy trains with sandbags. [/story]"), [])
 
     def test_a_story_left_open_or_holding_timing_is_refused_and_read_as_coaching(self):
         for line, why in (("[story] Twenty burpees.", "never closed"),
@@ -506,20 +509,6 @@ class Stories(unittest.TestCase):
                 issues = issues_for(line)
                 self.assertTrue(any(why in i for i in issues), issues)
                 self.assertTrue(any("burpee" in i for i in issues), issues)   # every word checked again
-
-    def test_a_pause_inside_a_story_is_fine(self):
-        self.assertEqual(issues_for("[story] And the answer is. [pause 1s] Paris. [/story]"), [])
-
-    def test_a_one_sided_segment_may_hold_a_story_with_side_words(self):
-        self.assertEqual(bridge_issues("Right single-leg glute bridge, ten.",
-                                       "[story] He switched teams, and moved to the other side of the city. [/story]"), [])
-
-    def test_left_meaning_remaining_isnt_a_side(self):
-        for later in ("Aim for two left in the tank.", "Five seconds left.", "Three reps left, and slow.",
-                      "Keep one left in reserve."):
-            with self.subTest(later=later):
-                self.assertEqual(bridge_issues("Right single-leg glute bridge, ten.", later), [])
-        self.assertTrue(bridge_issues("Right single-leg glute bridge, ten.", "Then ten on the left."))
 
 
 class ShortNames(unittest.TestCase):
@@ -539,3 +528,7 @@ class ShortNames(unittest.TestCase):
                 self.assertEqual(self.check(declared, f"Ten of the {full}, slow. Last two {short}, and rest."), [])
                 self.assertTrue(self.check(declared, f"Ten of the {full}.", f"Now the {short}, ten more."))
                 self.assertTrue(self.check(declared, f"The {short} first. Then the {full}."))
+
+
+if __name__ == "__main__":
+    unittest.main()

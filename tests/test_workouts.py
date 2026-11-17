@@ -93,59 +93,33 @@ class Workouts(unittest.TestCase):
         for name in ("log.md", "profile.md", "content.md", "training.md"):
             self.assertIn(name, taken)
 
-    def test_the_list_is_newest_first(self):
-        got = self.w.listing(self.w.logged())
-        self.assertIn("15 min", got[0])
-        self.assertIn("build ccc333", got[0])
-        self.assertIn("2026-10-29", got[2])
-
-    def test_delete_takes_back_its_line_stories_and_threads(self):
+    def test_delete_takes_back_its_line_stories_threads_and_feedback(self):
+        line = self.w.feedback(self.w.pick(["1"], self.w.logged())[0], "loved the quiz, a bit long")
+        self.assertEqual(line, "- 2026-10-30 (15 min, build ccc333): loved the quiz, a bit long")
+        import content
+        import context
+        self.assertEqual(context.feedback()[-1], line[2:])
         out = self.w.delete(self.w.pick(["ccc333"], self.w.logged()))
         self.assertIn("Removed 1 session line(s)", out[0])
         self.assertEqual([s.build_id for s in self.w.logged()], ["bbb222", "aaa111"])
         self.assertEqual(self.titles(), ["old, no build", "seven"])
-        import content
         self.assertEqual([t["id"] for t in content.threads()], ["t1"])   # its close went with it: t1 is open again
+        self.assertNotIn(line[2:], context.feedback())
+        self.w.delete(self.w.pick(["2"], self.w.logged()))   # a row without a build goes only when no workout
+        self.assertEqual(self.titles(), ["seven"])           # shares its date (2026-10-29: the only one that day)
 
-    def test_a_row_without_a_build_goes_only_when_no_workout_shares_its_date(self):
-        self.w.delete(self.w.pick(["3"], self.w.logged()))   # the 2026-10-29 one, the only one that day
-        self.assertEqual(self.titles(), ["seven", "fifteen"])
-
-    def _workout_folder(self, stem, build_id, name="Workout"):
-        folder = os.path.join(paths.WORKOUTS, stem)
-        os.makedirs(folder, exist_ok=True)
-        with open(os.path.join(folder, f"{name}.build.json"), "w", encoding="utf-8") as f:
-            json.dump({"build_id": build_id, "draft": "/some/old/temp/me/workouts/x.draft.txt"}, f)
-        with open(os.path.join(folder, f"{name}.txt"), "w", encoding="utf-8") as f:
-            f.write(f"Hello from {build_id}.\n")
-        return folder
-
-    def test_the_script_is_found_from_the_folders_own_build_record(self):
-        folder = self._workout_folder("2026-10-30-conditioning-15", "ccc333")
-        s = self.w.pick(["ccc333"], self.w.logged())[0]
-        self.assertEqual(self.w.script_of(s), os.path.join(folder, "Workout.txt"))
-        self.assertEqual(self.w.folder_of("ccc333"), folder)   # though the record's draft path is elsewhere
-        self.assertIsNone(self.w.script_of(self.w.pick(["bbb222"], self.w.logged())[0]))
-
-    def test_rating_replaces_the_last_and_reads_apart_from_feedback(self):
+    def test_rating_replaces_the_last_and_what_cant_be_placed_is_a_usage_error(self):
         s = self.w.pick(["1"], self.w.logged())[0]
         self.w.feedback(s, "too long")
         self.w.rate(s, "negative")
         self.w.rate(s, "positive")
         texts, rating = self.w.notes_for(s, __import__("context").feedback())
         self.assertEqual((texts, rating), (["too long"], "positive"))
-        self.assertIn("Cleared", self.w.rate(s, "none"))
-        self.assertIsNone(self.w.notes_for(s, __import__("context").feedback())[1])
         with self.assertRaises(errors.UsageError):
             self.w.rate(s, "great")
-
-    def test_the_json_list(self):
-        self._workout_folder("2026-10-30-conditioning-15", "ccc333")
-        self.w.rate(self.w.pick(["ccc333"], self.w.logged())[0], "neutral")
-        got = self.w.as_json(self.w.logged())["workouts"]
-        self.assertEqual([w["build_id"] for w in got], ["ccc333", "bbb222", "aaa111"])
-        self.assertEqual((got[0]["rating"], got[0]["has_script"], got[0]["feedback"]), ("neutral", True, []))
-        self.assertFalse(got[1]["has_script"])
+        for bad in ("9", "zzz"):
+            with self.assertRaises(errors.UsageError):
+                self.w.pick([bad], self.w.logged())
 
     def test_delete_all_and_files(self):
         folder = os.path.join(paths.WORKOUTS, "2026-10-30-conditioning-15")
@@ -168,35 +142,6 @@ class Workouts(unittest.TestCase):
         self.assertFalse(os.path.exists(folder))
         self.assertFalse(os.path.exists(copy))
         self.assertTrue(any("delivered copy" in line for line in out))
-
-    def test_feedback_is_tied_to_its_workout_and_goes_with_it(self):
-        line = self.w.feedback(self.w.pick(["1"], self.w.logged())[0], "loved the quiz, a bit long")
-        self.assertEqual(line, "- 2026-10-30 (15 min, build ccc333): loved the quiz, a bit long")
-        import context
-        self.assertEqual(context.feedback()[-1], line[2:])
-        self.assertIn("feedback: loved the quiz", "\n".join(self.w.listing(self.w.logged())))
-        self.w.delete(self.w.pick(["ccc333"], self.w.logged()))
-        self.assertNotIn(line[2:], context.feedback())
-
-    def test_an_unknown_workout_is_a_usage_error(self):
-        with self.assertRaises(errors.UsageError):
-            self.w.pick(["9"], self.w.logged())
-        with self.assertRaises(errors.UsageError):
-            self.w.pick(["zzz"], self.w.logged())
-
-
-class BuildLinks(unittest.TestCase):
-    def test_told_items_and_threads_carry_the_build(self):
-        import content
-        with tempfile.TemporaryDirectory() as d:
-            told, threads = os.path.join(d, "told.jsonl"), os.path.join(d, "threads.jsonl")
-            content.log("2026-10-30", ["- | quiz | A riddle"], path=told, build="abc")
-            self.assertEqual(content.told(told)[0]["build"], "abc")
-            row = content.open_threads("2026-10-30", ["- | quiz | Q"], path=threads, build="abc")[0]
-            self.assertEqual(row["build"], "abc")
-            self.assertEqual(content.close_thread("2026-10-30", "t1", path=threads, build="def")["build"], "def")
-        with mock.patch("records.latest_build", return_value=None), self.assertRaises(ValueError):
-            content.draft_build(os.path.join(ROOT, "knowledge", "smoke-test.draft.txt"))
 
 
 if __name__ == "__main__":

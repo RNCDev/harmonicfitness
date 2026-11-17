@@ -1,5 +1,7 @@
 # Leaner Script Writing Implementation Plan
 
+> **Note (2026-11-17):** `web/webtests/test_bench.py`, which this plan added, was removed with the other maintainer-only tests; the bench itself is unchanged.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Write each workout with fewer tokens, fewer requests and fewer failed turns, with the listener hearing the same

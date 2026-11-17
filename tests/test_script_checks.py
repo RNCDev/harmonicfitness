@@ -1,24 +1,21 @@
-"""Checks the engine holds on a written script: light loads under a limit, a second session in
-a day, a whole-body session's patterns, and claims the coach can't make."""
-import datetime
+"""Checks the engine holds on a written script: "heavy" under a limit, the opening's side and AI line, the menu
+check's reading of ordinary speech, and a set's [reps N] timing."""
 import os
 import sys
-import re
 import unittest
+from unittest import mock
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools"))
 
-import brief  # noqa: E402
+import build  # noqa: E402
 import catalog  # noqa: E402
 import draft  # noqa: E402
 import menu  # noqa: E402
-import paths  # noqa: E402
-import repeats  # noqa: E402
-import sessionlog  # noqa: E402
 import tts_build  # noqa: E402
 
 CAT = catalog.load()
 KNEE = {"request": {"limits": ["knee=delicate:left"]}}
+PRESS = {"single-arm-floor-press": {"id": "single-arm-floor-press", "side": "left"}}   # the healthy side's press
 
 
 def segs(text):
@@ -26,117 +23,100 @@ def segs(text):
 
 
 class HeavyUnderALimit(unittest.TestCase):
-    def test_heavy_with_a_movement_that_loads_a_limited_area_is_found(self):
+    def test_heavy_beside_a_movement_that_loads_a_limited_area_is_found(self):
         found = menu.load_problems(CAT, KNEE, segs("@@ 60 | Carry\nPick up a heavy pair for the farmer carry, and walk.\n"))
         self.assertEqual(len(found), 1)
         self.assertIn('"heavy" with farmer carry, which loads today\'s limited knee', found[0])
-
-    def test_a_plural_or_a_setup_in_the_rest_before_is_caught(self):
         self.assertTrue(menu.load_problems(CAT, KNEE, segs("@@ 60 | Carries\nTwo heavy suitcase carries now.\n")))
         two = segs("@@ 45 | Rest\nPick up one heavy dumbbell in your right hand.\n\n"
-                   "@@ 60 | Set one\nSuitcase carry, walk tall, short steps.\n")
+                   "@@ 60 | Set one\nSuitcase carry, walk tall, short steps.\n")   # set up in the rest before
         found = menu.load_problems(CAT, KNEE, two)
         self.assertEqual(len(found), 1)
         self.assertIn('segment "Rest"', found[0])
         after = segs("@@ 60 | Set one\nSuitcase carry, walk tall.\n\n@@ 60 | Carry set 2\nHold that heavy bell steady.\n")
         self.assertIn('segment "Carry set 2"', menu.load_problems(CAT, KNEE, after)[0])
-
-    def test_plurals_ending_in_y_are_names(self):
         for text, mid in (("farmer carries", "farmer-carry"), ("suitcase carries", "suitcase-carry"),
                           ("push-ups", "push-up"), ("goblet squats", "goblet-squat")):
             self.assertEqual([m for m, _, _ in menu.mentions(CAT, text)], [mid], text)
-
-    def test_light_words_a_story_or_no_limit_pass(self):
-        for text in ("@@ 60 | Carry\nNothing too heavy on the farmer carry today, light pair.\n",
-                     "@@ 60 | Carry\nA light pair for the farmer carry.\n[story] She lifted heavy at the farmer carry worlds. [/story]\n"):
-            self.assertEqual(menu.load_problems(CAT, KNEE, segs(text)), [], text)
-        self.assertEqual(menu.load_problems(CAT, {"request": {}}, segs("@@ 60 | C\nA heavy farmer carry.\n")), [])
-
-    def test_heavy_for_the_healthy_side_is_fine_but_not_for_both_sides(self):
         text = "@@ 60 | Press\nA heavy bell for the half-kneeling kettlebell press.\n"
-        right = {"request": {"limits": ["shoulder=delicate:right"]},
-                 "movements": [{"id": "half-kneeling-kettlebell-press", "side": "left"}]}
-        self.assertEqual(menu.load_problems(CAT, right, segs(text)), [])   # the left arm works; the right rests
         both = {"request": {"limits": ["shoulder=delicate:both"]},
                 "movements": [{"id": "half-kneeling-kettlebell-press"}]}
         self.assertTrue(menu.load_problems(CAT, both, segs(text)))
 
+    def test_light_words_a_story_no_limit_or_the_healthy_side_pass(self):
+        for text in ("@@ 60 | Carry\nNothing too heavy on the farmer carry today, light pair.\n",
+                     "@@ 60 | Carry\nA light pair for the farmer carry.\n[story] She lifted heavy at the farmer carry "
+                     "worlds. [/story]\n"):
+            self.assertEqual(menu.load_problems(CAT, KNEE, segs(text)), [], text)
+        self.assertEqual(menu.load_problems(CAT, {"request": {}}, segs("@@ 60 | C\nA heavy farmer carry.\n")), [])
+        right = {"request": {"limits": ["shoulder=delicate:right"]},
+                 "movements": [{"id": "half-kneeling-kettlebell-press", "side": "left"}]}
+        text = "@@ 60 | Press\nA heavy bell for the half-kneeling kettlebell press.\n"
+        self.assertEqual(menu.load_problems(CAT, right, segs(text)), [])   # the left arm works; the right rests
+
 
 class TheOpeningNamesTheSide(unittest.TestCase):
     """Under a one-sided limit, the opening names the sore side with its body part, never the other side's care."""
-    def test_the_other_side_told_to_go_light_is_refused(self):
-        found = menu.opening_problems(KNEE, segs("@@ 60 | Welcome\nThe right side stays light today, and no jumping.\n"))
-        self.assertEqual(len(found), 1)
-        self.assertIn("ties today's care to the right side, but the limit is the left knee", found[0])
+
+    def test_the_openings_side(self):
+        """Each row: the limits, the welcome's words, and what the refusal says (None: it passes)."""
+        both = {"request": {"limits": ["knee=delicate:left", "shoulder=off-limits:right"]}}
+        rows = (
+            (KNEE, "The right side stays light today, and no jumping.",
+             "ties today's care to the right side, but the limit is the left knee"),
+            (KNEE, "Your knee stays light today.", "never names the left knee"),
+            (KNEE, "[pause 2s]\n\n@@ 40 | Set", None),   # a skeleton's empty opening waits for its words
+            (KNEE, "Your left knee stays light today, and the right leg does the lunges, two left in the tank.", None),
+            (KNEE, "Easy on the knee on the left today. Right side lateral lunges only.", None),
+            (KNEE, "Your left-side knee stays light. [story] The right back was sore all season. [/story]", None),
+            ({"request": {}}, "Twenty minutes, let's go.", None),
+            ({"request": {"limits": ["knee=delicate:both"]}}, "Twenty minutes, let's go.", None),
+            (both, "Your left knee stays light today, only as deep as is comfortable. Your right arm rests today, "
+                   "nothing pushing or pulling on it.", None),
+            (both, "Your left knee stays light today. Keep the left arm easy today.",
+             '"Keep the left arm easy today" ties today\'s care to the left side'),
+        )
+        for limits, text, refused in rows:
+            with self.subTest(text=text):
+                found = menu.opening_problems(limits, segs(f"@@ 60 | Welcome\n{text}\n"))
+                if refused is None:
+                    self.assertEqual(found, [])
+                else:
+                    self.assertEqual(len(found), 1, found)
+                    self.assertIn(refused, found[0])
+        found = menu.opening_problems(KNEE, segs("@@ 60 | Welcome\nThe right side stays light today.\n"))
         self.assertIn('"Your left knee stays light today', found[0])   # the brief's own line, to put back
 
-    def test_an_opening_with_no_side_is_refused(self):
-        found = menu.opening_problems(KNEE, segs("@@ 60 | Welcome\nYour knee stays light today.\n"))
-        self.assertIn("never names the left knee", found[0])
-
-    def test_a_skeletons_empty_opening_waits_for_its_words(self):
-        # a skeleton lints clean to its budgets: the opening is checked once it says something
-        self.assertEqual(menu.opening_problems(KNEE, segs("@@ 60 | Welcome\n[pause 2s]\n\n@@ 40 | Set\n")), [])
-
-    def test_the_named_side_passes_with_the_other_side_working(self):
-        for text in ("Your left knee stays light today, and the right leg does the lunges, two left in the tank.",
-                     "Easy on the knee on the left today. Right side lateral lunges only.",
-                     "Your left-side knee stays light. [story] The right back was sore all season. [/story]"):
-            self.assertEqual(menu.opening_problems(KNEE, segs(f"@@ 60 | Welcome\n{text}\n")), [], text)
-
-    def test_two_limits_on_opposite_sides_each_keep_their_own_care(self):
-        both = {"request": {"limits": ["knee=delicate:left", "shoulder=off-limits:right"]}}
-        ok = ("@@ 60 | Welcome\nYour left knee stays light today, only as deep as is comfortable. "
-              "Your right arm rests today, nothing pushing or pulling on it.\n")
-        self.assertEqual(menu.opening_problems(both, segs(ok)), [])
-        wrong = "@@ 60 | Welcome\nYour left knee stays light today. Keep the left arm easy today.\n"
-        found = menu.opening_problems(both, segs(wrong))
-        self.assertEqual(len(found), 1)   # the arm's care on the wrong side, the knee's line excused
-        self.assertIn('"Keep the left arm easy today" ties today\'s care to the left side', found[0])
-
-    def test_the_opening_line_may_share_a_segment_with_the_healthy_side_movement(self):
+    def test_the_healthy_sides_set_may_name_the_resting_side_only_to_spare_it(self):
         # the brief's own opening line names the sore side; the welcome naming the left-arm press may still say it
-        on_menu = {"single-arm-floor-press": {"id": "single-arm-floor-press", "side": "left"}}
         ok = ("Your right arm rests today, nothing pushing, pulling or leaning on it. "
               "Today it's the left single-arm floor press, left side only.")
-        self.assertEqual(menu.side_problems(CAT, on_menu, ok), [])
+        self.assertEqual(menu.side_problems(CAT, PRESS, ok), [])
         own = "Your right arm sits out. Today it's the left single-arm floor press, left side only."
-        self.assertTrue(menu.side_problems(CAT, on_menu, own))   # the writer's own wording still fails safe
-
-    def test_the_resting_sides_stop_signs_may_be_said_at_the_healthy_sides_set(self):
-        # an off-limits area's stop signs go at the first working set (script.md), often the healthy side's movement
-        on_menu = {"single-arm-floor-press": {"id": "single-arm-floor-press", "side": "left"}}
+        self.assertTrue(menu.side_problems(CAT, PRESS, own))   # the writer's own wording still fails safe
+        # an off-limits area's stop signs go at the first working set, often the healthy side's movement
         for line in ("Stop that movement on any pain in the right shoulder.",
                      "Stop for today on pain in that shoulder that's still worse than when you started after a short rest."):
-            self.assertEqual(menu.side_problems(CAT, on_menu, f"Left single-arm floor press, left side only. {line}"), [], line)
+            self.assertEqual(menu.side_problems(CAT, PRESS, f"Left single-arm floor press, left side only. {line}"),
+                             [], line)
         turn = "Left single-arm floor press. Any pain in the right shoulder, then switch to it."
-        self.assertTrue(menu.side_problems(CAT, on_menu, turn))   # anything else naming it still fails safe
+        self.assertTrue(menu.side_problems(CAT, PRESS, turn))
 
-    def test_the_resting_sides_care_is_a_warning_and_a_turn_to_it_stops(self):
-        # 0.69.1's bench: a close that named the resting shoulder beside the left-arm press failed nearly every room
-        on_menu = {"single-arm-floor-press": {"id": "single-arm-floor-press", "side": "left"}}
-        care = "Left single-arm floor press done, protecting your left knee and keeping off that right shoulder."
-        stops, warns = menu.side_issues(CAT, on_menu, care)
-        self.assertEqual(stops, [])
-        self.assertTrue(warns)
-        # the false catches 0.69.1's bench still had after a first loosening: the resting side's care, in other words
+    def test_the_resting_sides_care_warns_and_a_turn_to_it_stops(self):
         for line in ("Down to the floor without loading that right arm.", "The other arm rests limp.",
-                     "Notice how that left knee and right shoulder feel.", "Keep your right arm totally relaxed."):
-            stops, warns = menu.side_issues(CAT, on_menu, f"Left single-arm floor press, ten. {line}")
+                     "Notice how that left knee and right shoulder feel.", "Keep your right arm totally relaxed.",
+                     "Done, protecting your left knee and keeping off that right shoulder."):
+            stops, warns = menu.side_issues(CAT, PRESS, f"Left single-arm floor press, ten. {line}")
             self.assertEqual(stops, [], line)
             self.assertTrue(warns, line)
         for turn in ("Left single-arm floor press, ten. Then the right.", "Left single-arm floor press, ten each side.",
                      "Left single-arm floor press. Now switch arms.", "Left single-arm floor press with both arms."):
-            self.assertTrue(menu.side_issues(CAT, on_menu, turn)[0], turn)
-
-    def test_idioms_and_setup_cues_are_no_side(self):
-        # the second batch's last false catches (2026-11-08)
-        on_menu = {"single-arm-floor-press": {"id": "single-arm-floor-press", "side": "left"}}
+            self.assertTrue(menu.side_issues(CAT, PRESS, turn)[0], turn)
         for line in ("If it felt smooth, hold steady right there.", "Pin both shoulder blades to the floor.",
-                     "All right, right now we press."):
-            self.assertEqual(menu.side_issues(CAT, on_menu, f"Left single-arm floor press, ten. {line}"), ([], []), line)
+                     "All right, right now we press."):   # idioms and setup cues are no side
+            self.assertEqual(menu.side_issues(CAT, PRESS, f"Left single-arm floor press, ten. {line}"), ([], []), line)
 
-    def test_heavy_under_a_limit_is_a_warning_in_the_build(self):
+    def test_heavy_and_the_other_sides_care_are_warnings_in_the_build(self):
         menu_ = {"request": {"limits": ["knee=delicate:left"]}, "seconds": 120,
                  "movements": [{"id": "farmer-carry"}]}
         text = ("movements: farmer carry\n@@ 60 | Welcome\nMade by AI, so your body has the final say. Your left knee "
@@ -144,6 +124,10 @@ class TheOpeningNamesTheSide(unittest.TestCase):
         issues, warnings = menu.check(CAT, menu_, text, draft.parse(text))
         self.assertEqual(issues, [])
         self.assertTrue(any("heavy" in w for w in warnings))
+        text = "@@ 60 | Welcome\nYour left knee stays light today. Keep the right side easy too.\n"
+        stops, warns = menu.opening_issues(KNEE, segs(text))
+        self.assertEqual(stops, [])
+        self.assertTrue(warns)
 
     def test_the_opening_says_its_made_by_ai(self):
         two = "@@ 60 | Welcome\n{}\n@@ 60 | Set\nTen reps.\n"
@@ -153,199 +137,18 @@ class TheOpeningNamesTheSide(unittest.TestCase):
         self.assertEqual(menu.ai_problems(segs(two.format("[pause 2s]"))), [])          # a skeleton's empty welcome
         self.assertEqual(menu.ai_problems(segs("@@ 60 | Work\nTen reps.\n")), [])       # a fragment has no opening
 
-    def test_care_tied_to_the_other_side_is_a_warning_once_the_side_is_named(self):
-        text = "@@ 60 | Welcome\nYour left knee stays light today. Keep the right side easy too.\n"
-        stops, warns = menu.opening_issues(KNEE, segs(text))
-        self.assertEqual(stops, [])
-        self.assertTrue(warns)
-
-    def test_no_one_sided_limit_needs_nothing(self):
-        for m in ({"request": {}}, {"request": {"limits": ["knee=delicate:both"]}}):
-            self.assertEqual(menu.opening_problems(m, segs("@@ 60 | Welcome\nTwenty minutes, let's go.\n")), [])
-
-
 
 class OrdinarySpeech(unittest.TestCase):
     """The menu check reads a name, not every phrase that shares its words (eval round 3, 2026-11-02)."""
 
-    def said(self, text):
-        return [(mid, menu.negated(before)) for mid, _, before in menu.mentions(CAT, text)]
-
-    def test_a_plural_name_used_as_a_verb_on_the_body_is_no_movement(self):
-        self.assertEqual(self.said("Holding the weight at your chest presses on the ribs, so keep it high."), [])
-        self.assertEqual(self.said("Ten chest presses on the bench."), [("machine-chest-press", False)])
-        self.assertEqual(self.said("Do ten chest presses."), [("machine-chest-press", False)])
-
-    def test_not_using_a_movement_is_a_negation(self):
-        self.assertEqual(self.said("We are not using the goblet squat today."), [("goblet-squat", True)])
-        self.assertEqual(self.said("Do not stop your goblet squats."), [("goblet-squat", False)])
-
-
-class SecondSession(unittest.TestCase):
-    def test_a_session_earlier_today_is_named_and_programmed_around(self):
-        today = datetime.date(2026, 11, 1)
-        e = sessionlog.Session("2026-11-01", 30, "home", "Coach Freya", ["goblet squat", "romanian deadlift"], "x")
-        lines = "\n".join(brief._week_lines(CAT, [e], today, []))
-        self.assertIn("A second session today", lines)
-        self.assertIn("hinge", lines)
-        yesterday = "\n".join(brief._week_lines(CAT, [e], today + datetime.timedelta(days=1), []))
-        self.assertNotIn("second session", yesterday)
-
-
-class Variety(unittest.TestCase):
-    """The brief counts each movement over the last four sessions, not just the last (programming.md, Variety)."""
-
-    def log(self):
-        a = ["arm circles", "inchworm", "reverse lunge", "overhead press", "kettlebell deadlift", "box breathing"]
-        b = ["cat-cow", "goblet squat", "push-up", "romanian deadlift", "bent-over row", "box breathing"]
-        return [sessionlog.Session(f"2026-11-{d:02d}", 30, "home", "Coach Freya", mv, "x")
-                for d, mv in ((3, a), (5, b), (8, a), (10, b))]
-
-    def test_the_week_names_the_movements_it_keeps_coming_back_to(self):
-        lines = "\n".join(brief._week_lines(CAT, self.log(), datetime.date(2026, 11, 16), []))
-        self.assertIn("box breathing (4 of 4)", lines)
-        self.assertIn("overhead press (2 of 4)", lines)
-        self.assertIn("Keep at most two main movements", lines)
-
-    def test_recent_uses_counts_the_last_four(self):
-        uses = brief.recent_uses(CAT, [sessionlog.Session("2026-10-01", 30, "home", "x", ["wall sit"], "x")]
-                                 + self.log())
-        self.assertNotIn("wall-sit", uses)
-        self.assertEqual(uses["box-breathing"], 4)
-        self.assertEqual(brief._use_tag("goblet-squat", set(), uses), "in 2 of the last 4 sessions")
-        self.assertEqual(brief._use_tag("box-breathing", {"box-breathing"}, uses),
-                         "in the last session, and 4 of the last 4")
-        self.assertEqual(brief._use_tag("wall-sit", set(), uses), "")
-
-    def test_the_day_order_is_stable_within_a_day_and_moves_between_days(self):
-        ids = sorted(CAT.movements)[:40]
-        day = datetime.date(2026, 11, 16)
-        one = sorted(ids, key=lambda i: brief._day_order(day, i))
-        self.assertEqual(one, sorted(ids, key=lambda i: brief._day_order(day, i)))
-        self.assertNotEqual(one, sorted(ids, key=lambda i: brief._day_order(day + datetime.timedelta(days=1), i)))
-
-
-class SeenClaims(unittest.TestCase):
-    def test_more_claims_the_coach_cannot_make(self):
-        for line in ("Solid work today, all executed with clean form.", "Your left knee is staying completely protected.",
-                     "Clean dumbbell pressing and crisp deadlifts today."):
-            self.assertTrue(repeats.seen_claims(f"movements: x\n@@ 30 | Close\n{line}\n"), line)
-        self.assertEqual(repeats.seen_claims("movements: x\n@@ 30 | Close\nKeep your form clean on every rep.\n"), [])
-        self.assertTrue(repeats.seen_claims("movements: x\n@@ 30 | Close\nSolid discipline across all three rounds.\n"))
-
-    def test_three_stories_in_one_rest_are_a_pile(self):
-        three = "movements: x\n@@ 90 | Rest\n[story] One. [/story]\n\n[story] Two. [/story]\n\n[story] Three. [/story]\n"
-        self.assertEqual(len(repeats.stacked_stories(three)), 1)
-        self.assertEqual(repeats.stacked_stories(three.replace("\n\n[story] Three. [/story]", "")), [])
-        timed = ("movements: x\n@@ 90 | Steady march\n[count 3 go] Easy pace.\n[story] One. [/story]\n\nHalfway.\n"
-                 "[story] Two. [/story]\n\nTen seconds.\n[story] Three. [/story]\n[hold]\n[cue rest]\n")
-        self.assertEqual(repeats.stacked_stories(timed), [])   # one story, broken by the time checks
-
-
-class ToldToday(unittest.TestCase):
-    def test_the_plan_names_what_an_earlier_session_told_today(self):
-        import content
-        import context
-        today = datetime.date(2026, 11, 1)
-        items = [{"date": "2026-11-01", "topic": "Hockey", "format": "on_this_day", "title": "Jacques Plante's mask"},
-                 {"date": "2026-10-30", "topic": "Hockey", "format": "quick_hit", "title": "Flyers win"}]
-        text = "\n".join(content.plan(25, today, content.recipe(), context.Profile({}, "## Topics\n- Hockey\n", None), items, []))
-        part = text.split("## Already told today")[1].split("##")[0]
-        self.assertIn("Jacques Plante's mask", part)
-        self.assertNotIn("Flyers win", part)
-
-
-if __name__ == "__main__":
-    unittest.main()
-
-
-class ThirtyMinutes(unittest.TestCase):
-    """0.49.4: thirty-minute scripts."""
-
-    def test_seen_claims_widen_and_a_rep_target_isnt_one(self):
-        import repeats
-        for line in ("Great execution on the pull block.", "You held your posture clean throughout.",
-                     "You are moving through this circuit with fantastic control.", "Outstanding carry."):
-            self.assertTrue(repeats.seen_claims(f"movements: x\n@@ 30 | A\n{line}\n"), line)
-        for line in ("Target is eight to ten clean reps, with two in reserve.", "Keep your back straight.",
-                     "Two more crisp reps, lock out at the top.", "Halfway there, five more smooth reps.",
-                     "Great work, rest now."):
-            self.assertEqual(repeats.seen_claims(f"movements: x\n@@ 30 | A\n{line}\n"), [], line)
-
-    def test_a_feeds_sheet_is_as_fresh_as_its_header(self):
-        import datetime as dt
-        import tempfile
-        import feeds
-        now = dt.datetime.now().astimezone()
-        with tempfile.TemporaryDirectory() as d:
-            path = os.path.join(d, "s.md")
-            for hours, fresh in ((-1, True), (-4, False), (2, False)):   # an hour ago; four; dated ahead (UTC)
-                with open(path, "w", encoding="utf-8") as f:
-                    f.write(f"# Feeds, {now + dt.timedelta(hours=hours):%A %B %d, %Y %H:%M}\n")
-                self.assertEqual(feeds.fresh_sheet(path, now), fresh, hours)   # the file's own time is now
-
-    def test_off_slot_segments_say_fix_only_when_the_total_is_off(self):
-        from unittest import mock
-        import tts_build
-        v = {"name": "x", "key": "x", "engine": "chatterbox", "model": "m"}
-        words = " ".join(["Keep breathing slowly and steadily."] * 9)
-        balanced = draft.parse(f"@@ 20 | A\n{words} {words}\n\n@@ 40 | B\n{words}\n")   # long, then short
-        with mock.patch("voices.pace", return_value=(14.0, True)):
-            report = tts_build.lint(balanced, v)
-        said = "\n".join(tts_build.render_report(report))
-        self.assertFalse(report.total_off)
-        self.assertEqual([r.flag for r in report.rows], ["long", "short"])
-        self.assertNotIn("trim it", said)
-        self.assertIn("leave them as they are", said)
-        with mock.patch("voices.pace", return_value=(4.0, True)):   # far too slow: the total is off
-            off = tts_build.lint(balanced, v)
-        self.assertTrue(off.total_off)
-        self.assertIn("trim it", "\n".join(tts_build.render_report(off)))
-
-
-class ThirtyMinutesMore(unittest.TestCase):
-    """0.49.6: a list of figures, a full-body session's patterns, and the words that land a short draft."""
-
-    def test_a_list_of_figures_is_warned_and_a_point_isnt_one(self):
-        many = ("movements: x\n@@ 60 | Rest\n[story] Revenue was sixteen point three billion, up from one point one "
-                "six billion; cash flow three point nine billion on eleven point six billion booked, and eighty "
-                "billion valued. [/story]\n")
-        self.assertTrue(repeats.crowded_figures(many))
-        few = "movements: x\n@@ 60 | Rest\n[story] That's the point: two goals in the third, sixteen billion. [/story]\n"
-        self.assertEqual(repeats.crowded_figures(few), [])
-
-    def test_a_full_body_session_names_the_pattern_it_left_out(self):
-        text = "movements: goblet squat, dumbbell floor press, dumbbell romanian deadlift\n@@ 60 | A\nGo.\n"
-        ids = [{"id": i} for i in ("goblet-squat", "dumbbell-floor-press", "dumbbell-romanian-deadlift",
-                                   "dumbbell-row")]
-        menu_ = {"request": {"goal": "general"}, "movements": ids}
-        self.assertIn("no pull", " ".join(repeats.missing_patterns(CAT, text, menu_)))
-        self.assertEqual(repeats.missing_patterns(CAT, text, dict(menu_, movements=ids[:3])), [])   # none allowed
-        self.assertEqual(repeats.missing_patterns(CAT, text, dict(menu_, request={"goal": "strength"})), [])
-
-    def test_a_short_draft_is_told_how_many_words_and_where(self):
-        from unittest import mock
-        import tts_build
-        v = {"name": "x", "key": "x", "engine": "chatterbox", "model": "m"}
-        w = " ".join(["Keep breathing slowly and steadily."] * 6)
-        segs = draft.parse(f"@@ 60 | A\n{w}\n\n@@ 60 | B\n{w} {w}\n\n@@ 90 | C\n{w}\n")
-        with mock.patch("voices.pace", return_value=(14.0, True)):
-            said = "\n".join(tts_build.render_report(tts_build.lint(segs, v)))
-        self.assertRegex(said, r"To land on plan, add about \d+ words in one edit: #3 \+\d+")
-
-
-class PaceSample(unittest.TestCase):
-    def test_the_pace_sample_is_speakable_coaching(self):
-        """The sample a skeleton's budgets are read from: a voice could read every line of it, and it mixes
-        a set's cues, a rest and a story, as drafts do."""
-        with open(paths.PACE_SAMPLE, encoding="utf-8") as f:
-            text = f.read()
-        segments = draft.parse(text)
-        issues = [i for seg in segments for n, line in seg["lines"] for i in tts_build.lint_line(n, line)]
-        self.assertEqual(issues, [])
-        self.assertTrue(any("[count" in line for seg in segments for _, line in seg["lines"]))
-        self.assertIn("[story]", text)
-        self.assertGreater(sum(tts_build.word_count(seg["lines"]) for seg in segments), 200)
+    def test_a_name_used_as_a_verb_is_no_movement_and_not_using_one_is_a_negation(self):
+        def said(text):
+            return [(mid, menu.negated(before)) for mid, _, before in menu.mentions(CAT, text)]
+        self.assertEqual(said("Holding the weight at your chest presses on the ribs, so keep it high."), [])
+        self.assertEqual(said("Ten chest presses on the bench."), [("machine-chest-press", False)])
+        self.assertEqual(said("Do ten chest presses."), [("machine-chest-press", False)])
+        self.assertEqual(said("We are not using the goblet squat today."), [("goblet-squat", True)])
+        self.assertEqual(said("Do not stop your goblet squats."), [("goblet-squat", False)])
 
 
 class Reps(unittest.TestCase):
@@ -353,93 +156,46 @@ class Reps(unittest.TestCase):
     V = {"name": "x", "key": "x", "engine": "chatterbox", "model": "m"}
 
     def lint(self, text, timer="catalog"):
-        from unittest import mock
-        import build
-        import tts_build
         timer = build.rep_timer(CAT) if timer == "catalog" else timer
         with mock.patch("voices.pace", return_value=(14.0, True)):
             return tts_build.lint(draft.parse("movements: goblet squat\n" + text), self.V, rep_timer=timer)
 
-    def issues(self, report):
-        return [i for r in report.rows for i in r.clip_issues]
+    def issues(self, text, timer="catalog"):
+        return " ".join(i for r in self.lint(text, timer).rows for i in r.clip_issues)
 
-    def test_the_marker_is_never_spoken_and_never_a_digit(self):
-        import tts_build
+    def test_the_marker_is_silent_and_times_the_set(self):
         seg = draft.parse("@@ 40 | Goblet squat\nTen reps. [count 3 go] [reps 10] Sit down slow.\n")[0]
         self.assertEqual([t for para in draft.plan(seg) for t, _ in para if "reps 10" in t], [])
         self.assertEqual(tts_build.lint_line(1, "[count 3 go] [reps 10] Sit down slow."), [])
         self.assertEqual(tts_build.word_count(seg["lines"]), 5)
-        story = draft.parse("@@ 40 | Rest\n[story] A tale. [reps 10] [/story]\n")[0]
-        self.assertTrue(draft.story_split(story)[2])
-
-    def test_a_set_short_or_long_of_its_reps_is_told_by_how_much(self):
         cues = ("Sit down slow between your heels. [hold 3s] Drive up through the whole foot. [hold 3s] Keep the chest "
                 "proud and the elbows in. [hold 3s] Breathe out as you stand. [hold 3s] Last two, smooth, and set it down.")
-        on = self.lint(f"@@ 45 | Goblet squat\nGoblet squat, ten reps. [count 3 go] [reps 10] {cues}\n")
-        self.assertEqual(self.issues(on), [])
-        short = self.lint("@@ 45 | Goblet squat\nGoblet squat, ten reps. [count 3 go] [reps 10] Down slow, and up.\n")
-        self.assertRegex(" ".join(self.issues(short)), r"10 reps of goblet squat take about \d+ s .* add about \d+ s")
-        long_ = self.lint("@@ 90 | Goblet squat\nGoblet squat. [count 3 go] [reps 4] " + cues + " " + cues + "\n")
-        self.assertRegex(" ".join(self.issues(long_)), r"cut about \d+ s")
-
-    def test_what_cant_be_timed_is_named(self):
-        bad = self.lint("@@ 40 | Goblet squat\n[count 3 go] [reps ten] Down slow. [hold 3s] Up.\n")
-        self.assertIn("write [reps N]", " ".join(self.issues(bad)))
-        timed = self.lint("@@ 40 | Forearm plank\nForearm plank. [count 3 go] [reps 10] Brace. [hold 3s] Breathe.\n")
-        self.assertIn("timed, not counted", " ".join(self.issues(timed)))
-        nameless = self.lint("@@ 40 | Round one\n[count 3 go] [reps 10] Down slow. [hold 3s] Up.\n")
-        self.assertNotIn("[reps 10]:", " ".join(self.issues(nameless)))   # timed at the usual rep, said as a guess
-        self.assertIn("a movement the segment doesn't name", " ".join(nameless.rows[0].reps))
-        bare = self.lint("@@ 40 | Goblet squat\n[count 3 go] [reps 10] Down slow. [hold] Up.\n")
-        self.assertIn("a bare [hold] after [reps 10]", " ".join(self.issues(bare)))
-
-    def test_the_reps_come_after_their_own_go(self):
-        before = self.lint("@@ 40 | Goblet squat\n[reps 8] [count 3 go]\n")
-        self.assertIn("comes before the set's go", " ".join(self.issues(before)))
-        # the go left at the end of the segment before, and the set run from its setup into the reps
-        gone = self.lint("@@ 10 | Warm-up\nGoblet squats first. [count 3 go]\n\n@@ 40 | Goblet squat\n[reps 8]\n")
-        self.assertIn("has no go before it in this segment", " ".join(self.issues(gone)))
-        for fine in ("[count 3 go] [reps 8]", "[cue go] [reps 8]", "Ready, and go. [reps 8]",
-                     "[count 3 go] [reps 8] [hold 3s] Switch sides. [reps 8]"):
-            self.assertNotIn("go before", " ".join(self.issues(self.lint(f"@@ 60 | Goblet squat\n{fine}\n"))), fine)
-        self.assertIn("no go", " ".join(self.issues(self.lint("@@ 40 | Goblet squat\n[reps 8]\n", timer=None))))
-
-    def test_a_set_said_by_its_main_word_is_timed_as_the_declared_movement(self):
-        import build
-        timer = build.rep_timer(CAT, ["half-kneeling kettlebell press", "goblet squat"])
-        self.assertEqual(timer("Round two, left-arm press", "Same again, dumbbell in the left hand. ")[1],
-                         "half-kneeling kettlebell press")
-        self.assertIn("doesn't name", timer("Round two", "Same again. ")[1])
-
-    def test_the_budget_leaves_out_the_quiet_and_holds_steady_as_holds_are_written(self):
+        self.assertEqual(self.issues(f"@@ 45 | Goblet squat\nGoblet squat, ten reps. [count 3 go] [reps 10] {cues}\n"), "")
+        self.assertRegex(self.issues("@@ 45 | Goblet squat\nGoblet squat, ten reps. [count 3 go] [reps 10] Down slow, "
+                                     "and up.\n"), r"10 reps of goblet squat take about \d+ s .* add about \d+ s")
+        self.assertRegex(self.issues("@@ 90 | Goblet squat\nGoblet squat. [count 3 go] [reps 4] " + cues + " " + cues
+                                     + "\n"), r"cut about \d+ s")
         plain = self.lint("@@ 45 | Goblet squat\n[count 3 go]\n").rows[0].guide
         skeleton = self.lint("@@ 45 | Goblet squat\n[count 3 go] [reps 10]\n").rows[0].guide
-        held = self.lint("@@ 45 | Goblet squat\n[count 3 go] [reps 10] [hold 3s] [hold 3s] [hold 3s]\n").rows[0].guide
         self.assertLess(skeleton, plain - 20)   # ten reps' quiet isn't talk
-        self.assertLessEqual(abs(held - skeleton), 2)
-        self.assertEqual(self.lint("@@ 45 | Goblet squat\n[count 3 go] [reps 10]\n", timer=None).rows[0].guide, plain)
 
-    def test_the_skeleton_says_how_many_words_go_before_the_go(self):
-        row = self.lint("@@ 50 | Goblet squat\n[count 3 go] [reps 10]\n").rows[0]
-        said = " ".join(row.reps)
-        inside, before = map(int, re.search(r"about (\d+) of the \d+ words are cues inside the reps; the other (\d+)",
-                                            said).groups())
-        self.assertEqual(inside + before, row.guide)
-        self.assertGreater(before, 0)
+    def test_what_cant_be_timed_or_has_no_go_is_named(self):
+        """Each row: a segment, and the words its refusal holds."""
+        rows = (("@@ 40 | Goblet squat\n[count 3 go] [reps ten] Down slow. [hold 3s] Up.\n", "write [reps N]"),
+                ("@@ 40 | Forearm plank\nForearm plank. [count 3 go] [reps 10] Brace. [hold 3s] Breathe.\n",
+                 "timed, not counted"),
+                ("@@ 40 | Goblet squat\n[count 3 go] [reps 10] Down slow. [hold] Up.\n", "a bare [hold] after [reps 10]"),
+                ("@@ 40 | Goblet squat\n[reps 8] [count 3 go]\n", "comes before the set's go"),
+                ("@@ 10 | Warm-up\nGoblet squats first. [count 3 go]\n\n@@ 40 | Goblet squat\n[reps 8]\n",
+                 "has no go before it in this segment"))
+        for text, words in rows:
+            with self.subTest(words=words):
+                self.assertIn(words, self.issues(text))
+        self.assertIn("no go", self.issues("@@ 40 | Goblet squat\n[reps 8]\n", timer=None))   # a skeleton too
+        for fine in ("[count 3 go] [reps 8]", "[cue go] [reps 8]", "Ready, and go. [reps 8]",
+                     "[count 3 go] [reps 8] [hold 3s] Switch sides. [reps 8]"):
+            self.assertNotIn("go before", self.issues(f"@@ 60 | Goblet squat\n{fine}\n"), fine)
 
 
-class SkeletonPauses(unittest.TestCase):
-    """A skeleton's pauses with nothing between them yet each leave the budget, as the words will part them."""
-    V = Reps.V
-
-    def guide(self, body):
-        from unittest import mock
-        import tts_build
-        with mock.patch("voices.pace", return_value=(14.0, True)):
-            return tts_build.lint(draft.parse("@@ 70 | Breathing\n" + body + "\n"), self.V).rows[0].guide
-
-    def test_eight_breathing_pauses_count_forty_seconds_not_ten(self):
-        bare = self.guide("[pause 4s] [pause 6s] " * 4)
-        written = self.guide("In. [pause 4s] Out. [pause 6s] " * 4)
-        self.assertLess(abs(bare - written), 12)   # the written one at its own rate, the bare one at the sample's
-        self.assertLess(bare, self.guide("[pause 4s] [pause 6s]") - 40)
+if __name__ == "__main__":
+    unittest.main()

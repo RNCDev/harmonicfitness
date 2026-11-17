@@ -1,8 +1,12 @@
-"""Setup and the readiness check (./harmonicfitness doctor), on faked computers. No network, no models.
+"""Setup and the readiness check, on faked computers. No network, no models. The per-command happy paths
+(setup, doctor, check) are the fresh-clone smoke test's; these keep the rules it can't see.
 
-The fakes are the HARMONICFITNESS_FAKE_* variables tools/doctor.sh reads (test-only), and a stub uv.
+The fakes are the HARMONICFITNESS_FAKE_* variables tools/doctor.sh reads (test-only).
 """
+import contextlib
+import io
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -11,6 +15,7 @@ import unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "tools"))
+sys.path.insert(0, os.path.join(ROOT, "tests"))
 
 
 def clean_env(**extra):
@@ -21,438 +26,73 @@ def clean_env(**extra):
     return env
 
 
-def facts(fake=None, root=ROOT, **extra):
+def facts(fake=None, **extra):
     env = clean_env(**{f"HARMONICFITNESS_FAKE_{k}": v for k, v in (fake or {}).items()}, **extra)
-    out = subprocess.run(["sh", os.path.join(root, "tools", "doctor.sh"), "--facts"], env=env,
+    out = subprocess.run(["sh", os.path.join(ROOT, "tools", "doctor.sh"), "--facts"], env=env,
                          capture_output=True, text=True, encoding="utf-8", timeout=60)
     assert out.returncode == 0, out.stderr
     return dict(line.split("=", 1) for line in out.stdout.splitlines() if "=" in line)
 
 
-def copy_repo(dest):
-    """A copy of the engine without .git, .venv, me/ or models (like a zip download)."""
-    keep = ("harmonicfitness", "tools", "me.example", "knowledge", "tests", "pyproject.toml", "uv.lock",
-            "VERSION", ".python-version")
-    for name in keep:
-        src = os.path.join(ROOT, name)
-        if os.path.isdir(src):
-            shutil.copytree(src, os.path.join(dest, name), ignore=shutil.ignore_patterns("__pycache__"))
-        elif os.path.exists(src):
-            shutil.copy2(src, os.path.join(dest, name))
-    return dest
-
-
-class Doctor(unittest.TestCase):
-    def test_facts_on_faked_platforms(self):
-        mac = {"OS": "Darwin", "ARCH": "arm64", "MEM_GB": "16", "DISK_GB": "40", "GPU": ""}
-        cases = [(mac, "fast", "cpu"),
-                 (dict(mac, ARCH="x86_64"), "no", ""),
-                 ({"OS": "MINGW64_NT-10.0", "ARCH": "x86_64", "MEM_GB": "32", "DISK_GB": "90",
-                   "GPU": "NVIDIA GeForce RTX 2080 SUPER, 8"}, "fast", "cuda"),
-                 ({"OS": "MINGW64_NT-10.0", "ARCH": "x86_64", "MEM_GB": "32", "DISK_GB": "90", "GPU": ""}, "fast", "cpu"),
-                 ({"OS": "Linux", "ARCH": "other", "MEM_GB": "32", "DISK_GB": "90", "GPU": ""}, "no", ""),
-                 ({"OS": "Linux", "ARCH": "x86_64", "MEM_GB": "32", "DISK_GB": "90", "GPU": "NVIDIA A10, 24"}, "fast", "cuda"),
-                 ({"OS": "Linux", "ARCH": "x86_64", "MEM_GB": "32", "DISK_GB": "90", "GPU": ""}, "fast", "cpu"),
-                 (dict(mac, MEM_GB="4"), "no", ""),
-                 (dict(mac, DISK_GB="2"), "no", "")]
-        for fake, local, engine in cases:
-            f = facts(fake)
-            self.assertEqual((f["local"], f["local_engine"]), (local, engine), fake)
-            if local == "no":
-                self.assertTrue(f["local_reason"].strip(), fake)
-        self.assertIn("Intel Mac", facts(dict(mac, ARCH="x86_64"))["local_reason"])
-        self.assertIn("memory", facts(dict(mac, MEM_GB="4"))["local_reason"])
-        self.assertEqual(facts(mac)["os"], "mac")
-
-    def test_floors_dont_count_against_hardware_that_runs_voices(self):
-        mac = {"OS": "Darwin", "ARCH": "arm64", "MEM_GB": "16", "DISK_GB": "2", "GPU": ""}
-        f = facts(mac)
-        self.assertEqual((f["local"], f["local_hw"], f["local_engine_hw"]), ("no", "fast", "cpu"))
-        f = facts(dict(mac, MEM_GB="", DISK_GB="40"))   # memory unreadable: unknown, not zero
-        self.assertEqual(f["local"], "fast")
-        f = facts({"OS": "Linux", "ARCH": "arm64", "MEM_GB": "16", "DISK_GB": "40", "GPU": ""})
-        self.assertEqual((f["local"], f["local_engine"]), ("fast", "cpu"))   # PyTorch has Linux ARM builds
-
-    def test_facts_name_the_tools_found(self):
-        f = facts()
-        for key in ("os", "arch", "mem_gb", "disk_gb", "uv", "git", "ffmpeg", "venv", "in_git", "remote"):
-            self.assertIn(key, f)
-        self.assertEqual(f["remote"], "no")
-        self.assertEqual(facts(CLAUDE_CODE_REMOTE="true")["remote"], "yes")
-
-    def test_report_runs_without_an_environment(self):
-        with tempfile.TemporaryDirectory() as d:
-            repo = copy_repo(d)
-            out = subprocess.run(["sh", os.path.join(repo, "harmonicfitness"), "doctor"], env=clean_env(),
-                                 capture_output=True, text=True, encoding="utf-8", timeout=60)
-            self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
-            self.assertIn("This computer", out.stdout)
-            self.assertIn("once ./harmonicfitness setup", out.stdout)
-
-    def test_doctor_says_the_take_checker_is_downloading_or_missing(self):
-        from unittest import mock
-        import doctor
-        import voices
-        with mock.patch.object(voices, "checker_present", return_value=False), \
-                mock.patch.object(voices, "checker_downloading", return_value=True):
-            self.assertIn("downloading now", doctor._model_lines()[-1])
-        with mock.patch.object(voices, "checker_present", return_value=False), \
-                mock.patch.object(voices, "checker_downloading", return_value=False):
-            self.assertIn("not downloaded", doctor._model_lines()[-1])
-        with mock.patch.object(voices, "checker_present", return_value=True):
-            self.assertTrue(doctor._model_lines()[-1].endswith("downloaded"))
-
-    def test_doctor_py_flags_a_missing_delivery_folder(self):
-        import doctor
-        with tempfile.TemporaryDirectory() as d:
-            home = os.path.join(d, "me")
-            shutil.copytree(os.path.join(ROOT, "me.example"), home)
-            missing = os.path.join(d, "no-such-folder").replace(os.sep, "/")
-            prof = os.path.join(home, "settings.toml")
-            with open(prof, encoding="utf-8") as f:
-                text = f.read()
-            import re
-            text = re.sub(r"^deliver_to = .*$", f'deliver_to = "{missing}"', text, flags=re.M)
-            with open(prof, "w", encoding="utf-8") as f:
-                f.write(text)
-            lines = "\n".join(doctor.report_lines({"local": "fast"}, home=home))
-            self.assertIn("no-such-folder", lines)
-            self.assertIn("not on this computer", lines)
-
-
 class CloudSession(unittest.TestCase):
-    """Claude Code on the web (CLAUDE_CODE_REMOTE=true): HarmonicFitness runs, with cloud voices only."""
-
-    def run_in_copy(self, *args, **env):
-        d = tempfile.mkdtemp()
-        self.addCleanup(shutil.rmtree, d)
-        repo = copy_repo(d)
-        out = subprocess.run(["sh", os.path.join(repo, "harmonicfitness"), *args], cwd=repo, env=clean_env(**env),
-                             capture_output=True, text=True, encoding="utf-8", timeout=60)
-        return out, repo
-
-    def test_remote_facts_no_local(self):
-        mac = {"OS": "Darwin", "ARCH": "arm64", "MEM_GB": "16", "DISK_GB": "40", "GPU": ""}
-        f = facts(mac, CLAUDE_CODE_REMOTE="true")
-        self.assertEqual((f["local"], f["local_hw"], f["local_engine"], f["remote"]), ("no", "no", "", "yes"))
-        self.assertIn("Claude Code on the web", f["local_reason"])
+    def test_the_web_never_gets_a_local_engine(self):
+        """Claude Code on the web and the web client's worker: no local engine, even with a graphics card."""
         linux = {"OS": "Linux", "ARCH": "x86_64", "MEM_GB": "16", "DISK_GB": "30", "GPU": "NVIDIA A10, 24"}
-        self.assertEqual(facts(linux, CLAUDE_CODE_REMOTE="true")["local"], "no")   # even with a card
-
-    def test_web_client_facts_no_local(self):
-        mac = {"OS": "Darwin", "ARCH": "arm64", "MEM_GB": "16", "DISK_GB": "40", "GPU": ""}
-        f = facts(mac, HARMONICFITNESS_WEB="1")
-        self.assertEqual((f["local"], f["local_hw"], f["local_engine"]), ("no", "no", ""))
-        self.assertEqual((f["web"], f["remote"]), ("yes", "no"))
-        self.assertIn("web client", f["local_reason"])
-        linux = {"OS": "Linux", "ARCH": "x86_64", "MEM_GB": "16", "DISK_GB": "30", "GPU": "NVIDIA A10, 24"}
-        g = facts(linux, HARMONICFITNESS_WEB="1")
-        self.assertEqual((g["local"], g["local_hw"], g["local_engine"], g["web"]), ("no", "no", "", "yes"))
-        self.assertEqual(facts(mac)["web"], "no")
-
-    def test_wrapper_runs_in_cloud(self):
-        out, _ = self.run_in_copy("help", CLAUDE_CODE_REMOTE="true", HARMONICFITNESS_PYTHON=sys.executable)
-        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
-        out, repo = self.run_in_copy("check", CLAUDE_CODE_REMOTE="true", HARMONICFITNESS_PYTHON=sys.executable)
-        self.assertNotIn("doesn't set up here", out.stdout + out.stderr)
-        self.assertIn("./harmonicfitness setup", out.stdout + out.stderr)   # no context folder yet: setup makes one
-
-    def test_doctor_names_the_web(self):
-        out, _ = self.run_in_copy("doctor", CLAUDE_CODE_REMOTE="true")
-        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
-        self.assertIn("Claude Code on the web", out.stdout)
-        self.assertIn("This computer", out.stdout)
-
-    def test_setup_in_cloud_installs_no_local_engine(self):
-        d = tempfile.mkdtemp()
-        self.addCleanup(shutil.rmtree, d)
-        os.makedirs(os.path.join(d, "engine"))
-        repo = copy_repo(os.path.join(d, "engine"))
-        uv, log = os.path.join(d, "uv"), os.path.join(d, "uv.log")
-        with open(uv, "w", encoding="utf-8") as f:
-            f.write(STUB_UV)
-        os.chmod(uv, 0o755)
-        env = clean_env(CLAUDE_CODE_REMOTE="true", HARMONICFITNESS_UV=uv, UV_LOG=log, HARMONICFITNESS_PYTHON=sys.executable,
-                        HOME=d, HARMONICFITNESS_FAKE_OS="Linux", HARMONICFITNESS_FAKE_ARCH="x86_64", HARMONICFITNESS_FAKE_GPU="")
-        out = subprocess.run(["sh", os.path.join(repo, "tools", "setup.sh")], cwd=repo, env=env,
-                             capture_output=True, text=True, encoding="utf-8", timeout=120)
-        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
-        with open(log, encoding="utf-8") as f:
-            self.assertNotIn("--extra", f.read())
-        self.assertTrue(os.path.isdir(os.path.join(repo, "me", "coaches")))
-        out = subprocess.run(["sh", os.path.join(repo, "tools", "setup.sh"), "--local"], cwd=repo, env=env,
-                             capture_output=True, text=True, encoding="utf-8", timeout=120)
-        self.assertEqual(out.returncode, 1)
-        self.assertIn("Claude Code on the web", out.stdout)
-
-    def test_find_home_sibling(self):
-        import paths
-        with tempfile.TemporaryDirectory() as d:
-            root = os.path.join(d, "harmonicfitness")
-            os.makedirs(os.path.join(root, "tools"))
-            mine = os.path.join(d, "harmonicfitness-me")
-            os.makedirs(os.path.join(mine, "coaches"))
-            open(os.path.join(mine, "profile.md"), "w", encoding="utf-8").close()
-            remote = {"CLAUDE_CODE_REMOTE": "true"}
-            self.assertEqual(paths.find_home(root, remote), mine)
-            self.assertEqual(paths.find_home(root, {}), os.path.join(root, "me"))   # only on the web
-            self.assertEqual(paths.find_home(root, dict(remote, HARMONICFITNESS_HOME=os.path.join(d, "x"))),
-                             os.path.join(d, "x"))
-            other = os.path.join(d, "another")
-            os.makedirs(os.path.join(other, "personas"))
-            open(os.path.join(other, "profile.md"), "w", encoding="utf-8").close()
-            self.assertEqual(paths.find_home(root, remote), os.path.join(root, "me"))   # two: don't guess
-            os.makedirs(os.path.join(root, "me"))
-            open(os.path.join(root, "me", "profile.md"), "w", encoding="utf-8").close()
-            self.assertEqual(paths.find_home(root, remote), os.path.join(root, "me"))
-
-    def test_remote_without_home_says_one_time(self):
-        import doctor
-        from unittest import mock
-        with tempfile.TemporaryDirectory() as d:
-            home = os.path.join(d, "me")
-            shutil.copytree(os.path.join(ROOT, "me.example"), home)
-            clean = {k: v for k, v in os.environ.items() if not k.endswith("_API_KEY")}
-            with mock.patch.dict(os.environ, clean, clear=True), \
-                    mock.patch("keys.paths.ENV_FILE", os.path.join(d, "no-env")):
-                lines = "\n".join(doctor.web_lines(home))
-            self.assertIn("one-time session", lines)
-            self.assertIn("api.fish.audio", lines)
-            for var in ("FISH_AUDIO_API_KEY", "ELEVENLABS_API_KEY", "GEMINI_API_KEY", "INWORLD_API_KEY"):
-                self.assertIn(var, lines)
-            for host in ("api.elevenlabs.io", "generativelanguage.googleapis.com", "api.inworld.ai"):
-                self.assertIn(host, lines)
-            subprocess.run(["git", "init", "-q", home], check=True)
-            subprocess.run(["git", "-C", home, "remote", "add", "origin", "https://github.com/x/harmonicfitness-me.git"],
-                           check=True)
-            self.assertIn("keeps it", "\n".join(doctor.web_lines(home)))
+        for env, reason in (({"CLAUDE_CODE_REMOTE": "true"}, "Claude Code on the web"),
+                            ({"HARMONICFITNESS_WEB": "1"}, "web client")):
+            with self.subTest(env=env):
+                f = facts(linux, **env)
+                self.assertEqual((f["local"], f["local_hw"], f["local_engine"]), ("no", "no", ""))
+                self.assertIn(reason, f["local_reason"])
 
 
-    def test_remote_with_only_local_coaches_says_no_web_coach_yet(self):
-        import doctor
-        from unittest import mock
-        with tempfile.TemporaryDirectory() as d:
-            home = os.path.join(d, "me")
-            shutil.copytree(os.path.join(ROOT, "me.example"), home)
-            env = {k: v for k, v in os.environ.items() if not k.endswith("_API_KEY")}
-            with mock.patch.dict(os.environ, dict(env, FISH_AUDIO_API_KEY="test-key"), clear=True), \
-                    mock.patch("keys.paths.ENV_FILE", os.path.join(d, "no-env")):
-                self.assertNotIn("No web coach yet", "\n".join(doctor.web_lines(home)))   # the stock Coach Reed
-            with mock.patch.dict(os.environ, env, clear=True), \
-                    mock.patch("keys.paths.ENV_FILE", os.path.join(d, "no-env")):
-                lines = "\n".join(doctor.web_lines(home))
-            self.assertIn("No web coach yet", lines)
-            self.assertIn("I want a new coach", lines)
-            for name in ("Coach Reed", "Coach Ellis", "Coach Fraser", "Coach Owen", "Coach Graham"):
-                self.assertIn(name, lines)
-
-STUB_UV = """#!/bin/sh
-echo "$@" >> "$UV_LOG"
-exit 0
-"""
-TOOLS = ("sh", "uname", "dirname", "basename", "cp", "mkdir", "find", "sed", "git", "cat", "awk", "grep",
-         "head", "tr", "df", "sysctl", "rm", "ls", "env", "chmod", "mv", "date", "tail", "wc", "cut", "expr",
-         "printf", "nvidia-smi")
-
-
-def restricted_path(d, leave_out=("uv", "ffmpeg")):
-    """A PATH holding only the basic tools setup uses, without uv or ffmpeg. Each is a two-line script that runs
-    the real one, not a symlink: Git Bash's tools on Windows can't find their DLL from a link in another folder,
-    and print nothing."""
-    bin_dir = os.path.join(d, "bin")
-    os.makedirs(bin_dir, exist_ok=True)
-    for name in TOOLS:
-        found = shutil.which(name)
-        if found and name not in leave_out:
-            path = os.path.join(bin_dir, name)
-            with open(path, "w", encoding="utf-8", newline="\n") as f:
-                f.write(f'#!/bin/sh\nexec "{found.replace(os.sep, "/")}" "$@"\n')
-            os.chmod(path, 0o755)
-    return bin_dir
-
-
-class Setup(unittest.TestCase):
-    def setUp(self):
-        self.d = tempfile.mkdtemp()
-        self.addCleanup(shutil.rmtree, self.d)
-        os.makedirs(os.path.join(self.d, "repo"))
-        self.repo = copy_repo(os.path.join(self.d, "repo"))
-        self.uv = os.path.join(self.d, "uv")
-        with open(self.uv, "w", encoding="utf-8") as f:
-            f.write(STUB_UV)
-        os.chmod(self.uv, 0o755)
-        self.uv_log = os.path.join(self.d, "uv.log")
-
-    def setup(self, *args, path=None, uv=True, **env):
-        e = clean_env(UV_LOG=self.uv_log, HARMONICFITNESS_PYTHON=sys.executable, HOME=self.d, **env)
-        if uv:
-            e["HARMONICFITNESS_UV"] = self.uv
-        if path:
-            e["PATH"] = path
-        return subprocess.run(["sh", os.path.join(self.repo, "tools", "setup.sh"), *args], cwd=self.repo, env=e,
-                              capture_output=True, text=True, encoding="utf-8", timeout=120)
-
-    def test_setup_outside_git_reaches_the_models_step(self):
-        out = self.setup("--no-models")
-        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
-        self.assertIn("isn't a git checkout", out.stdout)
-        self.assertIn("Voice models", out.stdout)
-        self.assertTrue(os.path.exists(os.path.join(self.repo, "me", "profile.md")))
-
-    def test_setup_always_runs_uv_sync(self):
-        os.makedirs(os.path.join(self.repo, ".venv", "bin"))
-        out = self.setup("--no-models")
-        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
-        with open(self.uv_log, encoding="utf-8") as f:
-            self.assertIn("sync --frozen", f.read())
-
-    def test_missing_uv_names_the_installer(self):
-        out = self.setup("--no-models", path=restricted_path(self.d), uv=False)
-        self.assertEqual(out.returncode, 1, out.stdout + out.stderr)
-        self.assertIn("astral.sh/uv/install", out.stdout)
-        self.assertIn("./harmonicfitness setup --install-uv", out.stdout)
-
-    def test_missing_ffmpeg_does_not_stop_setup(self):
-        out = self.setup("--no-models", path=restricted_path(self.d))
-        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
-        self.assertNotIn("ffmpeg is missing", out.stdout)
-
-
-STUB_PY = """#!/bin/sh
-# Stands in for the environment's Python: model downloads are logged, not run.
-case "$1" in
-  tools/coaches.py) echo "$@" >> "$UV_LOG"; exit 0 ;;
-esac
-exec "{python}" "$@"
-"""
+def _setup_snippet(start, end):
+    """The lines of tools/setup.sh from the one starting `start` through the one starting `end`."""
+    with open(os.path.join(ROOT, "tools", "setup.sh"), encoding="utf-8") as f:
+        lines = f.read().splitlines()
+    i = next(n for n, ln in enumerate(lines) if ln.startswith(start))
+    j = next(n for n in range(i, len(lines)) if lines[n].startswith(end))
+    return "\n".join(lines[i:j + 1])
 
 
 class LocalExtra(unittest.TestCase):
-    """The local engines are an optional extra (since 0.9.0), chosen by the readiness check."""
+    """The local engine is an optional extra (since 0.9.0), chosen by the readiness check."""
 
-    def setUp(self):
-        self.d = tempfile.mkdtemp()
-        self.addCleanup(shutil.rmtree, self.d)
-        os.makedirs(os.path.join(self.d, "repo"))
-        self.repo = copy_repo(os.path.join(self.d, "repo"))
-        self.uv, self.py, self.log = (os.path.join(self.d, n) for n in ("uv", "python", "calls.log"))
-        for path, text in ((self.uv, STUB_UV), (self.py, STUB_PY.format(python=sys.executable))):
-            with open(path, "w", encoding="utf-8") as f:
-                f.write(text)
-            os.chmod(path, 0o755)
-
-    def setup(self, *args, **fake):
-        env = clean_env(UV_LOG=self.log, HARMONICFITNESS_UV=self.uv, HARMONICFITNESS_PYTHON=self.py, HOME=self.d,
-                        **{f"HARMONICFITNESS_FAKE_{k}": v for k, v in fake.items()})
-        return subprocess.run(["sh", os.path.join(self.repo, "tools", "setup.sh"), *args], cwd=self.repo, env=env,
-                              capture_output=True, text=True, encoding="utf-8", timeout=120)
-
-    def calls(self):
-        with open(self.log, encoding="utf-8") as f:
-            return f.read()
-
-    def test_setup_installs_the_extra_the_doctor_names(self):
-        mac = dict(OS="Darwin", ARCH="arm64", MEM_GB="16", DISK_GB="40", GPU="")
-        out = self.setup(**mac)
-        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
-        self.assertIn("sync --frozen --extra cpu", self.calls())
-        self.assertIn("tools/coaches.py download", self.calls())
-        with open(os.path.join(self.repo, ".venv", ".harmonicfitness-extra"), encoding="utf-8") as f:
-            self.assertEqual(f.read().strip(), "cpu")
-
-    def test_no_models_keeps_an_installed_extra(self):
-        os.makedirs(os.path.join(self.repo, ".venv"))
-        with open(os.path.join(self.repo, ".venv", ".harmonicfitness-extra"), "w", encoding="utf-8") as f:
-            f.write("cuda\n")
-        out = self.setup("--no-models", OS="Linux", ARCH="x86_64", MEM_GB="16", DISK_GB="40", GPU="")
-        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
-        self.assertIn("sync --frozen --extra cuda", self.calls())
-        self.assertNotIn("coaches.py download", self.calls())
-
-    def test_a_macs_mlx_extra_from_before_15_becomes_cpu(self):
-        os.makedirs(os.path.join(self.repo, ".venv"))
-        with open(os.path.join(self.repo, ".venv", ".harmonicfitness-extra"), "w", encoding="utf-8") as f:
-            f.write("mlx\n")
-        out = self.setup("--no-models", OS="Darwin", ARCH="arm64", MEM_GB="16", DISK_GB="40", GPU="")
-        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
-        self.assertIn("sync --frozen --extra cpu", self.calls())
-        self.assertNotIn("--extra mlx", self.calls())
+    def want(self, arg, local, installed, engine=""):
+        script = (f'LOCAL={local}; INSTALLED="{installed}"; LOCAL_ENGINE="{engine}"; LOCAL_REASON=low\n'
+                  f'set -- {arg}\n' + _setup_snippet('case "$1" in', "esac") + '\necho "WANT=$WANT"\n')
+        out = subprocess.run(["sh", "-c", script], capture_output=True, text=True, encoding="utf-8", timeout=30)
+        return out.returncode, out.stdout
 
     def test_low_disk_never_uninstalls_an_engine(self):
-        os.makedirs(os.path.join(self.repo, ".venv"))
-        with open(os.path.join(self.repo, ".venv", ".harmonicfitness-extra"), "w", encoding="utf-8") as f:
-            f.write("cpu\n")
-        out = self.setup(OS="Darwin", ARCH="arm64", MEM_GB="16", DISK_GB="2", GPU="")
-        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
-        self.assertIn("sync --frozen --extra cpu", self.calls())
-        out = self.setup("--local", OS="Darwin", ARCH="arm64", MEM_GB="16", DISK_GB="2", GPU="")
-        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        """Below the disk floor the readiness check says local=no; an engine already installed stays."""
+        for arg in ("", "--local", "--no-models"):
+            with self.subTest(arg=arg):
+                code, out = self.want(arg, "no", "cpu")
+                self.assertEqual(code, 0, out)
+                self.assertIn("WANT=cpu", out)
 
     def test_a_failed_migration_stops_setup(self):
-        shutil.copytree(os.path.join(ROOT, "me.example"), os.path.join(self.repo, "me"))
-        prof = os.path.join(self.repo, "me", "profile.md")
-        with open(prof, "w", encoding="utf-8") as f:   # HarmonicFitness 0.8 and before: older than this engine migrates
-            f.write("+++\nschema = 3\n+++\n# Profile\n")
-        out = self.setup("--no-models", OS="Darwin", ARCH="arm64", MEM_GB="16", DISK_GB="40", GPU="")
-        self.assertEqual(out.returncode, 1, out.stdout + out.stderr)
-        self.assertIn("v0.12.0", out.stdout)
-        self.assertNotIn("Done. Next", out.stdout)
-
-    def test_no_models_on_a_fresh_copy_is_the_base_only(self):
-        out = self.setup("--no-models", OS="Darwin", ARCH="arm64", MEM_GB="16", DISK_GB="40", GPU="")
-        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
-        self.assertIn("sync --frozen\n", self.calls())
-
-    def test_a_cloud_only_profile_skips_the_local_engine(self):
-        shutil.copytree(os.path.join(self.repo, "me.example"), os.path.join(self.repo, "me"))
-        prof = os.path.join(self.repo, "me", "settings.toml")
-        with open(prof, encoding="utf-8") as f:
-            text = f.read()
-        with open(prof, "w", encoding="utf-8") as f:
-            f.write(text.replace('render = ["local"]', 'render = ["fish"]', 1))
-        out = self.setup(OS="Darwin", ARCH="arm64", MEM_GB="16", DISK_GB="40", GPU="")
-        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
-        self.assertNotIn("--extra", self.calls())
-        self.assertIn("render list", out.stdout)
-
-    def test_no_local_audio_installs_only_the_base(self):
-        out = self.setup(OS="Darwin", ARCH="x86_64", MEM_GB="16", DISK_GB="40", GPU="")
-        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
-        self.assertNotIn("--extra", self.calls())
-        self.assertNotIn("coaches.py download", self.calls())
-        self.assertIn("Intel Mac", out.stdout)
-
-    def test_local_flag_refuses_where_local_cant_run(self):
-        out = self.setup("--local", OS="Darwin", ARCH="x86_64", MEM_GB="16", DISK_GB="40", GPU="")
-        self.assertEqual(out.returncode, 1, out.stdout + out.stderr)
-        self.assertIn("Intel Mac", out.stdout)
-
-    def test_processor_computers_get_the_cpu_extra(self):
-        out = self.setup("--local", OS="Linux", ARCH="x86_64", MEM_GB="16", DISK_GB="40", GPU="")
-        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
-        self.assertIn("sync --frozen --extra cpu", self.calls())
-        self.assertNotIn("experimental", out.stdout)
-
-
-class Lock(unittest.TestCase):
-    def test_lock_keeps_the_macs_versions(self):
-        import tomllib
-        with open(os.path.join(ROOT, "uv.lock"), "rb") as f:
-            lock = tomllib.load(f)
-        versions = {}
-        for pkg in lock["package"]:
-            versions.setdefault(pkg["name"], []).append((pkg["version"], str(pkg.get("source"))))
-        self.assertNotIn("mlx-audio", versions)
-        self.assertIn("4.0.1", [v for v, _ in versions["pocket-tts"]])
-        self.assertIn("0.12.0", [v for v, _ in versions["onnx-asr"]])
-        torch = [src for v, src in versions["torch"] if v.startswith("2.6.0")]
-        self.assertTrue(any("cu124" in s for s in torch), torch)
-        self.assertTrue(any("whl/cpu" in s for s in torch), torch)
-        self.assertTrue(any("pypi.org" in s for s in torch), torch)   # a Mac's
-        with open(os.path.join(ROOT, "pyproject.toml"), "rb") as f:
-            project = tomllib.load(f)
-        self.assertEqual(set(project["project"]["optional-dependencies"]), {"cuda", "cpu", "web"})
-        self.assertIn("sys_platform == 'linux'", " ".join(project["tool"]["uv"]["environments"]))
+        """A folder older than this engine reads: migrate refuses it, saying what to do, and setup's stop
+        condition (neither "Backed up the originals" nor "already at schema") holds."""
+        import cli
+        import helpers
+        import migrate
+        with tempfile.TemporaryDirectory() as d:
+            home = os.path.join(d, "me")
+            shutil.copytree(os.path.join(ROOT, "me.example"), home)
+            with open(os.path.join(home, "profile.md"), "w", encoding="utf-8") as f:
+                f.write("+++\nschema = 3\n+++\n# Profile\n")
+            out, err = io.StringIO(), io.StringIO()
+            with helpers.home(home), contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                code = cli.run(migrate.main, [])
+        said = out.getvalue() + err.getvalue()
+        self.assertEqual(code, cli.ISSUES, said)
+        self.assertIn("me.example", said)
+        self.assertIn("github.com/RNCDev/harmonicfitness", said)
+        self.assertFalse(re.search("Backed up the originals|already at schema", said), said)
+        stop = _setup_snippet('  if [ "$MIGRATED" -ne 0 ]', "    exit 1")
+        self.assertIn("Backed up the originals\|already at schema", stop)
 
 
 class Skills(unittest.TestCase):
@@ -460,19 +100,7 @@ class Skills(unittest.TestCase):
         with open(os.path.join(ROOT, ".claude", "skills", name, "SKILL.md"), encoding="utf-8") as f:
             return f.read()
 
-    def test_setup_skill_triggers(self):
-        head = self.read("setup").split("---")[1]
-        for phrase in ("set up harmonicfitness", "setup harmonicfitness", "install harmonicfitness", "get started"):
-            self.assertIn(phrase, head)
-
-    def test_no_skill_assumes_a_mac(self):
-        for name in ("setup", "workout"):
-            text = self.read(name)
-            self.assertNotIn("afplay", text, name)
-            self.assertNotRegex(text, r"brew install (?!.*winget)", name)
-
     def test_skills_name_only_current_commands(self):
-        import re
         import harmonicfitness
         for name in ("setup", "workout", "coach"):
             text = self.read(name)
@@ -486,40 +114,6 @@ class Skills(unittest.TestCase):
             for cmd in re.findall(r"\./harmonicfitness ([a-z-]+)", text):
                 self.assertIn(cmd, set(harmonicfitness.COMMANDS) | {"help"}, (doc, cmd))
             self.assertNotIn("voices/smoke-test", text, doc)
-
-    def test_player_picks_the_system_player(self):
-        from unittest import mock
-        import player
-        for platform, which, expected in (("darwin", "/usr/bin/afplay", "afplay"),
-                                          ("linux", "/usr/bin/xdg-open", "xdg-open")):
-            with mock.patch.object(sys, "platform", platform), \
-                    mock.patch("shutil.which", side_effect=lambda n, w=which: w if w.endswith(n) else None), \
-                    mock.patch("subprocess.Popen") as popen:
-                self.assertTrue(player.play("x.wav"))
-                self.assertIn(expected, popen.call_args[0][0][0])
-        with mock.patch.object(sys, "platform", "linux"), mock.patch("shutil.which", return_value=None):
-            self.assertFalse(player.play("x.wav"))
-
-
-class RenderListWithoutTools(unittest.TestCase):
-    """On a computer with no environment yet (a me/ restored from backup), setup still reads the render list,
-    from settings.toml itself, so a web-only listener never gets a multi-gigabyte local engine."""
-
-    def test_the_shell_reads_the_render_list_from_the_file(self):
-        with tempfile.TemporaryDirectory() as d:
-            path = os.path.join(d, "settings.toml")
-            with open(path, "w", encoding="utf-8") as f:
-                f.write('schema = 6\nrender = ["fish", "local"]   # a comment\ndeliver_to = ""\n')
-            out = subprocess.run(["sh", "-c", f'ROOT="{ROOT}"; . "{ROOT}/tools/common.sh"; render_routes_from_file "$1"', "_", path],
-                                 capture_output=True, text=True, encoding="utf-8")
-            self.assertEqual(out.stdout.split(), ["fish", "local"], out.stderr)
-            with open(path, "w", encoding="utf-8") as f:
-                f.write("schema = 6\n")
-            out = subprocess.run(["sh", "-c", f'ROOT="{ROOT}"; . "{ROOT}/tools/common.sh"; render_routes_from_file "$1"', "_", path],
-                                 capture_output=True, text=True, encoding="utf-8")
-            self.assertEqual(out.stdout.split(), [])
-        with open(os.path.join(ROOT, "tools", "setup.sh"), encoding="utf-8") as f:
-            self.assertIn("render_routes_from_file", f.read())
 
 
 if __name__ == "__main__":

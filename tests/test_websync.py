@@ -56,8 +56,7 @@ class Plan(unittest.TestCase):
         self.assertEqual(got["delete_here"], ["e"])         # deleted there, untouched here
         self.assertEqual(websync.plan(local, remote, s, prefer="web")["pull"], ["b", "c", "f", "h"])
         self.assertIn("c", websync.plan(local, remote, s, prefer="local")["push"])
-
-    def test_a_first_sync_deletes_nothing_and_calls_a_difference_a_conflict(self):
+        # a first sync deletes nothing and calls a difference a conflict
         got = websync.plan({"a": "x", "b": "y", "c": "s"}, {"a": (1, "x"), "b": (1, "z"), "d": (3, "q")}, {})
         self.assertEqual((got["same"], got["conflict"], got["push"], got["pull"]), (["a"], ["b"], ["c"], ["d"]))
         self.assertEqual(got["delete_here"] + got["delete_there"], [])
@@ -134,23 +133,12 @@ class Sync(unittest.TestCase):
         del site.files["a.md"]                                            # deleted there
         self.assertEqual(self.sync(site)["delete_here"], ["a.md"])
         self.assertIsNone(self.get("a.md"))
-
-    def test_a_dry_run_changes_nothing(self):
-        self.put("x.md", b"x")
-        site = FakeSite({"y.md": b"y"})
-        got = self.sync(site, dry_run=True)
-        self.assertEqual((got["push"], got["pull"]), (["x.md"], ["y.md"]))
-        self.assertEqual(site.files, {"y.md": (1, b"y")})
-        self.assertIsNone(self.get("y.md"))
-        self.assertFalse(os.path.exists(os.path.join(self.home, websync.STATE)))
-
-    def test_another_account_starts_over(self):
-        site = FakeSite({"a.md": b"1"})
-        self.sync(site)
-        os.remove(os.path.join(self.home, "a.md"))
+        os.remove(os.path.join(self.home, "b.md"))
         other = dict(ACCOUNT, HARMONIC_USERNAME="sam")
-        got = websync.sync(other, home=self.home, site=site)
-        self.assertEqual((got["pull"], got["delete_there"]), (["a.md"], []))   # no record for sam: nothing deleted
+        got = websync.sync(other, home=self.home, site=site, dry_run=True)
+        self.assertEqual((got["pull"], got["delete_there"]), (["b.md"], []))   # no record for sam: nothing deleted
+        self.assertIsNone(self.get("b.md"))                                   # and a dry run changes nothing
+        self.assertIn("b.md", site.files)
 
     def test_a_change_on_the_site_during_the_sync_waits(self):
         site = FakeSite({"a.md": b"1"})
@@ -177,13 +165,13 @@ class Sync(unittest.TestCase):
                 self.assertEqual(self.get(".env"), b"SECRET=mine")
                 self.assertIsNone(self.get("log.md"))                      # the whole sync stopped
                 self.assertIsNone(self.get(".git/config"))
-
-    def test_a_read_naming_another_file_is_refused(self):
-        site = FakeSite({"log.md": b"fine"})
+        site = FakeSite({"log.md": b"fine"})   # a read naming another file is refused
         site.read = lambda paths: {".env": (1, b"SECRET=theirs")}
         with self.assertRaises(websync.errors.HarmonicFitnessError):
             self.sync(site)
-        self.assertIsNone(self.get(".env"))
+        self.assertEqual(self.get(".env"), b"SECRET=mine")
+        with self.assertRaises(websync.errors.UsageError):   # credentials are needed
+            websync.sync({}, home=self.home, site=FakeSite())
 
     def test_a_linked_folder_cant_send_a_write_outside(self):
         outside = tempfile.mkdtemp(prefix="hf-out-")
@@ -195,10 +183,6 @@ class Sync(unittest.TestCase):
         with self.assertRaises(websync.errors.HarmonicFitnessError):
             self.sync(FakeSite({"workouts/w/w.draft.txt": b"draft"}))
         self.assertEqual(os.listdir(outside), [])
-
-    def test_credentials_are_needed(self):
-        with self.assertRaises(websync.errors.UsageError):
-            websync.sync({}, home=self.home, site=FakeSite())
 
 
 if __name__ == "__main__":

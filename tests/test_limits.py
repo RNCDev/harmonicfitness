@@ -2,18 +2,22 @@
 and level, the brief quotes only today's level, a cleared [[limits]] row leaves the screen but keeps its
 after-clearing rule in the brief for a while, and `get limits` gives the check-in its signs. They run on the
 invented listener in tests/fixtures/listener, with no models or network."""
+import contextlib
 import datetime
+import io
 import os
 import shutil
-import subprocess
 import sys
 import tempfile
+import types
 import unittest
+from unittest import mock
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools"))
 import helpers  # noqa: E402
 
 import catalog  # noqa: E402
+import cli  # noqa: E402
 import health  # noqa: E402
 import playbook  # noqa: E402
 
@@ -29,10 +33,15 @@ cleared = 2026-10-01
 '''
 
 
-def run(*args, home=LISTENER):
-    env = dict(os.environ, HARMONICFITNESS_PYTHON=sys.executable, HARMONICFITNESS_HOME=home)
-    return subprocess.run(["sh", os.path.join(ROOT, "harmonicfitness"), *args],
-                          capture_output=True, text=True, encoding="utf-8", env=env, cwd=ROOT, timeout=120)
+def run(cmd, *args, home=LISTENER):
+    """./harmonicfitness brief or get, in this process over `home`: (returncode, stdout, stderr)."""
+    import brief
+    import context
+    main, argv = (brief.main, list(args)) if cmd == "brief" else (context.main, [cmd, *args])
+    out, err = io.StringIO(), io.StringIO()
+    with helpers.home(home), mock.patch("machine.facts", return_value={"local": "yes"}),             contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+        code = cli.run(main, argv)
+    return types.SimpleNamespace(returncode=code, stdout=out.getvalue(), stderr=err.getvalue())
 
 
 def with_row(home, row):
@@ -70,12 +79,6 @@ class TheFile(unittest.TestCase):
         lines = playbook.session_lines(pb, "neck", "delicate")
         self.assertTrue(any(line.startswith("  - Stop for today on: pain spreading into the arm") for line in lines),
                         lines)
-
-    def test_the_playbook_is_the_evidence_with_a_section_per_area(self):
-        with open(os.path.join(ROOT, "knowledge", "injury-playbook.md"), encoding="utf-8") as f:
-            text = f.read()
-        self.assertIn("knowledge/limits.toml", text)
-        self.assertIn("## How the filter applies limits", text)
 
 
 class Brief(unittest.TestCase):

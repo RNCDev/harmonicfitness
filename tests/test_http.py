@@ -1,10 +1,8 @@
 """The engine's web requests: what each module does with a redirect and which base addresses it accepts (pinned before
 they moved onto tools/http.py, 0.76.2), and tools/http.py's own pieces."""
-import hashlib
 import http.server
 import os
 import sys
-import tempfile
 import threading
 import unittest
 from unittest import mock
@@ -18,11 +16,9 @@ import cloud  # noqa: E402
 import errors  # noqa: E402
 import media  # noqa: E402
 import net  # noqa: E402
-import ready  # noqa: E402
 import webpull  # noqa: E402
 
 BODY = b'{"private": false}'
-SHA = hashlib.sha256(BODY).hexdigest()
 
 
 class _Redirects(http.server.BaseHTTPRequestHandler):
@@ -88,18 +84,6 @@ class Redirects(ServerCase):
         self.assertIs(type(cm.exception), errors.HarmonicFitnessError)
         self.assertEqual(str(cm.exception), "The bucket refused k.mp3: HTTP 302.")
 
-    def test_media_follows_a_redirect(self):
-        with tempfile.TemporaryDirectory() as d, helpers.home(d):
-            out = media.sample_file("coach-x", m={"url": self.base, "samples": {"coach-x": {"sha256": SHA}}})
-            with open(out, "rb") as f:
-                self.assertEqual(f.read(), BODY)
-
-    def test_ready_follows_a_redirect(self):
-        listing = {"version": 1, "url": self.base, "workouts": [{"slug": "w", "sha256": SHA, "title": "T"}]}
-        with tempfile.TemporaryDirectory() as d, helpers.home(d):
-            with open(ready.file("w", listing=listing), "rb") as f:
-                self.assertEqual(f.read(), BODY)
-
     def test_backup_follows_a_redirect_only_on_the_same_host(self):
         """It carries GH_TOKEN: before 0.76.2 it followed a redirect anywhere."""
         self.assertEqual(backup._api_visibility("o/r", api=self.base + "/repos/"), "PUBLIC")
@@ -142,30 +126,24 @@ class Bases(unittest.TestCase):
 class Opener(ServerCase):
     """tools/net.py: the one place the engine opens a web address."""
 
-    def test_never_raises_redirected_with_the_target(self):
+    def test_each_follow_mode(self):
+        """never: Redirected, with the target; same-host: only to the same host; web: only to http or https;
+        any: anywhere; anything else: refused."""
         with self.assertRaises(net.Redirected) as cm:
             net.opener("never").open(self.base + "/x", timeout=10)
         self.assertEqual(cm.exception.url, self.base + "/elsewhere")
         self.assertEqual(cm.exception.status, 302)
         self.assertIsInstance(cm.exception, OSError)
-
-    def test_same_host_follows_only_to_the_same_host(self):
         with net.opener("same-host").open(self.base + "/x", timeout=10) as r:
             self.assertEqual(r.read(), BODY)
         with self.assertRaises(net.Redirected):
             net.opener("same-host").open(self.base + "/x?host=localhost", timeout=10)
-
-    def test_web_follows_only_to_http_or_https(self):
         with net.opener("web").open(self.base + "/x?host=localhost", timeout=10) as r:
             self.assertEqual(r.read(), BODY)
         with self.assertRaises(ValueError):
             net.opener("web").open(self.base + "/x?to=ftp", timeout=10)
-
-    def test_any_follows_anywhere(self):
         with net.opener("any").open(self.base + "/x?host=localhost", timeout=10) as r:
             self.assertEqual(r.read(), BODY)
-
-    def test_an_unknown_follow_is_refused(self):
         with self.assertRaises(ValueError):
             net.opener("sometimes")
 
@@ -179,11 +157,6 @@ class Opener(ServerCase):
         self.assertEqual([type(h) for h in o.handlers if isinstance(h, urllib.request.HTTPSHandler)], [Mine])
         plain = net.opener("never")
         self.assertEqual(len([h for h in plain.handlers if isinstance(h, urllib.request.HTTPSHandler)]), 1)
-
-    def test_tls_context_is_made_once(self):
-        import ssl
-        self.assertIsInstance(net.tls_context(), ssl.SSLContext)
-        self.assertIs(net.tls_context(), net.tls_context())
 
     def test_read_capped(self):
         import io

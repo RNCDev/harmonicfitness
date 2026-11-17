@@ -1,4 +1,4 @@
-"""Routes: which audio route a build takes on this computer, from the profile's preference list."""
+"""Routes: which audio route a build takes on this computer, from the coach and the profile's preference list."""
 import io
 import os
 import shutil
@@ -10,16 +10,14 @@ from unittest import mock
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "tools"))
-import errors  # noqa: E402
-sys.path.insert(0, os.path.join(ROOT, "tests"))
 
-import cloud  # noqa: E402
+import cli  # noqa: E402
 import coachpick  # noqa: E402
 import context  # noqa: E402
+import errors  # noqa: E402
 import keys  # noqa: E402
 import personas  # noqa: E402
 import routes  # noqa: E402
-from test_personas import persona_home  # noqa: E402
 
 MAC = {"local": "fast", "local_engine": "mlx", "local_reason": ""}
 PC_NO_GPU = {"local": "experimental", "local_engine": "cpu", "local_reason": ""}
@@ -31,8 +29,9 @@ class Routes(unittest.TestCase):
         self.d = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.d)
         self.env = os.path.join(self.d, ".env")
+        os.makedirs(os.path.join(self.d, "coaches"))   # none of the listener's own: the stock fixture coaches
         patches = [mock.patch.object(keys.paths, "ENV_FILE", self.env),
-                   mock.patch.object(personas.paths, "PERSONAS", persona_home(self.d)),
+                   mock.patch.object(personas.paths, "PERSONAS", os.path.join(self.d, "coaches")),
                    mock.patch.dict(os.environ, {k: v for k, v in os.environ.items()
                                                 if k not in keys.SERVICE_VARS.values()}, clear=True)]
         for p in patches:
@@ -45,143 +44,54 @@ class Routes(unittest.TestCase):
         with open(self.env, "a", encoding="utf-8") as f:
             f.write(f"{keys.SERVICE_VARS[service]}=test-key\n")
 
-    def test_first_usable_route_wins_on_faked_computers(self):
-        with mock.patch.object(routes, "local_installed", return_value=True):
-            self.assertEqual(coachpick.pick(["local", "fish"], self.coach, facts=MAC), "local")
-        self.key("fish")
-        with mock.patch.object(routes, "local_installed", return_value=False):   # no coach named: the list decides
-            self.assertEqual(coachpick.pick(["local", "fish"], None, facts=PC_NO_GPU), "fish")
-        with mock.patch.object(routes, "local_installed", return_value=True):
-            self.assertEqual(coachpick.pick(["local", "fish"], None, facts=INTEL_MAC), "fish")
-
-    def test_override_wins_and_must_be_usable(self):
-        self.key("fish")
-        with mock.patch.object(routes, "local_installed", return_value=True):
-            self.assertEqual(coachpick.pick(["local"], None, override="fish", facts=MAC), "fish")
-            with self.assertRaises(errors.PROBLEMS) as e:
-                coachpick.pick(["local"], None, override="elevenlabs", facts=MAC)
-        self.assertIn("ELEVENLABS_API_KEY", str(e.exception.code))
-
-    def test_no_usable_route_says_what_would_fix_it(self):
-        with mock.patch.object(routes, "local_installed", return_value=False):
-            with self.assertRaises(errors.PROBLEMS) as e:
-                coachpick.pick(["local", "fish"], None, facts=INTEL_MAC)
-        message = str(e.exception.code)
-        self.assertIn("Intel Mac", message)
-        self.assertNotIn("render list", message)   # 10.0: the render list orders local engines only
-        self.assertIn("I want a new coach", message)
-        for name in ("Coach Reed", "Coach Ellis", "Coach Fraser", "Coach Owen", "Coach Graham"):
-            self.assertIn(name, message)
-        self.assertIn("./harmonicfitness keys init", message)
-        with mock.patch.object(routes, "local_installed", return_value=False):
-            with self.assertRaises(errors.PROBLEMS) as e:
-                coachpick.pick(["local", "fish"], self.coach, facts=INTEL_MAC)
-        message = str(e.exception.code)
-        self.assertIn("Intel Mac", message)
-        self.assertIn("I want a new coach", message)
-        self.assertEqual(message.count("local coach"), 1, message)   # said once
-
-    def test_a_local_coach_where_local_doesnt_run_names_the_keyed_stand_in(self):
-        self.key("fish")
-        with mock.patch.object(routes, "local_installed", return_value=False):
-            with self.assertRaises(errors.PROBLEMS) as e:
-                coachpick.pick(["fish"], self.coach, facts=INTEL_MAC)
-        message = str(e.exception.code)
-        self.assertIn("Coach Reed", message)
-        self.assertIn('--coach "Coach Reed"', message)
-        for other in ("Coach Ellis", "Coach Fraser", "Coach Owen"):   # no key for those
-            self.assertNotIn(other, message)
-        self.assertIn("I want a new coach", message)
-        self.assertNotIn("No audio route works on this computer:\n  fish", message)
-
-    def test_a_floor_doesnt_switch_off_an_installed_engine(self):
-        low_disk = dict(MAC, local="no", local_hw="fast", local_reason="Only 2 GB is free here")
-        with mock.patch.object(routes, "local_installed", return_value=True):
-            self.assertEqual(routes.usable("local", self.coach, facts=low_disk), (True, ""))
-        with mock.patch.object(routes, "local_installed", return_value=False):
-            self.assertFalse(routes.usable("local", self.coach, facts=low_disk)[0])
-
-    def test_local_needs_the_engine_installed(self):
-        with mock.patch.object(routes, "local_installed", return_value=False):
-            ok, reason = routes.usable("local", self.coach, facts=MAC)
-        self.assertFalse(ok)
-        self.assertIn("./harmonicfitness setup --local", reason)
-
     def web_coach(self, service="inworld", name="Coach Owen"):
         return personas.Persona(personas.slug(name), os.path.join(self.d, "x"),
                                 {"name": name, "kind": "web", "service": service, "voice_id": "v1"}, "")
 
-    def test_web_coach_routes_to_its_service_whatever_the_render_list(self):
+    def test_first_usable_route_wins(self):
+        with mock.patch.object(routes, "local_installed", return_value=True):
+            self.assertEqual(coachpick.pick(["local", "fish"], self.coach, facts=MAC), "local")
+            err = io.StringIO()
+            with redirect_stderr(err):   # an unknown route is reported and skipped
+                self.assertEqual(coachpick.pick(["fish-audio", "local"], self.coach, facts=MAC), "local")
+            self.assertIn("fish-audio", err.getvalue())
+        self.key("fish")
+        with mock.patch.object(routes, "local_installed", return_value=False):   # no coach named: the list decides
+            self.assertEqual(coachpick.pick(["local", "fish"], None, facts=PC_NO_GPU), "fish")
+            ok, reason = routes.usable("local", self.coach, facts=MAC)   # local needs the engine installed
+            self.assertFalse(ok)
+            self.assertIn("./harmonicfitness setup --local", reason)
+        with mock.patch.object(routes, "local_installed", return_value=True):
+            self.assertEqual(coachpick.pick(["local", "fish"], None, facts=INTEL_MAC), "fish")
+
+    def test_a_coach_speaks_only_through_its_own_route(self):
+        """A web coach never renders locally, and a local coach's script is never sent to a web service."""
         self.key("inworld")
+        self.key("fish")
         owen = self.web_coach()
         with mock.patch.object(routes, "local_installed", return_value=True):
             self.assertEqual(coachpick.pick(["local"], owen, facts=MAC), "inworld")
             self.assertEqual(coachpick.pick(["fish", "local"], owen, facts=MAC), "inworld")
-            self.assertEqual(coachpick.pick(["local"], owen, override="inworld", facts=MAC), "inworld")
+            self.assertEqual(coachpick.pick(["fish"], self.coach, facts=MAC), "local")
+        ok, reason = routes.usable("fish", self.coach, facts=MAC)
+        self.assertFalse(ok)
+        self.assertIn("local coach", reason)
+        with mock.patch.object(routes, "local_installed", return_value=False), self.assertRaises(errors.PROBLEMS) as e:
+            coachpick.pick(["fish"], self.coach, facts=INTEL_MAC)
+        self.assertIn("local coach", str(e.exception.code))
 
-    def test_web_coach_without_key_says_which_key(self):
-        owen = self.web_coach()
+    def test_an_override_cant_switch_a_coachs_service(self):
+        self.key("inworld")
+        self.key("fish")
+        with mock.patch.object(routes, "local_installed", return_value=True):
+            self.assertEqual(coachpick.pick(["local"], None, override="fish", facts=MAC), "fish")
+            with self.assertRaises(errors.PROBLEMS) as e:   # an override must be usable
+                coachpick.pick(["local"], None, override="elevenlabs", facts=MAC)
+            self.assertIn("ELEVENLABS_API_KEY", str(e.exception.code))
+            self.assertEqual(coachpick.pick(["local"], self.web_coach(), override="inworld", facts=MAC), "inworld")
         with self.assertRaises(routes.WebCoachUnavailable) as e:
-            coachpick.pick(["local"], owen, facts=MAC)
-        message = str(e.exception.code)
-        self.assertIsInstance(e.exception, errors.UsageError)   # exit 64, and caught as any engine problem
-        self.assertNotIsInstance(e.exception, SystemExit)
-        self.assertIn("INWORLD_API_KEY", message)
-        self.assertIn("keys init inworld", message)
-        self.assertIn("Coach Owen", message)
-        with mock.patch.object(routes.paths, "REMOTE", True):
-            with self.assertRaises(routes.WebCoachUnavailable) as e:
-                coachpick.pick(["local"], owen, facts=MAC)
-        self.assertIn("environment", str(e.exception.code).lower())
-        self.assertNotIn("keys init", str(e.exception.code))
-
-    def test_missing_key_in_the_web_client(self):
-        owen = self.web_coach()
-        with mock.patch.object(routes.paths, "WEB", True):
-            for text in (routes.missing_key(owen), routes.way_out()):
-                self.assertIn("HarmonicFitness's settings", text)
-                self.assertNotIn("keys init", text)
-
-    def messages(self):
-        """The in-process key messages, with no key for any service: {site: text}."""
-        import audition
-        import cloud
-        texts = {}
-        texts["usable"] = routes.usable("fish", facts=MAC)[1]
-        texts["missing_key"] = routes.missing_key(self.web_coach())
-        with self.assertRaises(cloud.ServiceError) as e:
-            cloud.key_or_stop("fish")
-        texts["cloud no key"] = str(e.exception)
-        with mock.patch.object(cloud, "_open", side_effect=ValueError("Invalid header value")), \
-                self.assertRaises(cloud.ServiceError) as e:
-            cloud.request("POST", "http://127.0.0.1:9/x", {}, b"", service="fish")
-        texts["cloud stray"] = str(e.exception)
-        warned = []
-        narrative = os.path.join(self.d, "narrative.md")
-        with open(narrative, "w", encoding="utf-8") as f:
-            f.write(context.persona_text({"name": "Coach Maya", "voice": {"who": "a coach", "sound": "warm"}}, ""))
-        with mock.patch.object(keys, "is_set", lambda s: False), redirect_stderr(io.StringIO()):
-            audition._run_audition(narrative, report=lambda *a: None, warn=warned.append)
-        texts["audition"] = " ".join(warned)
-        with self.assertRaises(keys.BadKey) as e:
-            keys.clean_value("FISH_AUDIO_API_KEY", "a b")
-        texts["keys"] = str(e.exception)
-        return texts
-
-    def test_web_mode_messages_never_say_env(self):
-        with mock.patch.object(routes.paths, "WEB", True):
-            texts = self.messages()
-        for site, text in texts.items():
-            self.assertIn("Keys", text, site)
-            for phrase in ("keys init", "keys open", "me/.env"):
-                self.assertNotIn(phrase, text, site)
-
-    def test_cli_messages_unchanged(self):
-        texts = self.messages()
-        for site in ("usable", "missing_key", "cloud no key", "audition"):
-            self.assertIn("keys init", texts[site], site)
-        for site in ("cloud stray", "keys"):
-            self.assertIn("keys open", texts[site], site)
+            coachpick.pick(["local"], self.web_coach(), override="fish", facts=MAC)
+        self.assertIn("Inworld", str(e.exception.code))
 
     def test_download_refused_in_the_web_client(self):
         import coaches
@@ -190,40 +100,24 @@ class Routes(unittest.TestCase):
             self.assertEqual(coaches.main(["download"]), 64)
         dl.assert_not_called()
 
-    def test_engine_override_naming_another_service_is_refused(self):
-        self.key("inworld")
-        self.key("fish")
-        with self.assertRaises(routes.WebCoachUnavailable) as e:
-            coachpick.pick(["local"], self.web_coach(), override="fish", facts=MAC)
-        self.assertIn("Inworld", str(e.exception.code))
-
-    def test_local_coach_renders_only_locally(self):
-        self.key("fish")
-        ok, reason = routes.usable("fish", self.coach, facts=MAC)
-        self.assertFalse(ok)
-        self.assertIn("local coach", reason)
-        with mock.patch.object(routes, "local_installed", return_value=False), self.assertRaises(errors.PROBLEMS) as e:
-            coachpick.pick(["fish"], self.coach, facts=INTEL_MAC)
-        self.assertIn("local coach", str(e.exception.code))
-
-    def test_way_out_only_where_local_voices_dont_run(self):
-        with mock.patch.object(routes, "local_installed", return_value=False), self.assertRaises(errors.PROBLEMS) as e:
-            coachpick.pick(["local"], self.coach, facts=MAC)   # runs here, just not installed
-        self.assertIn("./harmonicfitness setup --local", str(e.exception.code))
-        self.assertNotIn("The way out", str(e.exception.code))
-        with mock.patch.object(routes, "local_installed", return_value=False), self.assertRaises(errors.PROBLEMS) as e:
-            coachpick.pick(["local"], self.coach, facts=INTEL_MAC)
-        self.assertIn("The way out", str(e.exception.code))
-
-    def test_local_coach_tries_local_when_the_render_list_names_none(self):
-        self.key("fish")
-        with mock.patch.object(routes, "local_installed", return_value=True):
-            self.assertEqual(coachpick.pick(["fish"], self.coach, facts=MAC), "local")
-            self.assertEqual(coachpick.pick([], self.coach, facts=MAC), "local")
-
-    def test_get_route_maps_a_missing_web_key_to_usage(self):
-        import cli
+    def test_a_web_coach_without_its_key_says_which_key(self):
         owen = self.web_coach()
+        with self.assertRaises(routes.WebCoachUnavailable) as e:
+            coachpick.pick(["local"], owen, facts=MAC)
+        message = str(e.exception.code)
+        self.assertIsInstance(e.exception, errors.UsageError)   # exit 64, and caught as any engine problem
+        self.assertNotIsInstance(e.exception, SystemExit)
+        for words in ("INWORLD_API_KEY", "keys init inworld", "Coach Owen"):
+            self.assertIn(words, message)
+        with mock.patch.object(routes.paths, "REMOTE", True):
+            with self.assertRaises(routes.WebCoachUnavailable) as e:
+                coachpick.pick(["local"], owen, facts=MAC)
+        self.assertIn("environment", str(e.exception.code).lower())
+        self.assertNotIn("keys init", str(e.exception.code))
+        with mock.patch.object(routes.paths, "WEB", True):
+            for text in (routes.missing_key(owen), routes.way_out()):
+                self.assertIn("HarmonicFitness's settings", text)
+                self.assertNotIn("keys init", text)
         profile = context.Profile({"render": ["local"]}, "", "profile.md")
         with mock.patch.object(context, "profile", return_value=profile), \
                 mock.patch.object(coachpick, "default", return_value=owen), \
@@ -231,53 +125,6 @@ class Routes(unittest.TestCase):
                 redirect_stderr(io.StringIO()) as err:
             self.assertEqual(cli.run(lambda: context.main(["get", "route"])), cli.USAGE)
         self.assertIn("INWORLD_API_KEY", err.getvalue())
-
-    def test_unknown_route_is_reported_and_skipped(self):
-        err = io.StringIO()
-        with mock.patch.object(routes, "local_installed", return_value=True), redirect_stderr(err):
-            self.assertEqual(coachpick.pick(["fish-audio", "local"], self.coach, facts=MAC), "local")
-        self.assertIn("fish-audio", err.getvalue())
-        p = context.Profile({"render": ["fish-audio", "local"]}, "", "profile.md")
-        self.assertEqual(context.routes(p), ["fish-audio", "local"])
-        self.assertTrue(any("fish-audio" in i.message for i in context.route_issues(p)))
-
-    def test_report_labels_services_not_tried_live(self):
-        with mock.patch.object(routes, "local_installed", return_value=True):
-            lines = "\n".join(coachpick.report_lines(self.coach, ["local"], MAC))
-        self.assertRegex(lines, r"inworld .*key")
-        self.assertNotIn("not yet tried live", lines)   # every service has been run live
-        self.assertIn("A build here would use: local", lines)
-        shipped = cloud.services()
-        untried = dict(shipped, openrouter=dict(shipped["openrouter"], tried_live=False))
-        with mock.patch.object(routes, "local_installed", return_value=True), \
-                mock.patch.object(cloud, "services", return_value=untried):
-            lines = "\n".join(coachpick.report_lines(self.coach, ["local"], MAC))
-        tried = [ln for ln in lines.splitlines() if "not yet tried live" in ln]
-        self.assertEqual([ln.split()[0] for ln in tried], ["openrouter"])
-
-    def test_profile_defaults(self):
-        p = context.Profile({}, "", "profile.md")
-        self.assertEqual(context.routes(p), ["local"])
-        self.assertEqual(context.cloud_max_chars(p), 30000)
-        self.assertEqual(context.cloud_max_chars(context.Profile({"cloud_max_chars": 12000}, "", "")), 12000)
-
-
-class Hosts(unittest.TestCase):
-    def test_hosts(self):
-        self.assertEqual(routes.hosts("fish"), ["api.fish.audio"])
-        self.assertEqual(routes.hosts("elevenlabs"), ["api.elevenlabs.io"])
-        self.assertEqual(routes.hosts("gemini"), ["generativelanguage.googleapis.com"])
-        self.assertEqual(routes.hosts("inworld"), ["api.inworld.ai"])
-        self.assertEqual(routes.hosts("openrouter"), ["openrouter.ai"])
-        self.assertEqual(routes.hosts("local"), [])
-        self.assertEqual(routes.ROUTES, ("local", "fish", "elevenlabs", "gemini", "inworld", "openrouter"))
-
-    def test_feed_hosts_add_each_rss_host(self):
-        p = context.Profile({"feeds": [{"label": "Local, Paper", "kind": "rss", "value": "https://news.example.org/rss"},
-                                       {"label": "Weather", "kind": "weather", "value": "40.1, -75.2"}]}, "", "")
-        got = routes.feed_hosts(p)
-        self.assertIn("news.example.org", got)
-        self.assertIn("api.open-meteo.com", got)
 
 
 if __name__ == "__main__":

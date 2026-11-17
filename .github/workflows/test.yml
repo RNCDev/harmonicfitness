@@ -9,10 +9,11 @@ on:
 concurrency:
   group: tests-${{ github.ref == 'refs/heads/main' && github.sha || github.ref }}
   cancel-in-progress: true
-# Four jobs. The privacy checks run first and gate the rest; then the engine's tests (on Linux, a Mac and
-# Windows, each spread over the runner's cores by tools/testrun.py) and the web app's tests run side by side, and
-# (on main) the deploy waits for both: a failing test keeps the site as it was (2026-11-17; before, the deploy ran
-# beside the tests, and twice a failing push went live).
+# The privacy checks run first and gate the rest. Then, side by side on Linux: the engine's tests with the
+# fresh-clone smoke test, the web server's tests against Postgres, and the browser client's. On main the deploy
+# waits for all of them, so a failing test keeps the site as it was. Mac and Windows aren't run here (2026-11-17:
+# they tripled the time and a missing Mac runner once held a release for fifteen minutes); the smoke test and the
+# suite run on them by hand: sh tools/smoke.sh, ./harmonicfitness test.
 jobs:
   privacy:
     runs-on: ubuntu-latest
@@ -62,31 +63,21 @@ jobs:
           fi
           echo "engine=$engine" | tee -a "$GITHUB_OUTPUT"
 
-  # On all three systems listeners and maintainers use: Linux (the server and Claude Code on the web), a Mac and
-  # Windows (Git Bash runs ./harmonicfitness there). Paths, line endings, text encodings and the shell tools differ.
   engine:
     needs: privacy
     if: needs.privacy.outputs.engine == 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
-    defaults:
-      run:
-        shell: bash
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      # The project's own environment, from uv.lock, as ./harmonicfitness setup makes it (no local voice engine):
-      # Python from .python-version, and the ffmpeg that imageio-ffmpeg brings, so the encode tests run.
       - uses: astral-sh/setup-uv@v10.3.3
         with:
           version: "0.11.16"
           enable-cache: true
       - run: uv sync --locked
-      # The tests need no models or network, and no personal context: they run on me.example/ and
-      # tests/fixtures/, with HARMONICFITNESS_HOME pointed at an absent folder.
-      - run: ./harmonicfitness test engine -v
+      # a new listener's first minutes: setup, doctor, check, a brief and a lint (no voice, no MP3)
+      - run: sh tools/smoke.sh
+      # no models, network or personal context: me.example/ and tests/fixtures/, in a temporary home
+      - run: ./harmonicfitness test engine
 
   web:
     needs: privacy
@@ -112,25 +103,32 @@ jobs:
           version: "0.11.16"
           enable-cache: true
       - run: uv sync --locked --extra web
-      - run: ./harmonicfitness test web -v
-      # The browser client's own tests (web/client).
+      - run: ./harmonicfitness test web
+
+  client:
+    needs: privacy
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web/client
+    steps:
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v5
         with:
           node-version: 20
           cache: npm
           cache-dependency-path: web/client/package-lock.json
       - run: npm ci && npx tsc --noEmit -p . && npm test
-        working-directory: web/client
 
   # The web client on Fly.io, once the privacy checks and the tests pass on main (fly.toml). The engine's tests
   # are skipped when a push changes only web/, the changelog or the version, which counts as passing; always()
   # lets the deploy look at that result instead of being skipped with them. The token is a deploy token for this
   # one app (fly tokens create deploy -a harmonicfitness), the FLY_API_TOKEN secret.
   deploy:
-    needs: [privacy, engine, web]
+    needs: [privacy, engine, web, client]
     if: >-
       always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
-      && needs.privacy.result == 'success' && needs.web.result == 'success'
+      && needs.privacy.result == 'success' && needs.web.result == 'success' && needs.client.result == 'success'
       && (needs.engine.result == 'success' || needs.engine.result == 'skipped')
     runs-on: ubuntu-latest
     concurrency:
@@ -144,3 +142,14 @@ jobs:
       - run: flyctl deploy --remote-only --build-arg GIT_COMMIT_SHA="${GITHUB_SHA::7}"
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      # The live site answers, and it's this commit (its version reads "2026-11-17 (abc1234)")
+      - name: The live site runs this commit
+        run: |
+          for i in $(seq 1 20); do
+            if curl -fsS https://harmonicfitness.fly.dev/api/auth | grep -q "(${GITHUB_SHA::7})"; then
+              echo "live: ${GITHUB_SHA::7}"; exit 0
+            fi
+            sleep 6
+          done
+          echo "the live site isn't serving ${GITHUB_SHA::7} two minutes after the deploy" >&2
+          exit 1

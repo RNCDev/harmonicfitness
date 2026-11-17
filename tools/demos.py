@@ -213,7 +213,7 @@ def publish(slug, mp3):
 
 
 # The request's blanks, as the app's own lists offer them (web/client/src/lib/request.ts: TYPES, ROWS and SIDED;
-# test_demos holds them in step). A place is kitWords' words for a kit, which depend on the listener's kits.
+# kept in step by hand since 2026-11-17, when the maintainer-only tests went). A place is kitWords' words for a kit, which depend on the listener's kits.
 REQUEST_TYPES = ("full-body workout", "strength workout", "cardio workout", "mobility session", "leg workout",
                  "upper-body workout", "core workout")
 BODY_ROWS = ("neck", "shoulder", "elbow", "wrist", "rib", "low back", "hip", "groin", "hamstring", "knee", "calf",

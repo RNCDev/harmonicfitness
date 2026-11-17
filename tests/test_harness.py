@@ -47,26 +47,6 @@ class Harness(unittest.TestCase):
             found = [p for p in harness.problems(d) if "me/.env" in p]
             self.assertTrue(found, harness.problems(d))
 
-    def test_a_binary_file_in_a_skill_is_copied_and_compared(self):
-        with tempfile.TemporaryDirectory() as d:
-            copy_harness(d)
-            with open(os.path.join(d, ".claude", "skills", "workout", "icon.png"), "wb") as f:
-                f.write(b"\x89PNG\r\n\x00\xff\xfe")
-            self.assertIn(os.path.join(".agents", "skills", "workout", "icon.png") + ": missing", harness.problems(d))
-            harness.sync(d)
-            self.assertEqual(harness.problems(d), [])
-
-    def test_sync_removes_a_dropped_skill_with_its_subfolders(self):
-        with tempfile.TemporaryDirectory() as d:
-            copy_harness(d)
-            old = os.path.join(d, ".agents", "skills", "old", "sub")
-            os.makedirs(old)
-            with open(os.path.join(old, "f.md"), "w", encoding="utf-8") as f:
-                f.write("x\n")
-            harness.sync(d)
-            self.assertFalse(os.path.exists(os.path.join(d, ".agents", "skills", "old")))
-
-
     def test_agents_md_sends_codex_to_claude_md_and_guards_the_keys(self):
         with open(os.path.join(ROOT, "AGENTS.md"), encoding="utf-8") as f:
             text = f.read()
@@ -83,38 +63,38 @@ class Harness(unittest.TestCase):
                        "Strict Mode"):
             self.assertIn(needle, text)
 
-    def test_an_edited_description_is_caught_and_synced(self):
+    def test_sync_brings_every_change_into_step(self):
+        """A binary file, an edited file, a new skill and a removed one (with its subfolders) are each named by the
+        check, and one sync puts them all right."""
         with tempfile.TemporaryDirectory() as d:
             copy_harness(d)
-            path = os.path.join(d, ".claude", "skills", "coach", "SKILL.md")
+            skills = os.path.join(d, ".claude", "skills")
+            with open(os.path.join(skills, "workout", "icon.png"), "wb") as f:
+                f.write(b"\x89PNG\r\n\x00\xff\xfe")
+            path = os.path.join(skills, "coach", "SKILL.md")
             with open(path, encoding="utf-8") as f:
                 text = f.read()
             with open(path, "w", encoding="utf-8") as f:
                 f.write(text.replace("description: ", "description: Also when they say \"new trainer\". ", 1))
-            with open(os.path.join(d, ".claude", "skills", "workout", "research.md"), "a", encoding="utf-8") as f:
+            with open(os.path.join(skills, "workout", "research.md"), "a", encoding="utf-8") as f:
                 f.write("\nOne more line.\n")
-            self.assertIn(os.path.join(".agents", "skills", "coach", "SKILL.md") + ": out of step with the Claude "
-                          "Code files", harness.problems(d))
-            self.assertIn(os.path.join(".agents", "skills", "workout", "research.md") + ": out of step with the "
-                          "Claude Code files", harness.problems(d))
-            harness.sync(d)
-            self.assertEqual(harness.problems(d), [])
-
-    def test_a_new_skill_is_added_and_a_removed_one_goes(self):
-        with tempfile.TemporaryDirectory() as d:
-            copy_harness(d)
-            os.makedirs(os.path.join(d, ".claude", "skills", "stretch"))
-            with open(os.path.join(d, ".claude", "skills", "stretch", "SKILL.md"), "w", encoding="utf-8") as f:
+            os.makedirs(os.path.join(skills, "stretch"))
+            with open(os.path.join(skills, "stretch", "SKILL.md"), "w", encoding="utf-8") as f:
                 f.write("---\nname: stretch\ndescription: A stretch.\n---\n\nBody.\n")
-            shutil.rmtree(os.path.join(d, ".claude", "skills", "coach"))
+            shutil.rmtree(os.path.join(skills, "setup"))
+            os.makedirs(os.path.join(d, ".agents", "skills", "setup", "sub"))
             left = harness.problems(d)
-            self.assertIn(os.path.join(".agents", "skills", "stretch", "SKILL.md") + ": missing", left)
-            self.assertIn(os.path.join(".agents", "skills", "coach", "SKILL.md") + ": no Claude skill file of that name "
-                          "any more", left)
-            self.assertIn("AGENTS.md: out of step with the Claude Code files", left)
+            agents = os.path.join(".agents", "skills")
+            for want in (os.path.join(agents, "workout", "icon.png") + ": missing",
+                         os.path.join(agents, "coach", "SKILL.md") + ": out of step with the Claude Code files",
+                         os.path.join(agents, "workout", "research.md") + ": out of step with the Claude Code files",
+                         os.path.join(agents, "stretch", "SKILL.md") + ": missing",
+                         os.path.join(agents, "setup", "SKILL.md") + ": no Claude skill file of that name any more",
+                         "AGENTS.md: out of step with the Claude Code files"):
+                self.assertIn(want, left)
             harness.sync(d)
             self.assertEqual(harness.problems(d), [])
-            self.assertFalse(os.path.exists(os.path.join(d, ".agents", "skills", "coach")))
+            self.assertFalse(os.path.exists(os.path.join(d, ".agents", "skills", "setup")))
 
     def test_the_codex_rule_and_the_claude_allow_list_name_the_same_command(self):
         with tempfile.TemporaryDirectory() as d:

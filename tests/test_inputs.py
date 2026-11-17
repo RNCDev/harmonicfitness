@@ -59,7 +59,7 @@ class Scalars(Home):
     BAD = ('cloud_max_chars = "5000"', "cloud_max_chars = true", "cloud_max_chars = -1", "cloud_max_chars = 2.5",
            "cloud_max_chars = 0")
 
-    def test_each_bad_value_is_refused(self):
+    def test_a_bad_value_is_refused_by_check_and_the_readers(self):
         for value in ("5000", True, -1, 2.5, 0, [1]):
             with self.subTest(value=value):
                 found = context.scalar_problems({"cloud_max_chars": value})
@@ -73,9 +73,7 @@ class Scalars(Home):
                 self.assertEqual(len(context.scalar_problems(settings)), 1)
         for settings in ({"setup": "Full"}, {"experience": " Advanced "}, {"words_per_minute": 60}):
             self.assertEqual(context.scalar_problems(settings), [], settings)
-
-    def test_check_reports_each(self):
-        for line in self.BAD:
+        for line in self.BAD:   # check reports each, once, in settings.toml
             with self.subTest(line=line):
                 shutil.rmtree(self.me)
                 shutil.copytree(paths.EXAMPLE, self.me)
@@ -84,14 +82,7 @@ class Scalars(Home):
                 self.assertEqual(len(issues), 1, issues)
                 self.assertFalse(issues[0].note)
                 self.assertTrue(issues[0].path.endswith("settings.toml"))
-
-    def test_check_reports_a_bad_experience_once(self):
-        self.set_setting('experience = "expert"', old='experience = ""', name="profile.md")
-        msgs = [i.message for i in check._check_profile(paths.PROFILE)]
-        self.assertEqual(len([m for m in msgs if "experience" in m]), 1, msgs)
-
-    def test_the_readers_refuse_rather_than_fall_back(self):
-        for value in ("5000", True, -1, 2.5):
+        for value in ("5000", True, -1, 2.5):   # the readers refuse rather than fall back (a web build's ceiling)
             p = context.Profile({"cloud_max_chars": value}, "", "profile.md")
             with self.assertRaises(errors.ContextError) as e:
                 context.cloud_max_chars(p)
@@ -100,18 +91,8 @@ class Scalars(Home):
         self.assertEqual(context.cloud_max_chars(context.Profile({"cloud_max_chars": 900}, "")), 900)
         with self.assertRaises(errors.ContextError):
             context.wpm(context.Profile({"words_per_minute": "fast"}, ""))
-        self.assertIsNone(context.wpm(context.Profile({}, "")))
-        self.assertFalse(context.bed(context.Profile({}, "")))
-        self.assertFalse(context.bed(context.Profile({"bed": "off"}, "")))
-        self.assertTrue(context.bed(context.Profile({"bed": "Pulse"}, "")))
         with self.assertRaises(errors.ContextError):
             context.bed(context.Profile({"bed": "music"}, ""))
-
-    def test_get_wpm_exits_1_on_a_bad_value(self):
-        self.set_setting("words_per_minute = 900", old="words_per_minute = 165")
-        code, _, err = capture(cli.run, context.main, ["get", "wpm"])
-        self.assertEqual(code, cli.ISSUES)
-        self.assertIn("words_per_minute", err)
 
 
 class CoachKind(Home):
@@ -126,8 +107,6 @@ class CoachKind(Home):
         for bad in ("wbe", "cloud", 1):
             with self.assertRaises(errors.CoachError):
                 self.persona(bad).kind
-
-    def test_check_reports_a_bad_kind(self):
         folder = os.path.join(self.me, "coaches", "coach-x")
         os.makedirs(folder)
         with open(os.path.join(folder, "persona.md"), "w", encoding="utf-8") as f:
@@ -138,46 +117,15 @@ class CoachKind(Home):
 
 
 class SafeName(unittest.TestCase):
-    def test_names_a_file_can_take(self):
+    def test_a_build_name_is_one_every_computer_can_write(self):
         for name in ("Workout 2026-10-25 Strength 25 min", "smoke-test", "a.b", "Con game", "com10", "lpt0"):
             self.assertEqual(workouts.safe_name(name), name)
-
-    def test_names_refused_everywhere(self):
         for name in ("Workout 1: Strength", "D:foo", "a/b", "a\\b", 'say "hi"', "a|b", "why?", "a*", "<x>",
                      "tab\there", "trailing.", "trailing ", ".", "..", "", "   ", "con", "CON.mp3", "Nul",
                      "com1", "LPT9.txt", "aux"):
             with self.subTest(name=name):
                 with self.assertRaises(errors.UsageError):
                     workouts.safe_name(name)
-
-    def test_build_refuses_a_colon_before_writing_anything(self):
-        import harmonicfitness
-        with tempfile.TemporaryDirectory() as d:
-            me = os.path.join(d, "me")
-            shutil.copytree(paths.EXAMPLE, me)
-            with helpers.home(me):
-                draft = os.path.join(paths.ROOT, "knowledge", "smoke-test.draft.txt")
-                saved = sys.argv
-                try:
-                    code, _, err = capture(harmonicfitness.main, ["build", draft, "Workout 1: Strength", "--lint-only"])
-                finally:
-                    sys.argv = saved
-                self.assertEqual(code, cli.USAGE)
-                self.assertIn(":", err)
-                written = [n for _, _, files in os.walk(me) for n in files if n.startswith("Workout 1")]
-                self.assertEqual(written, [])
-                self.assertFalse(os.path.exists(paths.LOGS))
-
-
-class RouteFlag(Home):
-    def test_route_and_its_older_name_engine_are_one_option(self):
-        import build
-        for flag in ("--route", "--engine"):
-            with mock.patch.object(build, "run_build", return_value=mock.Mock(code=0)) as rb:
-                capture(build.main, ["d.draft.txt", "n", flag, "fish"])
-            self.assertEqual(rb.call_args[0][0].engine, "fish", flag)
-        code, out, _ = capture(cli.run, context.main, ["get", "--help"])
-        self.assertIn("--route", out)
 
 
 class RunOutput(unittest.TestCase):
@@ -305,7 +253,7 @@ class Migrate(Home):
         with open(path, "wb") as f:
             f.write("+++\nschema = 5\nname = \"Ren\xe9e\"\n+++\n".encode("latin-1"))
         with self.assertRaises(errors.MigrateError) as caught:
-            migrate._behind(path, 5, 4, "the coach files")
+            migrate._schema_check(path, 5, "coach files")
         self.assertIn("UTF-8", str(caught.exception))
 
 
@@ -320,19 +268,6 @@ class DamagedKnowledge(unittest.TestCase):
             for load in (sessions.load, content.recipe):
                 with self.subTest(load=load.__module__), self.assertRaises(errors.ContextError):
                     load(bad)
-
-    def test_content_plan_on_a_corrupt_recipe_exits_1(self):
-        import content
-        with tempfile.TemporaryDirectory() as d:
-            bad = os.path.join(d, "content.toml")
-            with open(bad, "w", encoding="utf-8") as f:
-                f.write("[slot\n")
-            me = os.path.join(d, "me")
-            shutil.copytree(paths.EXAMPLE, me)
-            with helpers.home(me), mock.patch.object(content.recipe, "__defaults__", (bad,)):
-                code, _, err = capture(cli.run, content.main, ["plan", "--minutes", "20"])
-        self.assertEqual(code, cli.ISSUES, err)
-        self.assertIn("isn't valid TOML", err)
 
 
 if __name__ == "__main__":

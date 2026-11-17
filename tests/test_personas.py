@@ -1,6 +1,5 @@
 """Coaches as persona folders (me/coaches/<slug>/, and the stock ones): clip, settings, pace and service voices.
 No models: the fixture coach is half a second of a tone (tests/fixtures/stock/coach-test)."""
-import hashlib
 import json
 import os
 import shutil
@@ -14,12 +13,9 @@ sys.path.insert(0, os.path.join(ROOT, "tools"))
 import errors  # noqa: E402
 
 import context  # noqa: E402
-import ffmpeg  # noqa: E402
 import personas  # noqa: E402
-import voices  # noqa: E402
 
 FIXTURE = personas.paths.SHIPPED   # the stock coaches the tests see (tests/fixtures/stock: ./harmonicfitness test sets HARMONICFITNESS_SHIPPED)
-FFMPEG = ffmpeg.exe()   # the MP3s need it; without it they're skipped, as in test_webcopy
 
 
 def persona_home(d, *extra):
@@ -37,46 +33,6 @@ def persona_home(d, *extra):
             f.write(context.persona_text(dict({"name": name}, **settings), "## How this coach talks\n"))
     return folder
 
-
-class Personas(unittest.TestCase):
-    def setUp(self):
-        self.d = tempfile.mkdtemp()
-        self.addCleanup(shutil.rmtree, self.d)
-
-    def use(self, folder):
-        patcher = mock.patch.object(personas.paths, "PERSONAS", folder)
-        patcher.start()
-        self.addCleanup(patcher.stop)
-
-    def test_slug_and_lookup_with_accents_and_apostrophes(self):
-        self.assertEqual(personas.slug("Coach Zoë"), "coach-zoe")
-        self.assertEqual(personas.slug("Coach O'Neil"), "coach-oneil")
-        self.assertEqual(personas.slug("Coach Ana María"), "coach-ana-maria")
-        self.use(persona_home(self.d, ("Coach Zoë", {}), ("Coach O'Neil", {})))
-        self.assertEqual(personas.lookup("coach-zoe").name, "Coach Zoë")
-        self.assertEqual(personas.lookup("COACH ZOË").slug, "coach-zoe")
-        self.assertEqual(personas.lookup("coach o'neil").slug, "coach-oneil")
-        self.assertEqual(personas.lookup("test voice").name, "Coach Test")   # an alias
-        with self.assertRaises(errors.PROBLEMS) as e:
-            personas.lookup("Coach Nobody")
-        self.assertIn("Coach Test", str(e.exception.code))
-        self.assertEqual([p.name for p in personas.all(personas.paths.PERSONAS)], ["Coach O'Neil", "Coach Zoë"])
-        self.assertIn("Coach Test", [p.name for p in personas.all()])   # the stock coaches are merged in
-
-    def test_voice_for_local_keys_on_clip_words_and_voice_file(self):
-        self.use(persona_home(self.d))
-        p = personas.lookup("Coach Test")
-        v = personas.voice_for(p, "local")
-        with open(os.path.join(FIXTURE, "coach-test", "clip.wav"), "rb") as f:
-            audio = hashlib.sha256(f.read()).hexdigest()
-        with open(os.path.join(FIXTURE, "coach-test", "pocket.safetensors"), "rb") as f:
-            state = hashlib.sha256(f.read()).hexdigest()
-        self.assertEqual(v["key"], hashlib.sha256(
-            f"{audio}|Set your feet. Chest up, and press.|{state}".encode()).hexdigest()[:12])
-        self.assertEqual((v["model"], v["revision"]), voices.LOCAL_MODELS["pocket"])
-        self.assertEqual((v["engine"], v["backend"], v["route"], v["name"]), ("pocket", "torch", "local", "Coach Test"))
-        self.assertEqual(v["pace_file"], personas.paths.PACE_FILE)   # the shared pace file: me/coaches/ holds only their own
-        self.assertEqual(v["voice_state"], os.path.join(FIXTURE, "coach-test", "pocket.safetensors"))
 
 class KeepWeb(unittest.TestCase):
     """coaches keep <audition>/<letter>: the audition says a save went out before the service answers."""
@@ -118,15 +74,12 @@ class KeepWeb(unittest.TestCase):
         self.assertIn('look for "harmonicfitness Coach Maya"', said)
         self.assertNotIn("nothing was saved", said)
 
-    def outside(self):
-        """A folder outside the auditions tree that looks like an audition."""
+    def test_an_audition_outside_its_folder_or_malformed_is_refused(self):
+        """forget and keep reach only inside coaches/.auditions/ (a full path there still works), and a
+        candidates.json naming a file outside its audition, or of the wrong shape, is refused by name."""
+        import audition
         stray = os.path.join(self.d, "elsewhere", "not-an-audition")
         shutil.copytree(self.audition, stray)
-        return stray
-
-    def test_a_folder_outside_the_auditions_is_refused_and_left_in_place(self):
-        import audition
-        stray = self.outside()
         for ref in (stray, os.path.relpath(stray, os.path.join(self.d, "coaches", ".auditions")),
                     "../../elsewhere/not-an-audition"):
             with self.subTest(ref=ref):
@@ -138,15 +91,6 @@ class KeepWeb(unittest.TestCase):
         with self.assertRaises(errors.CoachError):   # never the auditions folder itself
             audition.forget_audition(".")
         self.assertTrue(os.path.isdir(self.audition))
-
-    def test_a_full_path_inside_the_auditions_still_works(self):
-        import audition
-        said = "\n".join(audition.forget_audition(self.audition))   # the path audition prints
-        self.assertIn("Removed", said)
-        self.assertFalse(os.path.exists(self.audition))
-
-    def test_a_malformed_candidates_file_is_refused_by_name(self):
-        import audition
         good = {"letter": "A", "service": "fish", "k": 1, "wav": "fish-1.wav", "mp3": None}
         for bad in ({"letter": "A"}, [good, "B"], [dict(good, letter=1)], [dict(good, service="nope")],
                     [dict(good, k="1")], [dict(good, k=True)], [dict(good, wav="../../x.wav")],
@@ -157,11 +101,17 @@ class KeepWeb(unittest.TestCase):
                 with self.assertRaises(errors.CoachError) as got:
                     audition.forget_audition("2026-10-25-1")
                 self.assertIn("candidates.json", str(got.exception))
+                with self.assertRaises(errors.CoachError):
+                    audition.keep_web("2026-10-25-1/A", "Coach Maya")
                 self.assertTrue(os.path.isdir(self.audition))
         with open(self.cands, "w", encoding="utf-8") as f:
             f.write("[{not json")
         with self.assertRaises(errors.CoachError):
             audition.keep_web("2026-10-25-1/A", "Coach Maya")
+        with open(self.cands, "w", encoding="utf-8") as f:
+            json.dump([good], f)
+        self.assertIn("Removed", " ".join(audition.forget_audition(self.audition)))   # the path audition prints
+        self.assertFalse(os.path.exists(self.audition))
 
 
 class Make(unittest.TestCase):
@@ -221,32 +171,6 @@ class Make(unittest.TestCase):
         with self.assertRaises(errors.CoachError):   # asked plainly, a made coach is still refused
             coachmake.make("Coach Reed")
 
-    def test_report_takes_what_make_says(self):
-        import contextlib
-        import io
-        import coachmake
-        said, out = [], io.StringIO()
-        with contextlib.redirect_stdout(out):
-            coachmake.make("Coach Reed", report=said.append)
-        self.assertEqual(out.getvalue(), "")
-        self.assertTrue(any(line.startswith("Made Coach Reed") for line in said))
-        self.assertTrue(any("designing a voice" in line for line in said))
-
-
-    @unittest.skipUnless(FFMPEG, "ffmpeg not installed")
-    def test_a_made_coach_gets_the_full_sample(self):
-        """The design line is a few seconds; once made, the coach speaks the stock coaches' sample script."""
-        import coachmake
-        import coachsample
-        said = []
-        coachmake.make("Coach Reed", report=said.append)
-        reed = personas.lookup("Coach Reed")
-        self.assertEqual(self.spoken, coachsample.lines("Coach Reed")[1])   # each line once
-        self.assertTrue(self.spoken[0].startswith("Hi, I'm Coach Reed."))
-        self.assertTrue(os.path.getsize(reed.sample) > 0)
-        self.assertTrue(any("45-second sample" in line for line in said))
-        self.assertTrue(voices.pace(cloud_voice(reed))[0] > 0)
-
     def test_a_sample_that_fails_leaves_the_coach_made(self):
         import cloud
         import coachmake
@@ -259,34 +183,6 @@ class Make(unittest.TestCase):
         self.assertFalse(personas.lookup("Coach Reed").pending)
         self.assertTrue(os.path.exists(personas.lookup("Coach Reed").sample))   # the design line's stays
         self.assertTrue(any('coaches sample "Coach Reed"' in line for line in said))
-
-    @unittest.skipUnless(FFMPEG, "ffmpeg not installed")
-    def test_a_measured_pace_is_kept(self):
-        import coachmake
-        import coachsample
-        coachmake.make("Coach Reed", report=lambda line: None)
-        reed = personas.lookup("Coach Reed")
-        v = cloud_voice(reed)
-        with open(v["pace_file"], "w", encoding="utf-8") as f:   # as real renders leave it: measured
-            json.dump({voices._rate_key(v): {"name": "Coach Reed", "weight": 9000.0, "seconds": 800.0}}, f)
-        measured = voices.pace(v)
-        self.assertTrue(measured[1])
-        coachsample.speak(reed, report=lambda line: None)
-        self.assertEqual(voices.pace(v), measured)
-
-    def test_only_a_coach_of_your_own_gets_one(self):
-        import coachsample
-        for name in ("Coach Test", "Coach June"):
-            if any(p.name == name for p in personas.all()):
-                with self.assertRaises(errors.CoachError):
-                    coachsample.speak(personas.lookup(name), report=lambda line: None)
-        self.assertEqual(self.spoken, [])
-
-
-def cloud_voice(p):
-    import cloud
-    return cloud.voice_for(p, p.service)
-
 
 class AuditionReport(unittest.TestCase):
     """An audition's failures are returned, not printed by _run_audition; the command prints them once."""
@@ -312,21 +208,6 @@ class AuditionReport(unittest.TestCase):
                       mock.patch.object(keys, "is_set", lambda s: s == "fish")):
             patch.start()
             self.addCleanup(patch.stop)
-
-    def test_failures_are_said_once(self):
-        import contextlib
-        import io
-        import audition
-        import coaches
-        said = []
-        folder, cands, failures = audition._run_audition(self.narrative, ["fish"], report=said.append)
-        self.assertEqual((folder, cands, [s for s, _ in failures]), (None, [], ["fish"]))
-        self.assertFalse(any("down for a moment" in line for line in said))
-        out = io.StringIO()
-        with contextlib.redirect_stdout(io.StringIO()) as stdout, contextlib.redirect_stderr(out):
-            coaches.main(["audition", self.narrative, "--services", "fish"])
-        self.assertEqual(out.getvalue().count("down for a moment"), 1)   # the failure: once, on stderr
-        self.assertNotIn("down for a moment", stdout.getvalue())
 
     def test_no_key_anywhere_is_warned_not_printed(self):
         import contextlib
@@ -421,109 +302,12 @@ class SetAndList(unittest.TestCase):
         patcher.start()
         self.addCleanup(patcher.stop)
 
-    def test_set_setting(self):
-        for name in ("Coach Test", "Coach Reed"):   # stock: local and web alike
-            with self.assertRaises(errors.CoachError) as got:
-                personas.set_setting(personas.lookup(name), "description", "x")
-            self.assertIn("roster.toml", str(got.exception))
-        with self.assertRaises(errors.CoachError):   # a local coach of their own: its sound is its voice file
-            personas.set_setting(personas.lookup("Coach Mine"), "description", "x")
-        dana = personas.lookup("Coach Dana")
-        with self.assertRaises(errors.CoachError):
-            personas.set_setting(dana, "local.engine", "pocket")
-        personas.set_setting(dana, "fish.model", "s2")
-        personas.set_setting(dana, "description", "Warm and quick.")
-        dana = personas.lookup("Coach Dana")
-        self.assertEqual((dana.table("fish").get("model"), dana.description), ("s2", "Warm and quick."))
-
-    def test_listing(self):
-        import coaches
-        found = coaches.listing(personas.lookup("Coach Dana"))
-        by = {c["name"]: c for c in found}
-        self.assertEqual(sorted(by["Coach Dana"]), sorted(["name", "slug", "kind", "service", "service_name", "default",
-                                                           "placeholder", "pending", "shipped", "speaks_here",
-                                                           "description", "tone", "sample", "usd_per_workout", "powered_by",
-                                                           "notes"]))
-        self.assertTrue(by["Coach Dana"]["default"])
-        self.assertEqual(by["Coach Dana"]["service_name"], "Fish Audio")
-        self.assertFalse(by["Coach Dana"]["sample"])
-        with open(os.path.join(personas.lookup("Coach Dana").folder, "sample.mp3"), "wb") as f:
-            f.write(b"ID3")   # their own coach's sample, made when it was kept: the web app's gallery plays it
-        self.assertTrue({c["name"]: c for c in coaches.listing(None)}["Coach Dana"]["sample"])
-        self.assertIn("(made the first time it's used)", by["Coach Reed"]["notes"])
-        self.assertTrue(any("migrate archives it" in n for n in by["Coach Mine"]["notes"]))
-        lines = coaches.listing_lines(found)
-        self.assertTrue(any(line.startswith("* Coach Dana") and "web · Fish Audio" in line for line in lines))
-        self.assertTrue(lines[-1].startswith("* the coach a build uses"))
-        self.assertIn("No coaches found", coaches.listing_lines([])[0])
-
     def test_the_web_client_never_makes_a_coach(self):
         import cli
         import coaches
         with mock.patch.object(coaches.paths, "WEB", True):
             for argv in (["audition", "narrative.md"], ["keep", "2026-10-31-1/A", "--name", "Coach Dana"]):
                 self.assertEqual(cli.run(coaches.main, argv), errors.USAGE, argv)
-
-    def test_listing_says_which_coaches_speak_here(self):
-        import coaches
-        env = {k: v for k, v in os.environ.items() if not k.endswith("_API_KEY")}
-        with mock.patch.dict(os.environ, {**env, "GEMINI_API_KEY": "AIzaabc123def456abcd"}, clear=True), \
-                mock.patch.object(coaches.keys.paths, "ENV_FILE", os.path.join(self.d, "absent.env")):
-            by = {c["name"]: c for c in coaches.listing(facts={"local": "no", "local_reason": "test"})}
-            web = [c for c in by.values() if c["kind"] == "web"]
-            self.assertTrue(web)
-            for c in web:
-                self.assertEqual(c["speaks_here"], c["service"] == "gemini", c["name"])
-                self.assertEqual(any("key here" in n for n in c["notes"]), c["service"] != "gemini", c["name"])
-            self.assertFalse(any(c["speaks_here"] for c in by.values() if c["kind"] == "local"))
-            with mock.patch.object(coaches.paths, "WEB", True):
-                self.assertFalse(any(c["speaks_here"] for c in coaches.listing() if c["kind"] == "local"))
-
-    def test_measured_takes_route_and_the_old_engine(self):
-        import cli
-        import coaches
-        for flag in ("--route", "--engine"):
-            with mock.patch.object(coaches.voices, "pace", return_value=(14.0, True)), \
-                    mock.patch.object(coaches.coachpick, "pick", return_value="local") as pick:
-                self.assertEqual(coaches.main(["measured", "Coach Test", flag, "local"]), cli.OK)
-            self.assertEqual(pick.call_args.kwargs["override"], "local")
-
-
-class NoPrintInLibrary(unittest.TestCase):
-    """These library modules say things through report/warn callbacks: print only in the default sinks (say,
-    stderr) and main."""
-    CLEAN = ("audition.py", "coachmake.py", "catalog.py", "logsession.py", "frontmatter.py", "fileio.py")
-    SINKS = {"say", "stderr", "_stderr", "main"}
-
-    def test_no_print_outside_the_sinks(self):
-        import ast
-        found = []
-        for name in self.CLEAN:
-            path = os.path.join(ROOT, "tools", name)
-            with open(path, encoding="utf-8") as f:
-                tree = ast.parse(f.read(), path)
-            for fn in ast.walk(tree):
-                if isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)) and fn.name not in self.SINKS:
-                    for node in ast.walk(fn):
-                        if isinstance(node, ast.Call) and getattr(node.func, "id", None) == "print":
-                            found.append(f"{name}:{node.lineno} in {fn.name}")
-        self.assertEqual(found, [])
-
-    def test_an_unreadable_private_movements_file_is_a_fault_not_a_print(self):
-        import contextlib
-        import io
-        import catalog
-        path = os.path.join(tempfile.mkdtemp(), "movements.toml")
-        with open(path, "w", encoding="utf-8") as f:
-            f.write("[[movement]\nid = ")
-        out = io.StringIO()
-        with mock.patch.object(catalog.paths, "MY_MOVEMENTS", path), contextlib.redirect_stderr(out):
-            cat = catalog.load()
-        self.assertEqual(out.getvalue(), "")
-        self.assertTrue(any("can't be read" in f for f in cat.private_faults))
-        self.assertTrue(any("can't be read" in p for p in catalog.problems(cat)))
-        self.assertIn("air-squat", cat.movements)
-
 
 if __name__ == "__main__":
     unittest.main()

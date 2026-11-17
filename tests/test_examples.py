@@ -26,24 +26,19 @@ def examples():
 
 
 class WorkedExamples(unittest.TestCase):
-    def test_there_are_examples(self):
-        self.assertGreaterEqual(len(examples()), 4)
-
-    def test_each_example_lints_clean(self):
+    def test_each_example_lints_clean_and_claims_nothing_seen(self):
+        found = examples()
+        self.assertGreaterEqual(len(found), 4)
         voice = {"name": "x", "key": "x", "engine": "pocket", "model": "m"}
-        for text in examples():
+        for text in found:
             segs = draft.parse(text)
             with self.subTest(label=segs[0]["label"]), mock.patch("voices.pace", return_value=(14.5, True)):
                 report = tts_build.lint(segs, voice, headroom=False)
-                issues = [i for r in report.rows for i in r.clip_issues + r.line_issues]
-                self.assertEqual(issues, [])
+                self.assertEqual([i for r in report.rows for i in r.clip_issues + r.line_issues], [])
+                self.assertEqual([r.flag for r in report.rows if r.flag == "long"], [])
                 for seg in segs:
                     self.assertEqual(draft.story_split(seg)[2], [])
-                    self.assertEqual([r.flag for r in report.rows if r.flag == "long"], [])
-
-    def test_no_example_claims_to_have_seen_the_listener(self):
-        for text in examples():
-            self.assertEqual(repeats.seen_claims(text), [], text[:60])
+                self.assertEqual(repeats.seen_claims(text), [])
 
 
 if __name__ == "__main__":

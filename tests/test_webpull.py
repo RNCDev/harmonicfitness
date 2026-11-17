@@ -106,27 +106,24 @@ class Pull(unittest.TestCase):
         self.assertEqual(FakeApp.seen[0], ("POST", "/api/sign-in", self.url))   # the app's same-origin rule
         self.assertEqual(FakeApp.seen[-1], ("POST", "/api/sign-out", self.url))
 
-    def test_a_wrong_password_is_exit_4_and_never_shown(self):
+    def test_a_wrong_password_is_exit_4_and_never_shown_and_missing_ones_are_named(self):
         with self.assertRaises(webpull.SignInRefused) as e:
             webpull.pull(self.account("wrong-password-xyz"), dest_root=self.d)
         self.assertEqual(e.exception.exit_code, errors.SERVICE)
         self.assertNotIn("wrong-password-xyz", str(e.exception))
         self.assertEqual(os.listdir(self.d), [])
-
-    def test_missing_credentials_are_named(self):
+        FakeApp.seen = []
         with self.assertRaises(errors.UsageError) as e:
             webpull.pull({"HARMONIC_USERNAME": "harmonic1"}, dest_root=self.d)
         self.assertIn("HARMONIC_PASSWORD", str(e.exception))
         self.assertEqual(FakeApp.seen, [])
 
-    def test_only_https_or_this_computer(self):
+    def test_only_https_or_this_computer_and_the_password_is_scrubbed(self):
         self.assertEqual(webpull.base_url(None), "https://harmonicfitness.fly.dev")
         self.assertEqual(webpull.base_url("https://x.test/"), "https://x.test")
         for bad in ("http://x.test", "ftp://x.test", "x.test"):
             with self.assertRaises(errors.UsageError):
                 webpull.base_url(bad)
-
-    def test_account_read_from_env_file_and_password_scrubbed(self):
         env = os.path.join(self.d, ".env")
         with open(env, "w", encoding="utf-8") as f:
             f.write(f"HARMONIC_USERNAME=harmonic1\nHARMONIC_PASSWORD={PASSWORD}\n")

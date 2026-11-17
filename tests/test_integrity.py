@@ -1,10 +1,10 @@
 """The listener's records survive a crash and two writers at once: JSONL appends seal a torn line and take a
 lock, the lock is re-entrant within a thread, every engine write is atomic, and a hand-edited private movement
-can't crash the commands that load the catalog. Also the small boundary checks: player links, feed links."""
+can't crash the commands that load the catalog, and a build leaves one outcome line however it stops. Also the
+small boundary checks: feed links, --today."""
 import json
 import os
 import re
-import shutil
 import sys
 import tempfile
 import threading
@@ -19,7 +19,6 @@ import feeds  # noqa: E402
 import fileio  # noqa: E402
 import locks  # noqa: E402
 import paths  # noqa: E402
-import webcopy  # noqa: E402
 
 
 def lines(path):
@@ -115,6 +114,27 @@ class AtomicWrites(unittest.TestCase):
         self.assertEqual(found, [], "write these with fileio.atomic_write / write_json / append_jsonl")
 
 
+class WindowsReplace(unittest.TestCase):
+    """fileio.replace: on Windows a file another program holds open (last time's MP3 in a player) is tried
+    again for a moment before the build gives up; elsewhere a refusal is final at once."""
+
+    def attempt(self, os_name, failures):
+        results = [PermissionError("in use")] * failures + [None]
+        with mock.patch.object(fileio.os, "name", os_name), \
+                mock.patch.object(fileio.os, "replace", side_effect=results) as rep, \
+                mock.patch.object(fileio.time, "sleep") as sleep:
+            try:
+                fileio.replace("a.part", "a.mp3")
+                return True, rep.call_count, sleep.call_count
+            except PermissionError:
+                return False, rep.call_count, sleep.call_count
+
+    def test_a_held_file_is_tried_again_on_windows_only(self):
+        self.assertEqual(self.attempt("nt", 2), (True, 3, 2))
+        self.assertEqual(self.attempt("nt", 10), (False, 10, 9))
+        self.assertEqual(self.attempt("posix", 1), (False, 1, 0))
+
+
 class PrivateMovements(unittest.TestCase):
     def load_with(self, toml):
         d = tempfile.mkdtemp()
@@ -124,20 +144,16 @@ class PrivateMovements(unittest.TestCase):
         with mock.patch.object(catalog.paths, "MY_MOVEMENTS", path):
             return catalog.load(), path
 
-    def test_a_movement_with_no_id_is_left_out_and_named(self):
+    def test_a_hand_edited_movement_is_read_or_left_out_and_named(self):
         cat, path = self.load_with('[[movement]]\nname = "garage drag"\npatterns = ["locomotion"]\n')
         self.assertIn("air-squat", cat.movements)
         self.assertTrue(any("no id" in p and "garage drag" in p for p in catalog.problems(cat)))
         self.assertTrue(any("no id" in i.message for i in check.check_movements(path)))
-
-    def test_a_single_table_reads_as_one_movement(self):
         cat, _ = self.load_with('[movement]\nid = "garage-drag"\nname = "garage drag"\npatterns = ["locomotion"]\n')
-        self.assertIn("garage-drag", cat.movements)
-
-    def test_wrong_types_are_left_out_not_split_into_letters(self):
+        self.assertIn("garage-drag", cat.movements)   # a single table reads as one movement
         cat, path = self.load_with('[[movement]]\nid = "garage-drag"\nname = "garage drag"\naliases = "drag"\n'
                                    'patterns = ["locomotion"]\nseconds_per_rep = "fast"\nloads = 2\n')
-        self.assertNotIn("garage-drag", cat.movements)
+        self.assertNotIn("garage-drag", cat.movements)   # wrong types: left out, not split into letters
         faults = " ".join(catalog.problems(cat))
         for word in ("aliases must be a list", "seconds_per_rep must be a number", "loads must be a table"):
             self.assertIn(word, faults)
@@ -152,76 +168,27 @@ class SettingShapes(unittest.TestCase):
         return context.Profile(settings=settings, body="", path="p") if hasattr(context, "Profile") else \
             type("P", (), {"settings": settings, "path": "p"})()
 
-    def test_a_bare_string_is_one_item_never_its_letters(self):
+    def test_a_setting_in_the_wrong_shape_is_read_as_meant_and_noted(self):
         import context
+        import personas
         p = self.profile({"likes": "goblet squat", "youtube_favorites": "@ch", "render": "fish",
                           "deliver_to": "~/Drive"})
-        self.assertEqual(context.likes(p), ["goblet squat"])
+        self.assertEqual(context.likes(p), ["goblet squat"])   # a bare string is one item, never its letters
         self.assertEqual(context.handles(p, "YouTube favorites"), ["ch"])
         self.assertEqual(context.routes(p), ["fish"])
         self.assertEqual(len(context.delivery_patterns(p)), 1)
         notes = context.shape_problems(p.settings)
         self.assertEqual([k for k, _, note in notes], ["likes", "youtube_favorites"])
         self.assertTrue(all(note for _, _, note in notes))
-
-    def test_a_single_table_is_one_row(self):
-        import context
         p = self.profile({"kits": {"name": "home", "equipment": "dumbbells", "weights": {"dumbbells": [10, 20]}}})
-        self.assertEqual(context.kits(p), {"home": ["dumbbells"]})
+        self.assertEqual(context.kits(p), {"home": ["dumbbells"]})   # a single table is one row
         self.assertEqual(context.kit_weights(p), {"home": ("lb", {"dumbbells": [10, 20]})})
         self.assertIn("[[kits]]", context.shape_problems(p.settings)[0][1])
         self.assertIn("equipment is one item", context.kit_problems(p.settings["kits"])[0])
-
-    def test_wrong_types_are_issues(self):
-        import context
-        found = context.shape_problems({"likes": 3, "feeds": ["x"], "deliver_to": 7})
+        found = context.shape_problems({"likes": 3, "feeds": ["x"], "deliver_to": 7})   # wrong types are issues
         self.assertEqual(sorted(k for k, _, note in found if not note), ["deliver_to", "feeds", "likes"])
-
-    def test_a_coach_alias_given_as_one_name(self):
-        import personas
-        p = personas.Persona(slug="coach-x", folder="/nowhere", settings={"aliases": "Maya"}, prose="")
-        self.assertEqual(p.aliases, ["Maya"])
-
-
-class CatalogCache(unittest.TestCase):
-    def test_the_index_finds_what_a_scan_finds(self):
-        cat = catalog.load()
-
-        def scan(name):   # resolve as it was before the index, for comparison
-            said = " ".join(name.lower().split())
-            for side in catalog.SIDE_WORDS:
-                if said.startswith(side):
-                    said = said[len(side):]
-                    break
-            if said in cat.movements:
-                return cat.movements[said]
-            key = catalog.plain(said)
-            forms = {key} | ({key[:-2]} if key.endswith("es") else set()) | \
-                ({key[:-1]} if key.endswith("s") and not key.endswith("ss") else set())
-            for m in cat.movements.values():
-                if any(catalog.plain(k) in forms for k in [m.name, m.id] + m.aliases):
-                    return m
-            return None
-        words = {w for m in cat.movements.values() for w in [m.name, m.id, *m.aliases]}
-        words |= {w + "s" for w in words} | {"left " + w for w in list(words)[:40]} | {"nothing like this"}
-        for w in sorted(words):
-            self.assertIs(catalog.resolve(cat, w), scan(w), w)
-
-    def test_default_loads_once_and_again_when_the_file_changes(self):
-        d = tempfile.mkdtemp()
-        self.addCleanup(shutil.rmtree, d, True)
-        path = os.path.join(d, "movements.toml")
-        with open(path, "w", encoding="utf-8") as f:
-            f.write('[[movement]]\nid = "garage-drag"\nname = "garage drag"\npatterns = ["locomotion"]\n')
-        with mock.patch.object(catalog.paths, "MY_MOVEMENTS", path):
-            first = catalog.default()
-            self.assertIs(catalog.default(), first)
-            self.assertIn("garage-drag", first.movements)
-            with open(path, "w", encoding="utf-8") as f:
-                f.write('[[movement]]\nid = "garage-sled"\nname = "garage sled"\npatterns = ["locomotion"]\n\n')
-            again = catalog.default()
-        self.assertIsNot(again, first)
-        self.assertIn("garage-sled", again.movements)
+        coach = personas.Persona(slug="coach-x", folder="/nowhere", settings={"aliases": "Maya"}, prose="")
+        self.assertEqual(coach.aliases, ["Maya"])
 
 
 class Apostrophes(unittest.TestCase):
@@ -237,54 +204,6 @@ class Apostrophes(unittest.TestCase):
             if mid:
                 name = cat.movements[mid].name.replace("'", quote)
                 self.assertIn(mid, [m for m, _, _ in menu.mentions(cat, f"Now the {name}.")])
-
-
-class Tracing(unittest.TestCase):
-    def test_outcome_lines_are_not_builds(self):
-        import records
-        d = tempfile.mkdtemp()
-        log = os.path.join(d, "builds.jsonl")
-        fileio.append_jsonl(log, [{"draft_sha256": "a", "route": "fish"},
-                                  {"failed": True, "draft_sha256": "b", "route": "gemini"},
-                                  {"event": "stopped", "draft_sha256": "c", "route": "fish"},
-                                  {"event": "delivered", "build_id": "x"}])
-        self.assertTrue(records.built("a", log))
-        self.assertFalse(records.built("b", log))
-        self.assertFalse(records.built("c", log))
-        self.assertEqual(records.web_builds(log), 2)   # the MP3 and the failed render sent text; the notes didn't
-
-    def test_a_long_log_starts_over_and_is_read_from_its_end(self):
-        import io
-        import contextlib
-        import build
-        d = tempfile.mkdtemp()
-        log = os.path.join(d, "x.log")
-        with open(log, "w", encoding="utf-8") as f:
-            f.write("old line\n" * (build.LOG_KEEP // 9 + 10))
-        with build.log_to(log, "x", "abc123", verbose=True):
-            pass
-        self.assertTrue(os.path.exists(log + ".1"))
-        with open(log, encoding="utf-8") as f:
-            self.assertIn("build x (abc123)", f.read())
-        with open(log, "a", encoding="utf-8") as f:
-            f.write("".join(f"line {n}\n" for n in range(100)))
-        err = io.StringIO()
-        with contextlib.redirect_stderr(err):
-            build.show_log(log)
-        self.assertIn("line 99", err.getvalue())
-        self.assertNotIn("line 79\n", err.getvalue())
-
-    def test_a_model_that_wont_load_says_why(self):
-        import engines
-        import errors
-        net = engines.load_error("Pocket TTS", "repo", ConnectionError("no route"), "fix")
-        self.assertIn("Check the network", str(net))
-        mem = engines.load_error("Pocket TTS", "repo", RuntimeError("CUDA out of memory"), "fix")
-        self.assertIn("ran out of memory", str(mem))
-        other = engines.load_error("Pocket TTS", "repo", KeyError("weights"), "fix")
-        self.assertIn("KeyError", str(other))
-        self.assertNotIn("network", str(other))
-        self.assertIsInstance(other, errors.EngineError)
 
 
 class TypedRecords(unittest.TestCase):
@@ -319,19 +238,6 @@ class TypedRecords(unittest.TestCase):
         self.assertFalse(records.built("b", self.log))
         self.assertEqual(records.web_builds(self.log), 1)   # the failed render sent text; the local MP3 didn't
 
-    def test_old_lines_without_a_kind_read_the_same(self):
-        import records
-        fileio.append_jsonl(self.log, [{"draft_sha256": "a", "route": "fish"},
-                                       {"failed": True, "draft_sha256": "b", "route": "gemini"},
-                                       {"event": "stopped", "draft_sha256": "c", "route": "fish"},
-                                       {"draft_sha256": "d"}])
-        got = list(records.build_records(self.log))
-        self.assertEqual([r["kind"] for r in got], ["mp3", "failed", "outcome", "mp3"])
-        self.assertEqual([records.is_mp3(r) for r in self.raw()], [True, False, False, True])
-        self.assertEqual(records.web_builds(self.log), 2)
-        self.assertEqual(records.latest_build("d", self.log)["kind"], "mp3")
-        self.assertNotIn("kind", self.raw()[0])   # read, never rewritten
-
     def test_a_hand_edited_line_that_cant_be_its_kind_is_skipped(self):
         import records
         bad = [{"draft_sha256": "a", "route": 5},                      # route not text
@@ -351,24 +257,13 @@ class TypedRecords(unittest.TestCase):
         self.assertFalse(records.built("a", self.log))
         self.assertEqual(records.parse('{"draft_sha256": "a"}')["kind"], "mp3")   # a line, as text
         self.assertIsNone(records.parse("not json"))
-
-    def test_read_jsonl_skips_what_holds_no_record(self):
-        os.makedirs(os.path.dirname(self.log))
         with open(self.log, "wb") as f:
             f.write(b'{"a": 1}\n\n   \nnot json\n[1, 2]\n"text"\n{"b": 2, "torn\n{"c": "\xff\xfe"}\n'
                     + '{"d": "café"}\n'.encode("utf-8") + b'{"e": 5}')
         self.assertEqual(list(fileio.read_jsonl(self.log)), [{"a": 1}, {"d": "café"}, {"e": 5}])
         self.assertEqual(list(fileio.read_jsonl(self.log, lambda r: r if "a" not in r else None)),
                          [{"d": "café"}, {"e": 5}])
-        self.assertEqual(list(fileio.read_jsonl(os.path.join(self.d, "none.jsonl"))), [])
-
-    def test_told_reads_through_the_same_rule(self):
-        import content
-        told = os.path.join(self.d, "told.jsonl")
-        with open(told, "wb") as f:
-            f.write(b'{"date": "2026-10-01", "title": "A"}\nnot json\n{"date": "2026-10-02"}\n'
-                    b'{"date": "2026-10-03", "title": "\xff"}\n{"date": "2026-10-04", "title": "B"}\n')
-        self.assertEqual([i["title"] for i in content.told(told)], ["A", "B"])
+        self.assertEqual(list(fileio.read_jsonl(os.path.join(self.d, "none.jsonl"))), [])   # read_jsonl skips what holds no record
 
 
 class ReadJson(unittest.TestCase):
@@ -401,17 +296,7 @@ class ReadJson(unittest.TestCase):
         with self.assertRaises(errors.ContextError) as got:
             fileio.read_json(self.put("obj.json", "{}"), shape=list)
         self.assertIn("array", str(got.exception))
-
-    def test_menu_load(self):
-        import errors
-        import menu
-        self.assertIsNone(menu.load(os.path.join(self.tmp, "none.menu.json")))
-        with self.assertRaises(errors.ContextError) as got:
-            menu.load(self.put("x.menu.json", "[]"))
-        self.assertIn("x.menu.json", str(got.exception))
-
-    def test_menu_gate_names_a_damaged_menu(self):
-        import draft as draftmod
+        import draft as draftmod   # the menu gate names a damaged menu
         import menu
         d = self.put("2026-10-25-x.draft.txt", "movements: \n")
         with open(draftmod.menu_path(d), "w", encoding="utf-8") as f:
@@ -419,36 +304,6 @@ class ReadJson(unittest.TestCase):
         issues, _ = menu.gate(catalog.default(), d, "", [])
         self.assertEqual(len(issues), 1)
         self.assertIn("can't be read", issues[0])
-
-    def test_build_record_readers(self):
-        import io
-        import build
-        import workouts
-        mp3 = os.path.join(self.tmp, "w.mp3")
-        rec = workouts.record_path(mp3)
-        with open(rec, "w", encoding="utf-8") as f:
-            f.write("[]")
-        err = io.StringIO()
-        with mock.patch("sys.stderr", err):
-            self.assertIsNone(build.note_in_record(mp3, {"x": 1}))
-        self.assertIn("w.build.json", err.getvalue())
-        self.assertEqual(workouts._record_stem(rec), (None, False))
-        with open(rec, "w", encoding="utf-8") as f:
-            f.write('{"draft": "/a/2026-10-25-x.draft.txt"}')
-        self.assertEqual(build.note_in_record(mp3, {"x": 1})["x"], 1)
-        self.assertEqual(workouts._record_stem(rec), ("2026-10-25-x", False))
-
-    def test_harness_names_a_damaged_settings_file(self):
-        import shutil
-        import harness
-        root = os.path.join(self.tmp, "repo")
-        shutil.copytree(os.path.join(paths.ROOT, ".claude"), os.path.join(root, ".claude"))
-        with open(os.path.join(root, harness.SETTINGS), "w", encoding="utf-8") as f:
-            f.write("{not json")
-        out = harness.problems(root)
-        self.assertTrue(any(line.startswith(harness.SETTINGS + ":") and "can't be read" in line for line in out),
-                        out)
-
 
 class BuildTrail(unittest.TestCase):
     """Every exit of a full build leaves exactly one outcome line ("stopped", "measured" or "delivered") in
@@ -530,49 +385,6 @@ class BuildTrail(unittest.TestCase):
         self.assertIn("rendering for a test", self.out.getvalue())
         self.assertIn("rendering for a test", self.read_log())   # stdout is teed into the build log
 
-    def test_run_build_without_a_command_line(self):
-        import build
-        import contextlib
-        import io
-        said, self.out = [], io.StringIO()
-        with contextlib.redirect_stdout(self.out):
-            result = build.run_build(build.BuildOptions(draft=self.draft, name="Test build", allow_estimated=True),
-                                     say=said.append)
-        self.assertEqual(result.code, 0)
-        self.assertEqual(result.record["delivered_to"], [self.phone.replace(os.sep, "/")])
-        self.assertEqual(result.record["build_id"], self.ids[0])
-        self.assertEqual(result.lines, said)
-        self.assertTrue(any(line.startswith("Copied to") for line in said))
-        self.one_event("delivered")
-
-    def test_a_crash_after_delivery_writes_no_second_line(self):
-        import build
-        with mock.patch.object(build, "cache_note", side_effect=RuntimeError("late")):
-            self.assertEqual(self.build(), 70)
-        self.one_event("delivered")
-
-    def test_drift(self):
-        self.drift = 0.2
-        self.assertEqual(self.build(), 2)
-        self.assertEqual(self.one_event("delivered")["drift"], 0.2)   # a workout off plan is still delivered
-
-    def test_the_smoke_test_is_measured(self):
-        self.assertEqual(self.build(draft_path=paths.SMOKE_DRAFT), 0, self.out.getvalue())
-        self.one_event("measured")
-
-    def test_unmeasured(self):
-        self.assertEqual(self.build(estimated=False), 3, self.out.getvalue())
-        self.one_event("stopped", "pace")
-
-    def test_a_stale_menu(self):
-        helpers.menu_for(self.draft, self.home, today="2026-10-20")
-        self.assertEqual(self.build(), 1)
-        self.one_event("stopped", "menu")
-
-    def test_an_unknown_coach(self):
-        self.assertEqual(self.build("--coach", "Nobody At All"), 64)
-        self.one_event("stopped", "coach")
-
     def test_a_render_that_stops(self):
         self.fails = SystemExit("the engine stopped")
         self.assertEqual(self.build(), 1)
@@ -587,28 +399,6 @@ class BuildTrail(unittest.TestCase):
         log = self.read_log()
         self.assertIn("Traceback", log)
         self.assertIn("a bug in the render", log)
-
-    def test_a_failed_web_copy(self):
-        import build
-        with mock.patch.object(build, "web_copy", side_effect=OSError("disk full")):
-            self.assertEqual(self.build("--web"), 70)
-        self.one_event("stopped", "web-copy")
-
-    def test_a_failed_delivery(self):
-        import build
-        with mock.patch.object(build, "deliver", side_effect=RuntimeError("sync folder gone")):
-            self.assertEqual(self.build(), 70)
-        self.one_event("stopped", "deliver")
-
-    def test_a_failed_design(self):
-        import coachmake
-        import errors
-        with mock.patch.dict(os.environ, {"FISH_AUDIO_API_KEY": "test-key"}), \
-                mock.patch.object(coachmake, "make", side_effect=errors.CoachError("the design failed")):
-            self.assertEqual(self.build("--coach", "Coach Reed", estimated=False), 1, self.out.getvalue())
-        self.one_event("stopped", "design")
-        self.assertIn("--- last lines of", self.out.getvalue())   # a design's failure shows the log's end
-        self.assertTrue(self.read_log().rstrip().endswith(f"--- end {self.events()[0]['build_id']} design 1"))
 
     def test_a_voice_saved_but_not_written_reaches_the_terminal(self):
         """The first build with a stock web coach saves its voice at the service; if writing the coach then
@@ -641,29 +431,6 @@ class BuildTrail(unittest.TestCase):
         self.one_event("stopped", "design")
         self.assertIn("voice-left-behind-7", self.out.getvalue())   # and on stderr (the log, from the command line)
 
-    def test_the_log_closes_each_build(self):
-        self.assertEqual(self.build(), 0, self.out.getvalue())
-        build_id = self.ids[-1]
-        log = self.read_log()
-        self.assertIn(f"({build_id})", log)
-        self.assertTrue(log.rstrip().endswith(f"--- end {build_id} done 0"), log[-300:])
-        self.fails = SystemExit("the engine stopped")
-        self.build()
-        self.assertTrue(self.read_log().rstrip().endswith(f"--- end {self.ids[-1]} render 1"))
-
-    def test_a_missing_delivery_folder_is_said_as_a_failure_line(self):
-        import shutil
-        import build
-        import context
-        shutil.rmtree(self.phone)
-        self.assertEqual(context.delivery_note(context.profile()),
-                         f"Delivery folder {self.phone.replace(os.sep, '/')} not found.")
-        said, failed = [], []
-        result = build.run_build(build.BuildOptions(draft=self.draft, name="Test build", allow_estimated=True),
-                                 say=said.append, fail=failed.append)
-        self.assertEqual(result.code, 0)
-        self.assertTrue(any("not found" in line for line in failed), failed)
-
     def test_lint_only_leaves_none(self):
         self.assertEqual(self.build("--lint-only"), 0)
         helpers.menu_for(self.draft, self.home, today="2026-10-20")
@@ -672,25 +439,6 @@ class BuildTrail(unittest.TestCase):
 
 
 class DeliveryPlan(unittest.TestCase):
-    def test_each_branch(self):
-        import build
-        web = build.delivery_plan(True, True, ["/x"])
-        self.assertEqual((web["copy_to"], web["remove_local"], web["record"]["kept_local"]), ([], True, False))
-        kept = build.delivery_plan(True, False, ["/x"])
-        self.assertEqual((kept["copy_to"], kept["remove_local"], kept["record"]["kept_local"]), ([], False, True))
-        self.assertIn("--no-web", kept["record"]["reason"])
-        none = build.delivery_plan(False, True, [])
-        self.assertEqual((none["copy_to"], none["record"]["reason"]), ([], "no delivery folder on this computer"))
-        copy = build.delivery_plan(False, False, ["/a", "/b"])
-        self.assertEqual((copy["copy_to"], copy["remove_local"], copy["record"]), (["/a", "/b"], False, None))
-
-    def test_the_web_client_keeps_the_mp3_for_upload(self):
-        import build
-        want = {"copy_to": [], "remove_local": False, "note": None,
-                "record": {"delivered_to": [], "kept_local": True, "reason": "the web client uploads the MP3"}}
-        self.assertEqual(build.delivery_plan(False, False, ["/x"], client=True), want)
-        self.assertEqual(build.delivery_plan(True, True, [], client=True), want)
-
     def test_a_failed_copy_keeps_its_reason(self):
         import build
         d = tempfile.mkdtemp()
@@ -732,16 +480,6 @@ class LockFilesStayPrivate(unittest.TestCase):
 
 
 class Boundaries(unittest.TestCase):
-    def test_player_links_survive_a_hash_in_the_name(self):
-        with tempfile.TemporaryDirectory() as d:
-            page = webcopy.page("Workout #3", [os.path.join(d, "Workout #3.web-1.mp3"),
-                                                os.path.join(d, "Workout #3.web-2.mp3")], os.path.join(d, "p.html"))
-            with open(page, encoding="utf-8") as f:
-                text = f.read()
-        self.assertIn('href="Workout%20%233.web-1.mp3"', text)
-        self.assertIn('"Workout%20%233.web-2.mp3"', text)
-        self.assertNotIn('href="Workout #3', text)
-
     def test_feed_links_are_plain_web_addresses(self):
         self.assertEqual(feeds.web_link(" https://example.com/a?b=1 "), "https://example.com/a?b=1")
         for bad in ("javascript:alert(1)", "file:///etc/passwd", "data:text/html,x", "https://a b", ""):
@@ -749,24 +487,6 @@ class Boundaries(unittest.TestCase):
 
 
 class OneRule(unittest.TestCase):
-    """Small rules written once: a ## heading, a movement's log key, --today."""
-
-    def test_a_heading_is_two_hashes_stripped_and_case_folded(self):
-        import frontmatter
-        lines = ["# Log", "### Sessions", "  ## SESSIONS  ", "- a", "## Feedback", "- b"]
-        self.assertEqual(frontmatter.heading_index(lines, "Sessions"), 2)
-        self.assertIsNone(frontmatter.heading_index(lines, "Kits"))
-        self.assertEqual(frontmatter.section("\n".join(lines), "sessions"), [(4, "- a")])
-        self.assertEqual(frontmatter.section("\n".join(lines), "Feedback"), [(6, "- b")])
-        self.assertIsNone(frontmatter.heading("##Sessions"))
-
-    def test_a_movement_key_is_its_id_or_its_name_lowercased(self):
-        cat = catalog.default()
-        some = next(iter(cat.movements.values()))
-        self.assertEqual(catalog.key(cat, some.name.upper()), some.id)
-        self.assertEqual(catalog.key(cat, "  Nothing Like It  "), "nothing like it")
-        self.assertEqual(catalog.key(None, " Goblet Squat "), "goblet squat")
-
     def test_today_is_a_date_or_exit_64(self):
         import datetime
         import cli

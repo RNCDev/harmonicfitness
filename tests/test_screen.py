@@ -55,18 +55,6 @@ class Screen(unittest.TestCase):
             f.write(text.replace("- No pushing through wrist pain.", "- No pushing through wrist pain.\n" + extra_rules))
         return health_md.health(path)
 
-    def test_learned_likes_add_and_a_firm_learned_dislike_leaves_a_movement_off(self):
-        from unittest import mock
-        import interests
-        before = offered(screen_for())
-        gone, liked = sorted(before)[:2]
-        lr = interests.Learned(likes=[FIXTURE_CAT.movements[liked].name], dislikes=[FIXTURE_CAT.movements[gone].name])
-        with mock.patch.object(interests, "learned", return_value=lr):
-            scr = screen_for()
-        self.assertIn(liked, scr.likes)
-        self.assertIn(gone, scr.dislikes)
-        self.assertNotIn(gone, offered(scr))
-
     def test_wrist_limit_shapes_the_selection(self):
         scr = screen_for()
         self.assertEqual([(lim.area, lim.side, lim.level) for lim in scr.limits], [("wrist", "left", "delicate")])
@@ -78,15 +66,6 @@ class Screen(unittest.TestCase):
         knee = catalog.Limit("knee", "right", "delicate", [], [], "")
         scr = screen_for(limits=[knee])
         self.assertEqual([lim.area for lim in scr.limits], ["wrist", "knee"])
-
-    def test_likes_and_dislikes(self):
-        scr = screen_for()
-        self.assertEqual(scr.likes, {"goblet-squat"})
-        self.assertEqual(scr.dislikes, {"push-up"})
-        self.assertNotIn("push-up", offered(scr))
-        none = health_md.Health({}, "")
-        self.assertIn("push-up", offered(screen_for(h=none, profile=listener_profile(dislikes=[]))))
-        self.assertNotIn("push-up", offered(screen_for(h=none)))
 
     def test_ids_resolve_names_and_skip_unknown(self):
         self.assertEqual(screen.ids(FIXTURE_CAT, ["reverse lunge", "goblet-squat", "wobbly thing"]),
@@ -166,22 +145,6 @@ class Screen(unittest.TestCase):
         both = [catalog.Limit("wrist", "both", "delicate", [], [], "")]
         self.assertEqual(screen.healthy_side(plank, both), "healthy")
 
-    def test_would_open_counts_by_reselecting(self):
-        # a kettlebell would admit goblet squat, but the listener dislikes it here, so nothing opens
-        scr = screen_for(equipment=["mat", "band"], profile=listener_profile(dislikes=["push-up", "goblet-squat"]))
-        opened = dict(screen.would_open(FIXTURE_CAT, scr.sel, scr.equipment, scr.level, scr.limits,
-                                        scr.avoid, scr.dislikes))
-        self.assertNotIn("kettlebell", opened)
-        self.assertEqual(opened.get("dumbbells"), 2)   # one arm row and the deadlift; goblet squat is disliked
-
-    def test_would_open_names_equipment(self):
-        scr = screen_for(preset="bodyweight")
-        opens = screen.would_open(FIXTURE_CAT, scr.sel, scr.equipment, scr.level, scr.limits, scr.avoid, scr.dislikes)
-        self.assertTrue(opens and all(isinstance(n, int) for _, n in opens))
-        self.assertLessEqual(len(opens), 3)
-        self.assertIn("dumbbells", [e for e, _ in opens])
-        self.assertEqual([n for _, n in opens], sorted((n for _, n in opens), reverse=True))
-
     def test_cue_lines_for_each_limit_with_its_side(self):
         knee = catalog.Limit("knee", "right", "delicate", [], [], "")
         lines = screen.cue_lines(FIXTURE_CAT, screen_for(limits=[knee]).limits)
@@ -193,7 +156,52 @@ class Screen(unittest.TestCase):
         both = screen.cue_lines(FIXTURE_CAT, [catalog.Limit("wrist", "both", "off-limits", [], [], "")] * 2)
         self.assertEqual(both, ["  wrist off limits:", "    No weight through the injured hand."])   # once each
 
-    def test_kit_weights_print_as_loads_on_hand(self):
+    def test_likes_and_dislikes(self):
+        from unittest import mock
+        import interests
+        scr = screen_for()
+        self.assertEqual(scr.likes, {"goblet-squat"})
+        self.assertEqual(scr.dislikes, {"push-up"})
+        self.assertNotIn("push-up", offered(scr))
+        none = health_md.Health({}, "")
+        self.assertIn("push-up", offered(screen_for(h=none, profile=listener_profile(dislikes=[]))))
+        self.assertNotIn("push-up", offered(screen_for(h=none)))
+        # learned likes add, and a firm learned dislike leaves a movement off
+        gone, liked = sorted(offered(scr))[:2]
+        lr = interests.Learned(likes=[FIXTURE_CAT.movements[liked].name], dislikes=[FIXTURE_CAT.movements[gone].name])
+        with mock.patch.object(interests, "learned", return_value=lr):
+            scr = screen_for()
+        self.assertIn(liked, scr.likes)
+        self.assertIn(gone, scr.dislikes)
+        self.assertNotIn(gone, offered(scr))
+
+    def test_would_open_counts_by_reselecting_and_names_equipment(self):
+        # a kettlebell would admit goblet squat, but the listener dislikes it here, so nothing opens
+        scr = screen_for(equipment=["mat", "band"], profile=listener_profile(dislikes=["push-up", "goblet-squat"]))
+        opened = dict(screen.would_open(FIXTURE_CAT, scr.sel, scr.equipment, scr.level, scr.limits,
+                                        scr.avoid, scr.dislikes))
+        self.assertNotIn("kettlebell", opened)
+        self.assertEqual(opened.get("dumbbells"), 2)   # one arm row and the deadlift; goblet squat is disliked
+        scr = screen_for(preset="bodyweight")
+        opens = screen.would_open(FIXTURE_CAT, scr.sel, scr.equipment, scr.level, scr.limits, scr.avoid, scr.dislikes)
+        self.assertTrue(opens and all(isinstance(n, int) for _, n in opens))
+        self.assertLessEqual(len(opens), 3)
+        self.assertIn("dumbbells", [e for e, _ in opens])
+        self.assertEqual([n for _, n in opens], sorted((n for _, n in opens), reverse=True))
+
+    def test_the_small_readers(self):
+        """parse_limit, words, clamp, and a kit's weights (loads on hand, and the faults check lists)."""
+        lim = screen.parse_limit("knee=delicate:left", FIXTURE_CAT)
+        self.assertEqual((lim.area, lim.side, lim.level), ("knee", "left", "delicate"))
+        self.assertTrue(lim.note)   # what the limit means, from the catalog
+        self.assertEqual(screen.parse_limit("calf=off-limits", FIXTURE_CAT).side, "both")
+        for bad in ("tail=delicate", "wrist=sore", "wrist=delicate:up", "wrist"):
+            with self.assertRaises(ValueError, msg=bad):
+                screen.parse_limit(bad, FIXTURE_CAT)
+        self.assertEqual(screen.words(" glutes, ,hinge "), ["glutes", "hinge"])
+        self.assertEqual(screen.words(None), [])
+        part = {"share": 0.1, "seconds": [120, 300]}
+        self.assertEqual([screen.clamp(part, n) for n in (600, 2000, 6000)], [120, 200, 300])
         kits = [{"name": "home", "equipment": ["dumbbells", "band", "mat"],
                  "weights": {"dumbbells": [20, 10, 15]}, "unit": "lb"}]
         weights = context.kit_weights(listener_profile(kits=kits))
@@ -202,8 +210,6 @@ class Screen(unittest.TestCase):
         self.assertTrue(line.startswith("Loads on hand: dumbbells 10, 15, 20 lb (heaviest 20). At the heaviest"), line)
         self.assertEqual(screen.loads_line(("kg", {"kettlebell": [16]}), {"mat"}), "")
         self.assertIn("kettlebell 16 kg.", screen.loads_line(("kg", {"kettlebell": [16]}), {"kettlebell"}))
-
-    def test_kit_weight_faults_are_listed(self):
         k = {"name": "home", "equipment": ["dumbbells"], "weights": {"kettlebell": [16], "dumbbells": ["heavy"]},
              "unit": "stone"}
         problems = " ".join(context.kit_problems(k))
@@ -211,25 +217,6 @@ class Screen(unittest.TestCase):
             self.assertIn(word, problems)
         self.assertEqual(context.kit_problems({"name": "x", "equipment": ["dumbbells"],
                                                    "weights": {"dumbbells": [5, 7.5]}}), [])
-
-    def test_parse_limit(self):
-        lim = screen.parse_limit("knee=delicate:left", FIXTURE_CAT)
-        self.assertEqual((lim.area, lim.side, lim.level), ("knee", "left", "delicate"))
-        self.assertTrue(lim.note)   # what the limit means, from the catalog
-        self.assertEqual(screen.parse_limit("calf=off-limits", FIXTURE_CAT).side, "both")
-        for bad in ("tail=delicate", "wrist=sore", "wrist=delicate:up", "wrist"):
-            with self.assertRaises(ValueError, msg=bad):
-                screen.parse_limit(bad, FIXTURE_CAT)
-
-    def test_words(self):
-        self.assertEqual(screen.words(" glutes, ,hinge "), ["glutes", "hinge"])
-        self.assertEqual(screen.words(None), [])
-
-    def test_clamp(self):
-        part = {"share": 0.1, "seconds": [120, 300]}
-        self.assertEqual(screen.clamp(part, 600), 120)
-        self.assertEqual(screen.clamp(part, 2000), 200)
-        self.assertEqual(screen.clamp(part, 6000), 300)
 
 
 if __name__ == "__main__":

@@ -64,7 +64,8 @@ class Upload(unittest.TestCase):
             p.start()
             self.addCleanup(p.stop)
 
-    def test_sends_what_the_app_lacks_and_keeps_what_it_has(self):
+    def test_sends_what_the_app_lacks_and_never_prints_a_key(self):
+        import redact
         app = StubApp(there={"fish"})
         got = webkeys.upload(ACCOUNT, app=app)
         self.assertEqual(app.puts, {"openrouter": ROUTER, "anthropic": CLAUDE})
@@ -76,8 +77,9 @@ class Upload(unittest.TestCase):
         for secret in (FISH, ROUTER, CLAUDE):
             self.assertNotIn(secret, out.getvalue())
         self.assertIn("openrouter: sent", out.getvalue())
+        self.assertNotIn(CLAUDE, redact.scrub(f"oops {CLAUDE}"))   # writer keys are scrubbed like voice keys
 
-    def test_replace_dry_run_and_only(self):
+    def test_options_refusals_and_nothing_to_send(self):
         app = StubApp(there={"fish"})
         got = webkeys.upload(ACCOUNT, replace=True, dry_run=True, app=app)
         self.assertEqual((app.puts, got["would_send"]), ({}, ["fish", "openrouter", "anthropic"]))
@@ -86,25 +88,17 @@ class Upload(unittest.TestCase):
         self.assertEqual(app.puts, {"fish": FISH, "openrouter": ROUTER})
         with self.assertRaises(errors.UsageError):
             webkeys.upload(ACCOUNT, only="nope", app=StubApp())
-
-    def test_a_refusal_is_named_and_exit_1(self):
-        got = webkeys.upload(ACCOUNT, app=StubApp(refuse={"openrouter": 400}))
+        got = webkeys.upload(ACCOUNT, app=StubApp(refuse={"openrouter": 400}))   # a refusal is named, exit 1
         self.assertIn("look like a key", got["refused"]["openrouter"])
         with redirect_stdout(io.StringIO()):
             self.assertEqual(webkeys.report(got), errors.ISSUES)
-
-    def test_needs_the_sign_in_and_sends_nothing_without_keys(self):
-        with self.assertRaises(errors.UsageError):
+        with self.assertRaises(errors.UsageError):   # needs the sign-in
             webkeys.upload({"HARMONIC_USERNAME": "harmonic1"}, app=StubApp())
         with open(self.env, "w", encoding="utf-8") as f:
             f.write("FISH_AUDIO_API_KEY=\n")
         app = StubApp()
         self.assertTrue(webkeys.upload({}, app=app)["none"])
         self.assertEqual(app.calls, [])   # no sign-in when there's nothing to send
-
-    def test_writer_keys_are_scrubbed_like_voice_keys(self):
-        import redact
-        self.assertNotIn(CLAUDE, redact.scrub(f"oops {CLAUDE}"))
 
 
 class SameOrigin(unittest.TestCase):

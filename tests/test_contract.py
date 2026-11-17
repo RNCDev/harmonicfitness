@@ -330,5 +330,26 @@ class SameOnEveryComputer(unittest.TestCase):
         self.assertIn(["*", "text=auto", "eol=lf"], rules)
 
 
+class NoPrintInLibrary(unittest.TestCase):
+    """These library modules say things through report/warn callbacks: print only in the default sinks (say,
+    stderr) and main."""
+    CLEAN = ("audition.py", "coachmake.py", "catalog.py", "logsession.py", "frontmatter.py", "fileio.py")
+    SINKS = {"say", "stderr", "_stderr", "main"}
+
+    def test_no_print_outside_the_sinks(self):
+        import ast
+        found = []
+        for name in self.CLEAN:
+            path = os.path.join(paths.ROOT, "tools", name)
+            with open(path, encoding="utf-8") as f:
+                tree = ast.parse(f.read(), path)
+            for fn in ast.walk(tree):
+                if isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)) and fn.name not in self.SINKS:
+                    for node in ast.walk(fn):
+                        if isinstance(node, ast.Call) and getattr(node.func, "id", None) == "print":
+                            found.append(f"{name}:{node.lineno} in {fn.name}")
+        self.assertEqual(found, [])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -52,7 +52,7 @@ from paths import show  # noqa: E402
 # modules; context imports only what it uses
 import frontmatter  # noqa: E402
 from frontmatter import front, toml_value, section, placeholder, unfilled  # noqa: E402
-from store import PERSONA_SCHEMA, split, schema_problem, read_raw  # noqa: E402
+from store import OLDER, PERSONA_SCHEMA, split, schema_problem, read_raw  # noqa: E402
 from sessionlog import log  # noqa: E402
 from records import web_builds  # noqa: E402
 
@@ -677,7 +677,7 @@ def persona(path):
     if found != PERSONA_SCHEMA:
         older = isinstance(found, int) and found < PERSONA_SCHEMA
         raise errors.ContextError(f"{show(path)} is schema {found}; this engine reads coaches at schema {PERSONA_SCHEMA}: "
-                         + ("run ./harmonicfitness migrate." if older else "pull the latest harmonicfitness."))
+                         + (OLDER if older else "pull the latest harmonicfitness."))
     return Persona(settings, rest, path)
 
 

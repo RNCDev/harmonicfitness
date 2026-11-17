@@ -256,7 +256,7 @@ def check(home_files=None):
         if not os.path.exists(path):
             prof = os.path.join(os.path.dirname(path), "profile.md")
             if name in PROFILE_PARTS[1:] and os.path.exists(prof) and schema_of(read_raw(prof)) < SCHEMA:
-                continue   # an older profile, not split yet: its schema issue says to migrate
+                continue   # a profile from before 0.12.0, not split: its schema issue says what to do
             out.append(Issue(path, 0, "missing; ./harmonicfitness setup copies it from me.example/"))
             continue
         with open(path, encoding="utf-8") as f:

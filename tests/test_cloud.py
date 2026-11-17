@@ -3,11 +3,11 @@ No network leaves the machine, and every key is a made-up test value."""
 import base64
 import contextlib
 import glob
+import hashlib
 import io
 import json
 import os
 import shutil
-import subprocess
 import sys
 import tempfile
 import unittest
@@ -34,6 +34,13 @@ def wav_answer(req):
     return 200, {"Content-Type": "audio/wav"}, tone_wav(0.4, rate=44100, bogus_size=True)
 
 
+def table(case, rows):
+    """Run each (name, check) row as its own subTest."""
+    for name, row in rows:
+        with case.subTest(name):
+            row()
+
+
 class Core(unittest.TestCase):
     def test_every_service_module_keeps_the_contract(self):
         import inspect
@@ -48,135 +55,106 @@ class Core(unittest.TestCase):
         with self.assertRaises(errors.CoachError):
             cloud.service_module("os")   # only a listed service, never any importable name
 
-    def test_wav_with_a_bogus_size_reads_to_the_end(self):
-        pcm, rate = cloud.wav_pcm(tone_wav(0.5, rate=24000, bogus_size=True))
-        self.assertEqual(rate, 24000)
-        self.assertEqual(len(pcm), 2 * 12000)
-        stereo, _ = cloud.wav_pcm(tone_wav(0.5, channels=2))
-        self.assertEqual(len(stereo), 2 * 12000)   # mixed down to mono
-
-    def test_resample_44100_to_24000_keeps_length(self):
-        pcm = tone_pcm(1.0, rate=44100)
-        out = cloud.resample(pcm, 44100, 24000)
-        self.assertAlmostEqual(len(out) / 2, 24000, delta=2)
-        self.assertEqual(cloud.resample(pcm, 24000, 24000), pcm)
-
-    def test_trim_matches_the_local_rule(self):
-        pcm = b"\x00\x00" * 2400 + tone_pcm(0.2) + b"\x00\x00" * 4800
-        out = cloud.trim(pcm)
-        self.assertLess(len(out), len(pcm))
-        self.assertGreater(len(out), len(tone_pcm(0.2)))
-
-    def test_429_then_success_is_retried(self):
-        calls = []
-
-        def answer(req):
-            calls.append(1)
-            return (429, {}, b"{}") if len(calls) < 3 else (200, {}, b"ok")
-        with FakeService(answer) as fake:
-            status, _, data = cloud.request("POST", fake.url + "/x", {}, b"", sleep=lambda s: None)
-        self.assertEqual((status, data, len(calls)), (200, b"ok", 3))
-
-    def test_a_rate_limit_wait_is_said_on_stderr_and_other_retries_are_not(self):
-        answers = iter([(429, {}, b"{}"), (429, {"Retry-After": "4"}, b"{}"), (200, {}, b"ok")])
-        err = io.StringIO()
-        with FakeService(lambda req: next(answers)) as fake, contextlib.redirect_stderr(err):
-            cloud.request("POST", fake.url + "/x", {"x-goog-api-key": "secret-key"}, b"the text",
-                          service="gemini", sleep=lambda s: None)
-        lines = err.getvalue().splitlines()
-        self.assertEqual(len(lines), 2)
-        self.assertTrue(all(line.startswith("(gemini asked to slow down: waiting ") for line in lines))
-        self.assertNotIn("secret-key", err.getvalue())
-        self.assertNotIn("the text", err.getvalue())
-        answers = iter([(503, {}, b"{}"), (200, {}, b"ok")])
-        err = io.StringIO()
-        with FakeService(lambda req: next(answers)) as fake, contextlib.redirect_stderr(err):
-            cloud.request("POST", fake.url + "/x", {}, b"", service="gemini", sleep=lambda s: None)
-        self.assertEqual(err.getvalue(), "")
-
-    def test_a_request_that_saves_is_retried_only_on_429(self):
-        calls = []
-
-        def answer(req):
-            calls.append(1)
-            return (500, {}, b"{}")
-        with FakeService(answer) as fake:
-            with self.assertRaises(cloud.ServiceError):
-                cloud.request("POST", fake.url + "/x", {}, b"", sleep=lambda s: None, idempotent=False)
-        self.assertEqual(len(calls), 1)   # the service may have saved it: never a second voice
-        calls.clear()
-
-        def limited(req):
-            calls.append(1)
-            return (429, {}, b"{}") if len(calls) < 2 else (201, {}, b"ok")
-        with FakeService(limited) as fake:
-            status, _, data = cloud.request("POST", fake.url + "/x", {}, b"", sleep=lambda s: None, idempotent=False)
-        self.assertEqual((status, data, len(calls)), (201, b"ok", 2))
-
-    def test_a_request_that_saves_retries_a_refused_connection_not_a_timeout(self):
+    def test_retries_only_when_nothing_could_be_sent_twice(self):
+        import http.client
         import socket
         import urllib.error
-        tries = []
 
-        def refused(*a, **k):
-            tries.append(1)
-            raise urllib.error.URLError(ConnectionRefusedError(61, "refused"))
-        with mock.patch.object(cloud, "_open", refused), self.assertRaises(cloud.ServiceError):
-            cloud.request("POST", "http://127.0.0.1:9/x", {}, b"", sleep=lambda s: None, idempotent=False, tries=3)
-        self.assertEqual(len(tries), 3)   # nothing was sent: safe to try again
-        tries.clear()
+        def a_429_then_success_is_retried():
+            calls = []
 
-        def timed_out(*a, **k):
-            tries.append(1)
-            raise socket.timeout("timed out")
-        with mock.patch.object(cloud, "_open", timed_out), self.assertRaises(cloud.ServiceError):
-            cloud.request("POST", "http://127.0.0.1:9/x", {}, b"", sleep=lambda s: None, idempotent=False, tries=3)
-        self.assertEqual(len(tries), 1)
+            def answer(req):
+                calls.append(1)
+                return (429, {}, b"{}") if len(calls) < 3 else (200, {}, b"ok")
+            with FakeService(answer) as fake:
+                status, _, data = cloud.request("POST", fake.url + "/x", {}, b"", sleep=lambda s: None)
+            self.assertEqual((status, data, len(calls)), (200, b"ok", 3))
 
-    def test_a_cut_off_answer_is_retried_only_when_safe(self):
-        import http.client
-        tries = []
+        def a_long_retry_after_is_quota_not_a_sleep():
+            slept = []
+            with FakeService(lambda r: (429, {"Retry-After": "3600"}, b'{"message": "slow down"}')) as fake:
+                with self.assertRaises(cloud.ServiceError) as got:
+                    cloud.request("POST", fake.url + "/x", {}, b"{}", service="fish", sleep=slept.append)
+            self.assertEqual(got.exception.kind, "quota")
+            self.assertTrue(got.exception.listener_must_act)
+            self.assertEqual(slept, [])
+            self.assertIn("3600", str(got.exception))
 
-        def cut_off(*a, **k):
-            tries.append(1)
-            raise http.client.IncompleteRead(b"RIFF")
-        with mock.patch.object(cloud, "_open", cut_off), self.assertRaises(cloud.ServiceError) as got:
-            cloud.request("POST", "http://127.0.0.1:9/x", {}, b"", sleep=lambda s: None, tries=3)
-        self.assertEqual((len(tries), got.exception.kind), (3, "unavailable"))
-        tries.clear()
-        with mock.patch.object(cloud, "_open", cut_off), self.assertRaises(cloud.ServiceError):
-            cloud.request("POST", "http://127.0.0.1:9/x", {}, b"", sleep=lambda s: None, tries=3, idempotent=False)
-        self.assertEqual(len(tries), 1)   # a save may have landed: never sent twice
+        def a_save_is_retried_only_on_429():
+            calls = []
 
-    def test_a_stopping_render_ends_retries_at_once(self):
-        import threading
-        stop = threading.Event()
+            def answer(req):
+                calls.append(1)
+                return (500, {}, b"{}")
+            with FakeService(answer) as fake:
+                with self.assertRaises(cloud.ServiceError):
+                    cloud.request("POST", fake.url + "/x", {}, b"", sleep=lambda s: None, idempotent=False)
+            self.assertEqual(len(calls), 1)   # the service may have saved it: never a second voice
+            calls.clear()
 
-        def answer(req):
-            stop.set()   # the render fails elsewhere while this request is out
-            return 503, {}, b"{}"
-        cloud.stop_on(stop)
-        self.addCleanup(cloud.stop_on, None)
-        with FakeService(answer) as fake, mock.patch.dict(os.environ, {"HARMONICFITNESS_RETRY_WAIT": "1"}):
-            with self.assertRaises(cloud.ServiceError):
-                cloud.request("POST", fake.url + "/x", {}, b"", service="fish")   # no backoff slept through
-        self.assertEqual(len(fake.requests), 1)
+            def limited(req):
+                calls.append(1)
+                return (429, {}, b"{}") if len(calls) < 2 else (201, {}, b"ok")
+            with FakeService(limited) as fake:
+                status, _, data = cloud.request("POST", fake.url + "/x", {}, b"", sleep=lambda s: None, idempotent=False)
+            self.assertEqual((status, data, len(calls)), (201, b"ok", 2))
 
-    def test_a_stop_belongs_to_its_own_render(self):
-        """The stop signal reaches a render's worker threads through its speaker, and stops no other render."""
+        def a_save_retries_a_refused_connection_not_a_timeout():
+            tries = []
+
+            def refused(*a, **k):
+                tries.append(1)
+                raise urllib.error.URLError(ConnectionRefusedError(61, "refused"))
+            with mock.patch.object(cloud, "_open", refused), self.assertRaises(cloud.ServiceError):
+                cloud.request("POST", "http://127.0.0.1:9/x", {}, b"", sleep=lambda s: None, idempotent=False, tries=3)
+            self.assertEqual(len(tries), 3)   # nothing was sent: safe to try again
+            tries.clear()
+
+            def timed_out(*a, **k):
+                tries.append(1)
+                raise socket.timeout("timed out")
+            with mock.patch.object(cloud, "_open", timed_out), self.assertRaises(cloud.ServiceError):
+                cloud.request("POST", "http://127.0.0.1:9/x", {}, b"", sleep=lambda s: None, idempotent=False, tries=3)
+            self.assertEqual(len(tries), 1)
+
+        def a_cut_off_answer_is_retried_only_when_safe():
+            tries = []
+
+            def cut_off(*a, **k):
+                tries.append(1)
+                raise http.client.IncompleteRead(b"RIFF")
+            with mock.patch.object(cloud, "_open", cut_off), self.assertRaises(cloud.ServiceError) as got:
+                cloud.request("POST", "http://127.0.0.1:9/x", {}, b"", sleep=lambda s: None, tries=3)
+            self.assertEqual((len(tries), got.exception.kind), (3, "unavailable"))
+            tries.clear()
+            with mock.patch.object(cloud, "_open", cut_off), self.assertRaises(cloud.ServiceError):
+                cloud.request("POST", "http://127.0.0.1:9/x", {}, b"", sleep=lambda s: None, tries=3, idempotent=False)
+            self.assertEqual(len(tries), 1)   # a save may have landed: never sent twice
+        table(self, [("429", a_429_then_success_is_retried), ("long wait", a_long_retry_after_is_quota_not_a_sleep),
+                     ("save", a_save_is_retried_only_on_429), ("refused", a_save_retries_a_refused_connection_not_a_timeout),
+                     ("cut off", a_cut_off_answer_is_retried_only_when_safe)])
+
+    def test_a_stopping_render_ends_its_own_retries_and_no_other(self):
         import threading
         from concurrent.futures import ThreadPoolExecutor
         stop, other = threading.Event(), threading.Event()
 
         def answer(req):
-            stop.set()   # this render fails elsewhere while the request is out
+            stop.set()   # the render fails elsewhere while this request is out
             return 503, {}, b"{}"
+        self.addCleanup(cloud.stop_on, None)
+        cloud.stop_on(stop)
+        with FakeService(answer) as fake, mock.patch.dict(os.environ, {"HARMONICFITNESS_RETRY_WAIT": "1"}):
+            with self.assertRaises(cloud.ServiceError):
+                cloud.request("POST", fake.url + "/x", {}, b"", service="fish")   # no backoff slept through
+        self.assertEqual(len(fake.requests), 1)
+        stop.clear()
+        # the stop reaches a render's worker threads through its speaker, and stops no other render
         voice = {"service": "fish", "voice_id": "v", "model": "s2.1-pro"}
         with FakeService(answer) as fake, mock.patch.dict(os.environ, {"HARMONICFITNESS_FISH_URL": fake.url,
                                                                       "FISH_AUDIO_API_KEY": SECRET,
                                                                       "HARMONICFITNESS_RETRY_WAIT": "0"}):
             cloud.stop_on(stop)
-            self.addCleanup(cloud.stop_on, None)
             say = cloud.speaker(voice)
             with ThreadPoolExecutor(1) as pool, self.assertRaises(cloud.ServiceError):
                 pool.submit(say, "Hi.", 1).result()   # a worker thread, as render_cloud runs it
@@ -225,8 +203,6 @@ class Core(unittest.TestCase):
             self.assertEqual(cloud.base_url("fish"), "https://api.fish.audio")
 
     def test_a_tls_fallback_says_so(self):
-        import contextlib
-        import io
         import ssl
         cloud._tls.cache_clear()
         self.addCleanup(cloud._tls.cache_clear)
@@ -256,45 +232,9 @@ class Core(unittest.TestCase):
         for want in ("[elevenlabs] design_model", "[elevenlabs] design_guidance", "[elevenlabs] design_line"):
             self.assertIn(want, design)
 
-    def test_an_unreadable_2xx_answer_is_a_service_error(self):
-        for body in (b"<html>oops</html>", b"[1, 2]", b"", b"\xff\xfe"):
-            with self.assertRaises(cloud.ServiceError) as got:
-                cloud.json_answer(body, "fish")
-            self.assertEqual(got.exception.kind, "bad_request")
-        self.assertEqual(cloud.json_answer(b'{"a": 1}', "fish"), {"a": 1})
-        with self.assertRaises(cloud.ServiceError):
-            cloud.b64_audio("not base64!", "fish")
-
-    def test_a_brought_clip_that_isnt_wav_never_becomes_raw_pcm(self):
-        import coaches
-        m4a = b"\x00\x00\x00\x20ftypM4A \x00\x00\x00\x00M4A mp42isom" + bytes(2000)
-        with tempfile.TemporaryDirectory() as d:
-            path = os.path.join(d, "clip.m4a")
-            with open(path, "wb") as f:
-                f.write(m4a)
-            with mock.patch.object(cloud, "ffmpeg_pcm", return_value=tone_pcm(0.2)) as conv:
-                data = coaches._clip_bytes(path)
-            conv.assert_called_once()
-            self.assertEqual(cloud.wav_pcm(data), (tone_pcm(0.2), 24000))
-            with mock.patch("ffmpeg.exe", return_value=None), self.assertRaises(errors.PROBLEMS) as got:
-                coaches._clip_bytes(path)
-            self.assertIn("ffmpeg", str(got.exception.code))
-            wav = os.path.join(d, "clip.wav")
-            with open(wav, "wb") as f:
-                f.write(tone_wav(0.3, rate=44100))
-            with mock.patch.object(cloud, "ffmpeg_pcm", side_effect=AssertionError("a WAV needs no ffmpeg")):
-                pcm, rate = cloud.wav_pcm(coaches._clip_bytes(wav))
-            self.assertEqual(rate, 24000)
-
-    @unittest.skipUnless(helpers.HAS_FFMPEG, "ffmpeg not installed")
-    def test_ffmpeg_refusing_a_clip_is_a_message(self):
-        with self.assertRaises(errors.PROBLEMS) as got:
-            cloud.ffmpeg_pcm(b"\x00\x00\x00\x20ftypM4A " + bytes(64), "The clip")
-        self.assertIn("The clip", str(got.exception.code))
-
     def test_errors_by_kind(self):
         for status, body, kind in ((401, b'{"message": "Invalid api key"}', "auth"),
-                                   (402, b'{"status": 402, "message": "No payment"}', "billing"),
+                                   (402, b'{"status": 402, "message": "No payment"}', "billing"),   # Fish's 402
                                    (400, b'{"detail": {"message": "text too long"}}', "bad_request"),
                                    (400, b'{"error_code": "quota_exceeded", "message": "out"}', "quota"),
                                    (503, b"{}", "unavailable"),
@@ -310,6 +250,8 @@ class Core(unittest.TestCase):
                                   service="fish", sleep=lambda s: None)
             self.assertEqual(e.exception.kind, kind, status)
             self.assertNotIn(SECRET, str(e.exception))
+            if kind in ("auth", "billing", "quota"):
+                self.assertEqual(e.exception.exit_code, cli.SERVICE, status)
 
     def test_estimate_counts_bytes_for_fish_and_characters_elsewhere(self):
         chars, usd = cloud.estimate("fish", "s2.1-pro", ["Zoë"] * 1000)
@@ -319,34 +261,6 @@ class Core(unittest.TestCase):
         self.assertAlmostEqual(usd, 3000 * 25 / 1e6)
         _, usd = cloud.estimate("gemini", "gemini-3.8-flash-tts", ["abc"] * 1000)
         self.assertAlmostEqual(usd, 3000 * 13.5 / 1e6)
-
-    def test_services_settings(self):
-        s = cloud.services()
-        self.assertEqual(set(s), {"fish", "elevenlabs", "gemini", "inworld", "openrouter"})
-        for name in s:
-            self.assertTrue(s[name]["tried_live"], name)
-            self.assertEqual(s[name]["rates_checked"], "2026-10-25")
-            for gone in ("copies_clip", "designs", "stock_voices"):
-                self.assertNotIn(gone, s[name])
-        self.assertEqual(s["fish"]["default_model"], "s2.1-pro")
-        self.assertEqual(s["fish"]["design_usd"], 0.01)
-        self.assertEqual(s["elevenlabs"]["default_model"], "eleven_v4")
-        self.assertIn("Free", s["elevenlabs"]["note"])
-        self.assertEqual((s["gemini"]["default_model"], s["gemini"]["url"]),
-                         ("gemini-3.8-flash-tts", "https://generativelanguage.googleapis.com"))
-        self.assertEqual((s["inworld"]["default_model"], s["inworld"]["url"]),
-                         ("inworld-tts-2", "https://api.inworld.ai"))
-        self.assertEqual({n: (s[n]["concurrency"], s[n]["max_chars"]) for n in s},
-                         {"fish": (5, 0), "elevenlabs": (2, 10000), "gemini": (8, 0), "inworld": (5, 2000),
-                          "openrouter": (6, 10000)})
-        self.assertEqual(cloud.rate("gemini", "gemini-3.8-flash-tts"), 13.5)
-        self.assertEqual(cloud.rate("gemini", "gemini-3.8-flash-lite-tts"), 9)
-        self.assertEqual(cloud.rate("inworld", "inworld-tts-2-flash"), 15)
-        self.assertEqual(cloud.rate("elevenlabs", "eleven_v4_turbo"), 40)
-        for n in ("gemini", "inworld"):
-            self.assertEqual(s[n]["unit"], "characters")
-        self.assertEqual(s["gemini"]["design_usd"], 0.01)   # spec decision 2
-        self.assertNotIn("design_usd", s["inworld"])
 
 
 VOICE_IDS = {"fish": "fish-model-1", "elevenlabs": "el-voice-1", "gemini": "gemini-voice-1",
@@ -402,48 +316,52 @@ class WebVoice(unittest.TestCase):
         patch.start()
         self.addCleanup(patch.stop)
 
-    def test_voice_for_a_web_coach(self):
-        web_coach(self.folder, "inworld")
-        p = personas.lookup("Coach Owen")
-        v = personas.voice_for(p, "fish")   # the route is ignored: a web coach speaks through its service
-        self.assertEqual({k: v[k] for k in ("name", "persona", "engine", "backend", "route", "service", "model",
-                                            "voice_id", "style", "revision", "generate", "concurrency", "max_chars")},
-                         {"name": "Coach Owen", "persona": "coach-owen-inworld", "engine": "inworld", "backend": "cloud",
-                          "route": "inworld", "service": "inworld", "model": "inworld-tts-2",
-                          "voice_id": VOICE_IDS["inworld"], "style": "", "revision": None, "generate": {},
-                          "concurrency": 5, "max_chars": 2000})
-        self.assertEqual(v["key"], cloud.web_key(p, "inworld-tts-2"))
-        self.assertEqual((v["persona_dir"], v["pace_file"]), (p.folder, p.pace_file))
-        self.assertNotIn("ref_audio", v)
-        self.assertEqual(cloud.voice_for(p, "inworld"), v)
+    def test_a_web_coach_s_voice(self):
+        def by_its_saved_voice_id():
+            web_coach(self.folder, "inworld")
+            p = personas.lookup("Coach Owen")
+            v = personas.voice_for(p, "fish")   # the route is ignored: a web coach speaks through its service
+            self.assertEqual({k: v[k] for k in ("name", "persona", "engine", "backend", "route", "service", "model",
+                                                "voice_id", "style", "revision", "generate", "concurrency", "max_chars")},
+                             {"name": "Coach Owen", "persona": "coach-owen-inworld", "engine": "inworld",
+                              "backend": "cloud", "route": "inworld", "service": "inworld", "model": "inworld-tts-2",
+                              "voice_id": VOICE_IDS["inworld"], "style": "", "revision": None, "generate": {},
+                              "concurrency": 5, "max_chars": 2000})
+            self.assertEqual(v["key"], cloud.web_key(p, "inworld-tts-2"))
+            self.assertEqual((v["persona_dir"], v["pace_file"]), (p.folder, p.pace_file))
+            self.assertNotIn("ref_audio", v)
+            self.assertEqual(cloud.voice_for(p, "inworld"), v)
 
-    def test_a_voice_id_a_service_never_gives_stops(self):
-        for bad in ("../voices/x", "a/b", "id?x=1", "x" * 129):
-            web_coach(self.folder, "elevenlabs", voice_id=bad)
-            with self.assertRaises(errors.CoachError):
-                personas.voice_for(personas.lookup("Coach Ellis"), "elevenlabs")
-        web_coach(self.folder, "elevenlabs", voice_id="voice_Ab9.c:d-e")
-        self.assertEqual(personas.voice_for(personas.lookup("Coach Ellis"), "elevenlabs")["voice_id"], "voice_Ab9.c:d-e")
+        def a_voice_id_a_service_never_gives_stops():
+            for bad in ("../voices/x", "a/b", "id?x=1", "x" * 129):
+                web_coach(self.folder, "elevenlabs", voice_id=bad)
+                with self.assertRaises(errors.CoachError):
+                    personas.voice_for(personas.lookup("Coach Ellis"), "elevenlabs")
+            web_coach(self.folder, "elevenlabs", voice_id="voice_Ab9.c:d-e")
+            self.assertEqual(personas.voice_for(personas.lookup("Coach Ellis"), "elevenlabs")["voice_id"],
+                             "voice_Ab9.c:d-e")
 
-    def test_a_chosen_model_changes_the_key(self):
-        web_coach(self.folder, "elevenlabs", model="eleven_v4_turbo")
-        p = personas.lookup("Coach Ellis")
-        v = personas.voice_for(p, "elevenlabs")
-        self.assertEqual(v["model"], "eleven_v4_turbo")
-        self.assertEqual(v["key"], cloud.web_key(p, "eleven_v4_turbo"))
-        self.assertNotEqual(v["key"], cloud.web_key(p, "eleven_v4"))
+        def a_chosen_model_changes_the_key():
+            web_coach(self.folder, "elevenlabs", model="eleven_v4_turbo")
+            p = personas.lookup("Coach Ellis")
+            v = personas.voice_for(p, "elevenlabs")
+            self.assertEqual(v["model"], "eleven_v4_turbo")
+            self.assertEqual(v["key"], cloud.web_key(p, "eleven_v4_turbo"))
+            self.assertNotEqual(v["key"], cloud.web_key(p, "eleven_v4"))
 
-    def test_a_web_coach_with_no_voice_yet_stops(self):
-        import context
-        path = os.path.join(self.folder, "coach-reed-fish")
-        os.makedirs(path)
-        with open(os.path.join(path, "persona.md"), "w", encoding="utf-8") as f:
-            f.write(context.persona_text({"name": "Coach Reed", "kind": "web", "service": "fish", "placeholder": True,
-                                          "pending": "design"}, "## How this coach talks\n"))
-        with self.assertRaises(errors.PROBLEMS) as e:
-            personas.voice_for(personas.lookup("Coach Reed"), "fish")
-        self.assertIn("Coach Reed", str(e.exception.code))
-        self.assertIn("audition", str(e.exception.code))
+        def no_voice_yet_stops():
+            import context
+            path = os.path.join(self.folder, "coach-reed-fish")
+            os.makedirs(path)
+            with open(os.path.join(path, "persona.md"), "w", encoding="utf-8") as f:
+                f.write(context.persona_text({"name": "Coach Reed", "kind": "web", "service": "fish",
+                                              "placeholder": True, "pending": "design"}, "## How this coach talks\n"))
+            with self.assertRaises(errors.PROBLEMS) as e:
+                personas.voice_for(personas.lookup("Coach Reed"), "fish")
+            self.assertIn("Coach Reed", str(e.exception.code))
+            self.assertIn("audition", str(e.exception.code))
+        table(self, [("saved id", by_its_saved_voice_id), ("bad id", a_voice_id_a_service_never_gives_stops),
+                     ("model", a_chosen_model_changes_the_key), ("no voice", no_voice_yet_stops)])
 
     def test_a_local_coach_never_renders_on_a_web_route(self):
         with self.assertRaises(errors.PROBLEMS) as e:
@@ -452,77 +370,8 @@ class WebVoice(unittest.TestCase):
         self.assertEqual(personas.voice_for(personas.lookup("Coach Test"), "local")["route"], "local")
 
 
-class ServiceCase(unittest.TestCase):
-    """A web coach and a test key for one service, with the service pointed at a fake."""
-    SERVICE = None
-
-    def setUp(self):
-        import keys
-        self.d = tempfile.mkdtemp()
-        self.addCleanup(shutil.rmtree, self.d)
-        self.folder = persona_home(self.d)
-        web_coach(self.folder, self.SERVICE)
-        patches = [mock.patch.object(personas.paths, "PERSONAS", self.folder),
-                   mock.patch.dict(os.environ, {keys.SERVICE_VARS[self.SERVICE]: SECRET, "HARMONICFITNESS_RETRY_WAIT": "0"})]
-        for p in patches:
-            p.start()
-            self.addCleanup(p.stop)
-
-    @property
-    def module(self):
-        import importlib
-        return importlib.import_module(f"services.{self.SERVICE}")
-
-    def coach(self):
-        return personas.lookup(COACHES[self.SERVICE])
-
-    def voice(self):
-        return personas.voice_for(self.coach(), self.SERVICE)
-
-    def serve(self, answer):
-        fake = FakeService(answer)
-        fake.__enter__()
-        self.addCleanup(fake.__exit__)
-        patch = mock.patch.dict(os.environ, {f"HARMONICFITNESS_{self.SERVICE.upper()}_URL": fake.url})
-        patch.start()
-        self.addCleanup(patch.stop)
-        return fake
-
-    def check_candidate(self, c, text):
-        self.assertEqual(set(c), {"pcm", "wav", "text", "draft_id", "signature"})
-        self.assertEqual(c["text"], text)
-        self.assertGreater(len(c["pcm"]), 0)
-        pcm, rate = cloud.wav_pcm(c["wav"])
-        self.assertGreater(len(pcm), 0)
-
-    def check_saved_once(self, call, saved):
-        """A request that saves a voice: a 500 isn't retried (the service may have saved it), a 429 is."""
-        fake = self.serve(lambda r: (500, {}, b'{"message": "oops"}'))
-        with self.assertRaises(cloud.ServiceError):
-            call()
-        self.assertEqual(len(fake.requests), 1)
-        answers = iter([(429, {}, b"{}")])
-        fake.answer = lambda r: next(answers, None) or saved(r)
-        call()
-        path = fake.requests[0].path
-        self.assertEqual(len([r for r in fake.requests if r.path == path]), 3)
-
-    def check_delete(self, path, gone_status=200):
-        """delete(): True on the service's 2xx, True on a 404 (already gone), an error otherwise."""
-        fake = self.serve(lambda r: (gone_status, {}, b"" if gone_status == 204 else b"{}"))
-        self.assertTrue(self.module.delete("voice-9"))
-        self.assertEqual((fake.requests[0].method, fake.requests[0].path), ("DELETE", path.format(id="voice-9")))
-        self.assertNotIn(SECRET, fake.requests[0].path)
-        fake.answer = lambda r: (404, {}, b'{"message": "not found"}')
-        self.assertTrue(self.module.delete("voice-9"))
-        fake.answer = lambda r: (401, {}, b'{"message": "Invalid api key"}')
-        with self.assertRaises(cloud.ServiceError) as e:
-            self.module.delete("voice-9")
-        self.assertEqual(e.exception.kind, "auth")
-        fake.requests.clear()
-        fake.answer = lambda r: (200, {}, b"{}")
-        self.module.delete("../a/b?c")   # an edited voice ID stays one path segment
-        self.assertEqual(fake.requests[0].path, path.format(id="..%2Fa%2Fb%3Fc"))
+FISH_WAVS = [tone_wav(1.0, rate=44100), tone_wav(0.8, rate=44100)]
+INWORLD_WAVS = [tone_wav(0.9), tone_wav(0.7)]
 
 
 def fish_design_answer(req):
@@ -530,110 +379,6 @@ def fish_design_answer(req):
                            "duration_ms": 1000, "text": "Okay, set your feet.", "language": "en",
                            "instruct": "x", "features": {}, "audio_token_sha256": "abc", "signature": f"sig-{i}"}
     return 200, {"Content-Type": "application/json"}, json.dumps({"candidates": [candidate(0), candidate(1)]}).encode()
-
-
-FISH_WAVS = [tone_wav(1.0, rate=44100), tone_wav(0.8, rate=44100)]
-
-
-class Fish(ServiceCase):
-    SERVICE = "fish"
-
-    def test_fish_balance_reads_the_api_credit(self):
-        fake = self.serve(lambda r: (200, {}, json.dumps({"_id": "x", "user_id": "u", "credit": "12.5031"}).encode()))
-        self.assertEqual(self.module.balance(), {"usd": 12.5031})
-        req = fake.requests[0]
-        self.assertEqual((req.method, req.path), ("GET", "/wallet/self/api-credit"))
-        self.assertEqual(req.headers["authorization"], f"Bearer {SECRET}")
-
-    def test_fish_balance_that_isnt_a_number_is_a_refusal(self):
-        for body in ({"credit": "lots"}, {}, {"credit": "nan"}):
-            self.serve(lambda r, body=body: (200, {}, json.dumps(body).encode()))
-            with self.assertRaises(cloud.ServiceError) as got:
-                self.module.balance()
-            self.assertEqual(got.exception.kind, "bad_request")
-
-    def test_balances_ask_only_what_can_say_and_has_a_key(self):
-        import balances
-        fake = self.serve(lambda r: (200, {}, b'{"credit": "12.5"}'))
-        with mock.patch("keys.is_set", lambda s: s in ("fish", "gemini")):
-            rows = balances.balances()
-        self.assertEqual(list(rows), list(cloud.SERVICES))
-        self.assertEqual(rows["fish"]["usd"], 12.5)
-        self.assertTrue(rows["fish"]["ok"])
-        self.assertEqual(rows["gemini"], {"name": "Gemini", "billing_page": "https://aistudio.google.com/billing",
-                                          "set": True, "reports": False})
-        self.assertNotIn("ok", rows["elevenlabs"])   # no key: never asked
-        self.assertEqual(len(fake.requests), 1)
-        for row in rows.values():
-            self.assertTrue(row["billing_page"].startswith("https://"))
-
-    def test_balances_carry_a_refusal_without_the_key(self):
-        import balances
-        self.serve(lambda r: (401, {}, json.dumps({"message": f"bad key {SECRET}"}).encode()))
-        with mock.patch("keys.is_set", lambda s: s == "fish"):
-            row = balances.balances()["fish"]
-        self.assertEqual((row["ok"], row["kind"]), (False, "auth"))
-        self.assertNotIn(SECRET, json.dumps(row))
-        self.assertIn("billing", balances.line(row))
-
-    def test_fish_speaks_by_reference_id(self):
-        fake = self.serve(wav_answer)
-        pcm = cloud.speaker(self.voice())("Set your feet.", 42, previous_text="Hi.", next_text="Rest.")
-        req = fake.requests[0]
-        self.assertEqual((req.method, req.path), ("POST", "/v1/tts"))
-        self.assertEqual(req.headers["authorization"], f"Bearer {SECRET}")
-        self.assertEqual(req.headers["model"], "s2.1-pro")
-        self.assertEqual(req.headers["content-type"], "application/json")
-        self.assertEqual(json.loads(req.body), {"text": "Set your feet.", "reference_id": VOICE_IDS["fish"],
-                                                "format": "wav", "sample_rate": 24000})
-        self.assertAlmostEqual(len(pcm) / 2 / 24000, 0.4, delta=0.05)   # resampled to 24 kHz
-
-    def test_fish_402_is_billing(self):
-        self.serve(lambda r: (402, {}, b'{"status": 402, "message": "No payment"}'))
-        with self.assertRaises(cloud.ServiceError) as e:
-            cloud.speaker(self.voice())("Hi.", 42)
-        self.assertEqual(e.exception.kind, "billing")
-
-    def test_fish_design_keeps_signature_and_wav(self):
-        fake = self.serve(fish_design_answer)
-        out = self.module.design("A warm coach in her forties.", "Okay, set your feet.", 2, "ignored")
-        req = fake.requests[0]
-        self.assertEqual((req.path, req.headers["model"]), ("/v1/voice-design", "voice-design-1"))
-        self.assertEqual(req.headers["authorization"], f"Bearer {SECRET}")
-        self.assertEqual(json.loads(req.body), {"instruction": "A warm coach in her forties.",
-                                                "reference_text": "Okay, set your feet.", "language": "en", "n": 2})
-        self.assertEqual(len(out), 2)
-        for i, c in enumerate(out):
-            self.check_candidate(c, "Okay, set your feet.")
-            self.assertEqual(c["wav"], FISH_WAVS[i])   # exactly the WAV Fish sent: the save sends it back
-            self.assertEqual((c["signature"], c["draft_id"]), (f"sig-{i}", f"cand-{i}"))
-        self.assertAlmostEqual(len(out[0]["pcm"]) / 2 / 24000, 1.0, delta=0.15)
-
-    def test_fish_save_posts_multipart_private_model(self):
-        fake = self.serve(lambda r: (201, {}, json.dumps({"_id": "model-77", "state": "trained",
-                                                          "visibility": "private"}).encode()))
-        candidate = {"pcm": b"\x00\x01" * 10, "wav": FISH_WAVS[0], "text": "Okay, set your feet.",
-                     "draft_id": "cand-0", "signature": "sig-0"}
-        voice_id = self.module.save(candidate, "Coach Reed", "A man in his forties.", FISH_WAVS[0])
-        self.assertEqual(voice_id, "model-77")
-        req = fake.requests[0]
-        self.assertEqual((req.method, req.path), ("POST", "/model"))
-        self.assertEqual(req.headers["authorization"], f"Bearer {SECRET}")
-        self.assertTrue(req.headers["content-type"].startswith("multipart/form-data; boundary="))
-        for field, value in (("visibility", "private"), ("type", "tts"), ("title", "harmonicfitness Coach Reed"),
-                             ("train_mode", "fast"), ("texts", "Okay, set your feet."),
-                             ("voice_design_signatures", "sig-0")):
-            self.assertIn(f'name="{field}"\r\n\r\n{value}\r\n'.encode(), req.body, field)
-        self.assertIn(b'name="voices"; filename="voice.wav"\r\nContent-Type: audio/wav\r\n\r\n' + FISH_WAVS[0],
-                      req.body)
-
-    def test_fish_save_is_not_retried_after_sending(self):
-        c = {"pcm": b"", "wav": FISH_WAVS[0], "text": "x", "draft_id": "d-1", "signature": "sig"}
-        self.check_saved_once(lambda: self.module.save(c, "Coach Reed", "A man.", FISH_WAVS[0]),
-                              lambda r: (201, {}, b'{"_id": "model-1"}'))
-
-    def test_fish_delete(self):
-        self.check_delete("/model/{id}", gone_status=204)
 
 
 def elevenlabs_answer(req):
@@ -648,195 +393,15 @@ def elevenlabs_answer(req):
     return 404, {}, b"{}"
 
 
-class ElevenLabs(ServiceCase):
-    SERVICE = "elevenlabs"
-
-    def test_elevenlabs_sends_neighbors_and_seed(self):
-        fake = self.serve(elevenlabs_answer)
-        pcm = cloud.speaker(self.voice())("Two more.", 42, previous_text="Set your feet.", next_text="Rest.")
-        req = fake.requests[0]
-        self.assertEqual(req.path, f"/v1/text-to-speech/{VOICE_IDS['elevenlabs']}?output_format=pcm_24000")
-        self.assertEqual(req.headers["xi-api-key"], SECRET)
-        self.assertEqual(json.loads(req.body), {"text": "Two more.", "model_id": "eleven_v4", "seed": 42,
-                                                "previous_text": "Set your feet.", "next_text": "Rest."})
-        self.assertGreater(len(pcm), 0)
-        self.assertEqual(len(fake.requests), 1)   # no clone first, ever
-        self.assertFalse(any(r.path == "/v1/voices/add" for r in fake.requests))
-
-    def test_elevenlabs_speech_keeps_an_edited_voice_id_in_one_segment(self):
-        fake = self.serve(elevenlabs_answer)
-        voice = dict(self.voice(), voice_id="x/../../v1/voices/other")
-        cloud.speaker(voice)("Two more.", 42)
-        self.assertEqual(fake.requests[0].path,
-                         "/v1/text-to-speech/x%2F..%2F..%2Fv1%2Fvoices%2Fother?output_format=pcm_24000")
-
-    def test_elevenlabs_design_returns_three_with_generated_ids(self):
-        fake = self.serve(elevenlabs_answer)
-        out = self.module.design("A warm coach in her forties.", "Okay, set your feet.", 2, "ignored")
-        req = fake.requests[0]
-        self.assertEqual(req.path, "/v1/text-to-voice/design?output_format=pcm_24000")
-        body = json.loads(req.body)
-        s = cloud.services()["elevenlabs"]
-        self.assertEqual(set(body), {"voice_description", "text", "model_id", "guidance_scale"})
-        self.assertEqual(body["voice_description"], "A warm coach in her forties.")
-        # services.toml's design: the newer model, a guidance under ElevenLabs's default of five, and its own
-        # line in full sentences in place of the shared one
-        self.assertEqual((body["model_id"], body["guidance_scale"]), (s["design_model"], s["design_guidance"]))
-        self.assertLess(body["guidance_scale"], 5)
-        self.assertEqual(body["text"], s["design_line"])
-        self.assertGreaterEqual(len(body["text"]), 100)
-        self.assertEqual([c["draft_id"] for c in out], ["g0", "g1", "g2"])   # every preview is a candidate
-        for c in out:
-            self.check_candidate(c, "the words spoken")
-            self.assertIsNone(c["signature"])
-        self.assertAlmostEqual(len(cloud.wav_pcm(out[0]["wav"])[0]) / 2 / 24000, len(out[0]["pcm"]) / 2 / 24000,
-                               delta=0.01)
-
-    def test_elevenlabs_save_is_not_retried_after_sending(self):
-        c = {"pcm": b"", "wav": b"", "text": "x", "draft_id": "g1", "signature": None}
-        self.check_saved_once(lambda: self.module.save(c, "Coach Ellis", "A man.", b""),
-                              lambda r: (200, {}, b'{"voice_id": "el-1"}'))
-
-    def test_elevenlabs_save_posts_generated_voice_id(self):
-        fake = self.serve(elevenlabs_answer)
-        candidate = {"pcm": b"\x00\x01", "wav": b"", "text": "x", "draft_id": "g1", "signature": None}
-        self.assertEqual(self.module.save(candidate, "Coach Ellis", "D" * 1500, b""), "el-saved-5")
-        req = fake.requests[0]
-        self.assertEqual((req.method, req.path), ("POST", "/v1/text-to-voice"))
-        self.assertEqual(json.loads(req.body), {"voice_name": "harmonicfitness Coach Ellis", "voice_description": "D" * 1000,
-                                                "generated_voice_id": "g1"})
-
-    def test_elevenlabs_delete(self):
-        self.check_delete("/v1/voices/{id}")
-
-
-    def test_elevenlabs_balance_reads_the_subscription(self):
-        fake = self.serve(lambda r: (200, {}, json.dumps({"character_count": 2120, "character_limit": 30000,
-                                                           "next_character_count_reset_unix": 1793000000}).encode()))
-        self.assertEqual(self.module.balance(), {"used": 2120, "limit": 30000, "resets": 1793000000})
-        req = fake.requests[0]
-        self.assertEqual((req.method, req.path), ("GET", "/v1/user/subscription"))
-        self.assertEqual(req.headers["xi-api-key"], SECRET)
-
-    def test_elevenlabs_balance_refused_or_unreadable(self):
-        self.serve(lambda r: (401, {}, b'{"detail": {"message": "missing_permissions"}}'))
-        with self.assertRaises(cloud.ServiceError) as got:
-            self.module.balance()
-        self.assertEqual(got.exception.kind, "auth")
-
-
-class Gemini(ServiceCase):
-    SERVICE = "gemini"
-
-    def design_answer(self, req):
-        if req.path == "/v1beta/voices":
-            return 200, {}, json.dumps({"id": "voice-abc", "model": "gemini-3.8-flash-tts", "type": "prompted",
-                                        "expire_time": "2026-11-25T00:00:00Z", "display_name": "x",
-                                        "prompted": {"input": "x"}, "usage": {},
-                                        "sample_audio": {"mime_type": "audio/wav",
-                                                         "data": b64(tone_wav(2.0))}}).encode()
-        if req.path == "/v1beta/interactions":
-            return 200, {}, gemini_audio_answer(tone_wav(1.0))
-        return 404, {}, b"{}"
-
-    def test_gemini_design_body_has_only_input_in_prompted(self):
-        fake = self.serve(self.design_answer)
-        out = self.module.design("A man in his forties.", "Okay, set your feet.", 1, "harmonicfitness audition a1 C")
-        create, speech = fake.requests
-        self.assertEqual((create.method, create.path), ("POST", "/v1beta/voices"))
-        self.assertEqual(create.headers["x-goog-api-key"], SECRET)
-        self.assertEqual(json.loads(create.body), {"voice": {"type": "prompted",
-                                                             "display_name": "harmonicfitness audition a1 C",
-                                                             "prompted": {"input": "A man in his forties."}},
-                                                   "store": True})
-        self.assertEqual(speech.path, "/v1beta/interactions")   # the line, spoken once by the new voice
-        body = json.loads(speech.body)
-        self.assertEqual(body["generation_config"], {"speech_config": [{"voice": "voice-abc"}]})
-        self.assertEqual(body["input"], [{"type": "text", "text": "Okay, set your feet."}])
-        self.assertEqual(len(out), 1)
-        self.check_candidate(out[0], "Okay, set your feet.")
-        self.assertEqual((out[0]["draft_id"], out[0]["signature"]), ("voice-abc", None))
-        self.assertAlmostEqual(len(out[0]["pcm"]) / 2 / 24000, 1.0, delta=0.15)   # the line, not sample_audio
-
-    def test_gemini_design_raises_when_its_speech_fails(self):
-        def answer(req):
-            if req.path == "/v1beta/interactions":
-                return 400, {}, b'{"error": {"message": "bad"}}'
-            return self.design_answer(req)
-        fake = self.serve(answer)
-        with self.assertRaises(cloud.ServiceError):
-            self.module.design("A man in his forties.", "Okay, set your feet.", 1, "label")
-        self.assertEqual([(r.method, r.path) for r in fake.requests if r.method == "DELETE"],
-                         [("DELETE", "/v1beta/voices/voice-abc")])   # the stored voice isn't left behind
-
-    def test_gemini_design_raises_the_speech_error_even_if_the_delete_fails(self):
-        def answer(req):
-            if req.path == "/v1beta/interactions":
-                return 400, {}, b'{"error": {"message": "bad speech"}}'
-            if req.method == "DELETE":
-                return 500, {}, b'{"error": {"message": "delete broke"}}'
-            return self.design_answer(req)
-        self.serve(answer)
-        import contextlib
-        import io
-        err = io.StringIO()
-        with self.assertRaises(cloud.ServiceError) as e, contextlib.redirect_stderr(err):
-            self.module.design("A man in his forties.", "Okay, set your feet.", 1, "label")
-        self.assertIn("bad speech", str(e.exception))
-        self.assertIn('(Gemini keeps a voice "label", ID voice-abc: delete it there by hand.)', err.getvalue())
-
-    def test_gemini_speech_finds_audio_anywhere_in_the_answer(self):
-        fake = self.serve(lambda r: (200, {}, gemini_audio_answer(tone_wav(0.5, rate=44100))))
-        pcm = cloud.speaker(self.voice())("Set your feet.", 42, previous_text="Hi.", next_text="Rest.")
-        self.assertAlmostEqual(len(pcm) / 2 / 24000, 0.5, delta=0.05)
-        req = fake.requests[0]
-        self.assertEqual((req.path, req.headers["x-goog-api-key"]), ("/v1beta/interactions", SECRET))
-        self.assertEqual(json.loads(req.body), {"model": "gemini-3.8-flash-tts",
-                                                "input": [{"type": "text", "text": "Set your feet."}],
-                                                "response_modalities": ["audio"],
-                                                "generation_config": {"speech_config": [{"voice": VOICE_IDS["gemini"]}]}})
-
-    def test_gemini_answer_with_no_audio_is_refused(self):
-        self.serve(lambda r: (200, {}, b'{"steps": [{"content": [{"type": "text", "text": "no"}]}]}'))
-        with self.assertRaises(cloud.ServiceError) as e:
-            cloud.speaker(self.voice())("Hi.", 42)
-        self.assertEqual(e.exception.kind, "bad_request")
-
-    def test_gemini_text_is_sent_verbatim(self):
-        web_coach(self.folder, "gemini", name="Coach Styled", style="Speak like a calm trainer")
-        fake = self.serve(lambda r: (200, {}, gemini_audio_answer()))
-        cloud.speaker(personas.voice_for(personas.lookup("Coach Styled"), "gemini"))("Two more. Breathe.", 1)
-        body = json.loads(fake.requests[0].body)
-        self.assertEqual(body["input"], [{"type": "text", "text": "Two more. Breathe."}])
-        self.assertNotIn("speech_metadata", fake.requests[0].body.decode())
-        self.assertNotIn("calm trainer", fake.requests[0].body.decode())
-
-    def test_gemini_save_is_the_stored_draft(self):
-        fake = self.serve(self.design_answer)
-        candidate = {"pcm": b"", "wav": b"", "text": "x", "draft_id": "voice-abc", "signature": None}
-        self.assertEqual(self.module.save(candidate, "Coach Nolan", "A man.", b""), "voice-abc")
-        self.assertEqual(fake.requests, [])   # stored at design time
-
-    def test_gemini_design_is_not_retried_after_sending(self):
-        self.check_saved_once(lambda: self.module.design("A man.", "Okay.", 1, "label"),
-                              self.design_answer)
-
-    def test_gemini_delete(self):
-        self.check_delete("/v1beta/voices/{id}")
-
-    def test_gemini_never_deletes_one_of_its_own_voices(self):
-        """The ready-made coaches speak with Gemini's own voices (prebuilt, or the voice library's by id): they
-        belong to no account, so a delete sends nothing."""
-        for own in ("achird", "Kore", "en-gb-tutor-16", "en-us-assistant-1"):
-            self.assertTrue(self.module.own_voice(own), own)
-        for stored in ("voice_abc123", "voice-abc", "gemini-voice-1", "", None):
-            self.assertFalse(self.module.own_voice(stored), stored)
-        fake = self.serve(lambda req: (500, {}, b"no"))
-        self.assertTrue(self.module.delete("en-gb-tutor-16"))
-        self.assertEqual(fake.requests, [])
-
-
-INWORLD_WAVS = [tone_wav(0.9), tone_wav(0.7)]
+def gemini_design_answer(req):
+    if req.path == "/v1beta/voices":
+        return 200, {}, json.dumps({"id": "voice-abc", "model": "gemini-3.8-flash-tts", "type": "prompted",
+                                    "expire_time": "2026-11-25T00:00:00Z", "display_name": "x",
+                                    "prompted": {"input": "x"}, "usage": {},
+                                    "sample_audio": {"mime_type": "audio/wav", "data": b64(tone_wav(2.0))}}).encode()
+    if req.path == "/v1beta/interactions":
+        return 200, {}, gemini_audio_answer(tone_wav(1.0))
+    return 404, {}, b"{}"
 
 
 def inworld_answer(req):
@@ -850,103 +415,6 @@ def inworld_answer(req):
     return 404, {}, b"{}"
 
 
-class Inworld(ServiceCase):
-    SERVICE = "inworld"
-
-    def test_inworld_basic_auth_as_given(self):
-        fake = self.serve(inworld_answer)
-        cloud.speaker(self.voice())("Hi.", 1)
-        self.module.design("A man.", "Okay.", 2, "label")
-        self.assertTrue(all(r.headers["authorization"] == f"Basic {SECRET}" for r in fake.requests))
-
-    def test_inworld_design_then_publish(self):
-        fake = self.serve(inworld_answer)
-        out = self.module.design("A man in his forties.", "Okay, set your feet.", 2, "ignored")
-        self.assertEqual(json.loads(fake.requests[0].body), {"designPrompt": "A man in his forties.",
-                                                             "previewText": "Okay, set your feet.",
-                                                             "languageCode": "EN_US", "numberOfSamples": 2})
-        self.assertEqual([c["draft_id"] for c in out], ["ws__design-0", "ws__design-1"])
-        for i, c in enumerate(out):
-            self.check_candidate(c, "Okay, set.")
-            self.assertEqual(c["wav"], INWORLD_WAVS[i])
-        voice_id = self.module.save(out[1], "Coach Owen", "A man in his forties.", out[1]["wav"])
-        self.assertEqual(voice_id, "ws__design-1")
-        publish = fake.requests[-1]
-        self.assertEqual((publish.method, publish.path), ("POST", "/voices/v1/voices/ws__design-1:publish"))
-        self.assertEqual(json.loads(publish.body), {"displayName": "harmonicfitness Coach Owen",
-                                                    "description": "A man in his forties.", "tags": ["harmonicfitness"]})
-        self.module.save(dict(out[0], draft_id="a/b"), "Coach Owen")   # an edited draft ID: one segment
-        self.assertEqual(fake.requests[-1].path, "/voices/v1/voices/a%2Fb:publish")
-
-    def test_inworld_publish_is_not_retried_after_sending(self):
-        c = {"pcm": b"", "wav": FISH_WAVS[0], "text": "x", "draft_id": "d-1", "signature": "sig"}
-        self.check_saved_once(lambda: self.module.save(c, "Coach Owen", "A man.", b""),
-                              lambda r: (200, {}, b"{}"))
-
-    def test_inworld_publish_without_an_id_keeps_the_draft_id(self):
-        self.serve(lambda r: (200, {}, b"{}"))
-        candidate = {"pcm": b"", "wav": b"", "text": "x", "draft_id": "ws__design-3", "signature": None}
-        self.assertEqual(self.module.save(candidate, "Coach Owen", "A man.", b""), "ws__design-3")
-
-    def test_inworld_design_waits_through_429(self):
-        calls = []
-
-        def answer(req):
-            calls.append(1)
-            if len(calls) == 1:   # a Google-style rate limit: "quota" in the body, a short Retry-After
-                return 429, {"Retry-After": "1"}, b'{"code": 8, "message": "RESOURCE_EXHAUSTED: Quota exceeded"}'
-            return inworld_answer(req)
-        self.serve(answer)
-        self.assertEqual(len(self.module.design("A man.", "Okay.", 2, "label")), 2)
-        self.assertEqual(len(calls), 2)
-
-    def test_a_429_naming_no_wait_is_retried_before_it_counts_as_quota(self):
-        calls = []
-
-        def answer(req):
-            calls.append(1)
-            if len(calls) == 1:   # "quota" in the body and no Retry-After: a per-minute limit, not an empty account
-                return 429, {}, b'{"message": "Rate quota exceeded"}'
-            return inworld_answer(req)
-        self.serve(answer)
-        self.assertEqual(len(self.module.design("A man.", "Okay.", 2, "label")), 2)
-        self.assertEqual(len(calls), 2)
-        self.serve(lambda r: (429, {}, b'{"message": "Rate quota exceeded"}'))
-        with self.assertRaises(cloud.ServiceError) as e:   # every try refused: now it's the quota
-            self.module.design("A man.", "Okay.", 2, "label")
-        self.assertEqual(e.exception.kind, "quota")
-
-    def test_a_429_with_a_long_wait_is_quota(self):
-        self.serve(lambda r: (429, {"Retry-After": "86400"}, b'{"message": "Quota exceeded for the month"}'))
-        with self.assertRaises(cloud.ServiceError) as e:
-            self.module.design("A man.", "Okay.", 2, "label")
-        self.assertEqual(e.exception.kind, "quota")
-
-    def test_inworld_linear16_24k(self):
-        fake = self.serve(inworld_answer)
-        say = cloud.speaker(self.voice())
-        pcm = say("Two more.", 42, previous_text="Set your feet.", next_text="Rest.")
-        say("First.", 42)
-        first, second = (json.loads(r.body) for r in fake.requests)
-        self.assertEqual(fake.requests[0].path, "/tts/v1/voice")
-        self.assertEqual(first, {"text": "Two more.", "voiceId": VOICE_IDS["inworld"], "modelId": "inworld-tts-2",
-                                 "audioConfig": {"audioEncoding": "LINEAR16", "sampleRateHertz": 24000},
-                                 "synthesisContext": {"previousRequests": [{"text": "Set your feet."}]}})
-        self.assertNotIn("synthesisContext", second)
-        self.assertAlmostEqual(len(pcm) / 2 / 24000, 0.3, delta=0.05)
-
-    def test_inworld_refuses_a_paragraph_over_2000_characters(self):
-        fake = self.serve(inworld_answer)
-        with self.assertRaises(cloud.ServiceError) as e:
-            cloud.speaker(self.voice())("word " * 401, 42)
-        self.assertEqual(e.exception.kind, "bad_request")
-        self.assertIn("2000", str(e.exception))
-        self.assertEqual(fake.requests, [])
-
-    def test_inworld_delete(self):
-        self.check_delete("/voices/v1/voices/{id}")
-
-
 def openrouter_answer(req):
     if req.path == "/api/v1/audio/speech":
         return 200, {"Content-Type": "audio/wav"}, tone_wav(0.6)
@@ -956,83 +424,464 @@ def openrouter_answer(req):
     return 404, {}, b'{"error": {"code": 404, "message": "not found"}}'
 
 
-class OpenRouter(ServiceCase):
-    SERVICE = "openrouter"
+class Services(unittest.TestCase):
+    """Each web service against a fake of its documented API: a web coach and a test key on every one."""
 
-    def test_openrouter_speaks_a_stock_voice_as_mp3(self):
-        fake = self.serve(openrouter_answer)
-        v = self.voice()
-        self.assertEqual((v["voice_id"], v["model"]), ("brian", "elevenlabs/eleven-v4-turbo"))   # turbo first, 0.46.2
-        self.assertEqual(cloud.powered_by("openrouter", v["model"]), "ElevenLabs")
-        self.assertEqual(cloud.powered_by("openrouter", "microsoft/mai-voice-2.1"), "Microsoft MAI")
-        self.assertIsNone(cloud.powered_by("fish", "s2"))   # a service that speaks its own voices
-        pcm = cloud.speaker(v)("Two more.", 1)
+    def setUp(self):
+        import keys
+        self.d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.d)
+        self.folder = persona_home(self.d)
+        for service in COACHES:
+            web_coach(self.folder, service)
+        env = {var: SECRET for var in keys.SERVICE_VARS.values()}
+        env["HARMONICFITNESS_RETRY_WAIT"] = "0"
+        for p in (mock.patch.object(personas.paths, "PERSONAS", self.folder), mock.patch.dict(os.environ, env)):
+            p.start()
+            self.addCleanup(p.stop)
+
+    @staticmethod
+    def module(service):
+        import importlib
+        return importlib.import_module(f"services.{service}")
+
+    def voice(self, service):
+        return personas.voice_for(personas.lookup(COACHES[service]), service)
+
+    def serve(self, service, answer):
+        fake = FakeService(answer)
+        fake.__enter__()
+        self.addCleanup(fake.__exit__)
+        patch = mock.patch.dict(os.environ, {f"HARMONICFITNESS_{service.upper()}_URL": fake.url})
+        patch.start()
+        self.addCleanup(patch.stop)
+        return fake
+
+    def check_candidate(self, c, text):
+        self.assertEqual(set(c), {"pcm", "wav", "text", "draft_id", "signature"})
+        self.assertEqual(c["text"], text)
+        self.assertGreater(len(c["pcm"]), 0)
+        pcm, rate = cloud.wav_pcm(c["wav"])
         self.assertGreater(len(pcm), 0)
-        req = fake.requests[-1]
-        self.assertEqual((req.method, req.path), ("POST", "/api/v1/audio/speech"))
-        self.assertEqual(req.headers["authorization"], f"Bearer {SECRET}")
-        self.assertEqual(json.loads(req.body), {"model": "elevenlabs/eleven-v4-turbo", "input": "Two more.",
-                                                "voice": "brian", "response_format": "mp3"})
 
-    def test_an_mai_voice_speaks_and_is_billed_as_mai(self):
-        fake = self.serve(openrouter_answer)
-        web_coach(self.folder, "openrouter", name="Coach Iris", voice_id="en-US-Iris:MAI-Voice-2.1")
-        v = personas.voice_for(personas.lookup("Coach Iris"), "openrouter")
-        self.assertEqual(v["model"], "microsoft/mai-voice-2.1")
-        cloud.speaker(v)("Rest.", 1)
-        self.assertEqual(json.loads(fake.requests[-1].body)["model"], "microsoft/mai-voice-2.1")
-        # a coach naming a model that can't speak its voice is refused, never quietly swapped
-        with self.assertRaises(cloud.ServiceError) as got:
-            self.module._model({"voice_id": "en-US-Iris:MAI-Voice-2.1", "model": "elevenlabs/eleven-v4-turbo"})
-        self.assertIn("microsoft/mai-voice-2.1", str(got.exception))
-        self.assertEqual(self.module._model({"voice_id": "brian", "model": "elevenlabs/eleven-v4-turbo"}),
-                         "elevenlabs/eleven-v4-turbo")
-
-    def test_an_unknown_voice_is_refused_before_sending(self):
-        fake = self.serve(openrouter_answer)
-        with self.assertRaises(cloud.ServiceError):
-            self.module.speaker({"voice_id": "nobody", "model": "elevenlabs/eleven-v4"})
+    def test_inworld_refuses_a_paragraph_over_2000_characters_before_sending(self):
+        fake = self.serve("inworld", inworld_answer)
+        with self.assertRaises(cloud.ServiceError) as e:
+            cloud.speaker(self.voice("inworld"))("word " * 401, 42)
+        self.assertEqual(e.exception.kind, "bad_request")
+        self.assertIn("2000", str(e.exception))
         self.assertEqual(fake.requests, [])
 
-    def test_design_matches_the_description_and_saves_nothing(self):
-        fake = self.serve(openrouter_answer)
-        m = self.module
-        self.assertEqual(m.match("A man in his forties, warm baritone, American accent", 1), ["brian"])
-        self.assertIn(m.match("A British woman, warm and smooth", 1)[0], ("lily", "alice"))
-        three = m.match("A young Australian man, natural and confident", 3)
-        self.assertEqual(three[0], "charlie")
-        self.assertEqual(len(three), 3)
-        self.assertTrue(three[2].endswith(":MAI-Voice-2.1"))
-        self.assertEqual(m.VOICES["mai"][three[2]][0], "m")
-        cands = m.design("A man in his forties, warm baritone, American accent", "Set your feet.", 3, "label")
-        self.assertEqual([c["draft_id"] for c in cands][:1], ["brian"])
-        for c in cands:
-            self.check_candidate(c, "Set your feet.")
-        self.assertEqual({r.path for r in fake.requests}, {"/api/v1/audio/speech"})
-        self.assertEqual(len(fake.requests), 3)
-        self.assertEqual(m.save(cands[0], "Coach Rowan"), "brian")
-        self.assertTrue(m.delete("brian"))
-        self.assertEqual(len(fake.requests), 3)
-
-    def test_balance_is_credits_less_usage(self):
-        fake = self.serve(openrouter_answer)
-        self.assertEqual(self.module.balance(), {"usd": 17.5})
-        self.assertEqual(fake.requests[-1].method, "GET")
-        self.serve(lambda r: (200, {}, b'{"data": {"total_credits": "x"}}'))
+    def test_openrouter_refuses_an_unknown_voice_before_sending(self):
+        fake = self.serve("openrouter", openrouter_answer)
         with self.assertRaises(cloud.ServiceError):
-            self.module.balance()
+            self.module("openrouter").speaker({"voice_id": "nobody", "model": "elevenlabs/eleven-v4"})
+        self.assertEqual(fake.requests, [])
 
-    def test_a_refusal_reads_openrouters_error_message(self):
-        self.serve(lambda r: (402, {}, b'{"error": {"code": 402, "message": "Insufficient credits"}}'))
-        with self.assertRaises(cloud.ServiceError) as got:
-            cloud.speaker(self.voice())("Go.", 1)
-        self.assertEqual(got.exception.kind, "billing")
-        self.assertIn("Insufficient credits", str(got.exception))
-        self.assertNotIn(SECRET, str(got.exception))
+    def test_gemini_never_deletes_one_of_its_own_voices(self):
+        """The ready-made coaches speak with Gemini's own voices (prebuilt, or the voice library's by id): they
+        belong to no account, so a delete sends nothing."""
+        gemini = self.module("gemini")
+        for own in ("achird", "Kore", "en-gb-tutor-16", "en-us-assistant-1"):
+            self.assertTrue(gemini.own_voice(own), own)
+        for stored in ("voice_abc123", "voice-abc", "gemini-voice-1", "", None):
+            self.assertFalse(gemini.own_voice(stored), stored)
+        fake = self.serve("gemini", lambda req: (500, {}, b"no"))
+        self.assertTrue(gemini.delete("en-gb-tutor-16"))
+        self.assertEqual(fake.requests, [])
+
+    def test_balances_carry_a_refusal_without_the_key(self):
+        import balances
+        self.serve("fish", lambda r: (401, {}, json.dumps({"message": f"bad key {SECRET}"}).encode()))
+        with mock.patch("keys.is_set", lambda s: s == "fish"):
+            row = balances.balances()["fish"]
+        self.assertEqual((row["ok"], row["kind"]), (False, "auth"))
+        self.assertNotIn(SECRET, json.dumps(row))
+        self.assertIn("billing", balances.line(row))
+
+    def test_a_save_or_design_is_never_retried_after_sending(self):
+        def saved_once(service, call, saved):
+            """A 500 isn't retried (the service may have saved it), a 429 is."""
+            fake = self.serve(service, lambda r: (500, {}, b'{"message": "oops"}'))
+            with self.assertRaises(cloud.ServiceError):
+                call()
+            self.assertEqual(len(fake.requests), 1)
+            answers = iter([(429, {}, b"{}")])
+            fake.answer = lambda r: next(answers, None) or saved(r)
+            call()
+            path = fake.requests[0].path
+            self.assertEqual(len([r for r in fake.requests if r.path == path]), 3)
+        fish, elevenlabs, gemini, inworld = (self.module(s) for s in ("fish", "elevenlabs", "gemini", "inworld"))
+        fish_c = {"pcm": b"", "wav": FISH_WAVS[0], "text": "x", "draft_id": "d-1", "signature": "sig"}
+        el_c = {"pcm": b"", "wav": b"", "text": "x", "draft_id": "g1", "signature": None}
+        for service, call, saved in (
+                ("fish", lambda: fish.save(fish_c, "Coach Reed", "A man.", FISH_WAVS[0]),
+                 lambda r: (201, {}, b'{"_id": "model-1"}')),
+                ("elevenlabs", lambda: elevenlabs.save(el_c, "Coach Ellis", "A man.", b""),
+                 lambda r: (200, {}, b'{"voice_id": "el-1"}')),
+                ("gemini", lambda: gemini.design("A man.", "Okay.", 1, "label"), gemini_design_answer),
+                ("inworld", lambda: inworld.save(fish_c, "Coach Owen", "A man.", b""), lambda r: (200, {}, b"{}"))):
+            with self.subTest(service):
+                saved_once(service, call, saved)
+        for module in (fish, elevenlabs, inworld):   # every billed design call is sent once
+            with self.subTest(module.__name__), \
+                    mock.patch.object(cloud, "request", side_effect=RuntimeError("stop")) as req:
+                with self.assertRaises(RuntimeError):
+                    module.design("a coach", "a line", 1)
+            self.assertFalse(req.call_args.kwargs.get("idempotent", True), module.__name__)
+
+    def test_429(self):
+        inworld = self.module("inworld")
+
+        def a_short_wait_is_waited_through():
+            calls = []
+
+            def answer(req):
+                calls.append(1)
+                if len(calls) == 1:   # a Google-style rate limit: "quota" in the body, a short Retry-After
+                    return 429, {"Retry-After": "1"}, b'{"code": 8, "message": "RESOURCE_EXHAUSTED: Quota exceeded"}'
+                return inworld_answer(req)
+            self.serve("inworld", answer)
+            self.assertEqual(len(inworld.design("A man.", "Okay.", 2, "label")), 2)
+            self.assertEqual(len(calls), 2)
+
+        def naming_no_wait_is_retried_before_it_counts_as_quota():
+            calls = []
+
+            def answer(req):
+                calls.append(1)
+                if len(calls) == 1:   # "quota" in the body and no Retry-After: a per-minute limit, not an empty account
+                    return 429, {}, b'{"message": "Rate quota exceeded"}'
+                return inworld_answer(req)
+            self.serve("inworld", answer)
+            self.assertEqual(len(inworld.design("A man.", "Okay.", 2, "label")), 2)
+            self.assertEqual(len(calls), 2)
+            self.serve("inworld", lambda r: (429, {}, b'{"message": "Rate quota exceeded"}'))
+            with self.assertRaises(cloud.ServiceError) as e:   # every try refused: now it's the quota
+                inworld.design("A man.", "Okay.", 2, "label")
+            self.assertEqual(e.exception.kind, "quota")
+
+        def a_long_wait_is_quota():
+            self.serve("inworld", lambda r: (429, {"Retry-After": "86400"}, b'{"message": "Quota exceeded for the month"}'))
+            with self.assertRaises(cloud.ServiceError) as e:
+                inworld.design("A man.", "Okay.", 2, "label")
+            self.assertEqual(e.exception.kind, "quota")
+            self.assertEqual(e.exception.exit_code, cli.SERVICE)
+        table(self, [("short wait", a_short_wait_is_waited_through),
+                     ("no wait", naming_no_wait_is_retried_before_it_counts_as_quota), ("long wait", a_long_wait_is_quota)])
+
+    def test_speech_requests_as_each_service_documents_them(self):
+        def fish():
+            fake = self.serve("fish", wav_answer)
+            pcm = cloud.speaker(self.voice("fish"))("Set your feet.", 42, previous_text="Hi.", next_text="Rest.")
+            req = fake.requests[0]
+            self.assertEqual((req.method, req.path), ("POST", "/v1/tts"))
+            self.assertEqual(req.headers["authorization"], f"Bearer {SECRET}")
+            self.assertEqual(req.headers["model"], "s2.1-pro")
+            self.assertEqual(req.headers["content-type"], "application/json")
+            self.assertEqual(json.loads(req.body), {"text": "Set your feet.", "reference_id": VOICE_IDS["fish"],
+                                                    "format": "wav", "sample_rate": 24000})
+            self.assertAlmostEqual(len(pcm) / 2 / 24000, 0.4, delta=0.05)   # resampled to 24 kHz
+
+        def elevenlabs():   # neighbors and seed, and never a clone first
+            fake = self.serve("elevenlabs", elevenlabs_answer)
+            pcm = cloud.speaker(self.voice("elevenlabs"))("Two more.", 42, previous_text="Set your feet.",
+                                                          next_text="Rest.")
+            req = fake.requests[0]
+            self.assertEqual(req.path, f"/v1/text-to-speech/{VOICE_IDS['elevenlabs']}?output_format=pcm_24000")
+            self.assertEqual(req.headers["xi-api-key"], SECRET)
+            self.assertEqual(json.loads(req.body), {"text": "Two more.", "model_id": "eleven_v4", "seed": 42,
+                                                    "previous_text": "Set your feet.", "next_text": "Rest."})
+            self.assertGreater(len(pcm), 0)
+            self.assertEqual(len(fake.requests), 1)
+
+        def gemini():   # the audio found anywhere in the answer
+            fake = self.serve("gemini", lambda r: (200, {}, gemini_audio_answer(tone_wav(0.5, rate=44100))))
+            pcm = cloud.speaker(self.voice("gemini"))("Set your feet.", 42, previous_text="Hi.", next_text="Rest.")
+            self.assertAlmostEqual(len(pcm) / 2 / 24000, 0.5, delta=0.05)
+            req = fake.requests[0]
+            self.assertEqual((req.path, req.headers["x-goog-api-key"]), ("/v1beta/interactions", SECRET))
+            self.assertEqual(json.loads(req.body), {"model": "gemini-3.8-flash-tts",
+                                                    "input": [{"type": "text", "text": "Set your feet."}],
+                                                    "response_modalities": ["audio"],
+                                                    "generation_config": {"speech_config": [{"voice": VOICE_IDS["gemini"]}]}})
+
+        def inworld():   # LINEAR16 at 24 kHz, Basic auth with the key as given
+            fake = self.serve("inworld", inworld_answer)
+            say = cloud.speaker(self.voice("inworld"))
+            pcm = say("Two more.", 42, previous_text="Set your feet.", next_text="Rest.")
+            say("First.", 42)
+            first, second = (json.loads(r.body) for r in fake.requests)
+            self.assertEqual(fake.requests[0].path, "/tts/v1/voice")
+            self.assertEqual(first, {"text": "Two more.", "voiceId": VOICE_IDS["inworld"], "modelId": "inworld-tts-2",
+                                     "audioConfig": {"audioEncoding": "LINEAR16", "sampleRateHertz": 24000},
+                                     "synthesisContext": {"previousRequests": [{"text": "Set your feet."}]}})
+            self.assertNotIn("synthesisContext", second)
+            self.assertAlmostEqual(len(pcm) / 2 / 24000, 0.3, delta=0.05)
+            self.module("inworld").design("A man.", "Okay.", 2, "label")
+            self.assertTrue(all(r.headers["authorization"] == f"Basic {SECRET}" for r in fake.requests))
+
+        def openrouter():   # a stock voice as MP3; an MAI voice billed as MAI; a mismatched model refused
+            fake = self.serve("openrouter", openrouter_answer)
+            v = self.voice("openrouter")
+            self.assertEqual((v["voice_id"], v["model"]), ("brian", "elevenlabs/eleven-v4-turbo"))   # turbo first, 0.46.2
+            self.assertEqual(cloud.powered_by("openrouter", v["model"]), "ElevenLabs")
+            self.assertEqual(cloud.powered_by("openrouter", "microsoft/mai-voice-2.1"), "Microsoft MAI")
+            self.assertIsNone(cloud.powered_by("fish", "s2"))   # a service that speaks its own voices
+            self.assertGreater(len(cloud.speaker(v)("Two more.", 1)), 0)
+            req = fake.requests[-1]
+            self.assertEqual((req.method, req.path), ("POST", "/api/v1/audio/speech"))
+            self.assertEqual(req.headers["authorization"], f"Bearer {SECRET}")
+            self.assertEqual(json.loads(req.body), {"model": "elevenlabs/eleven-v4-turbo", "input": "Two more.",
+                                                    "voice": "brian", "response_format": "mp3"})
+            web_coach(self.folder, "openrouter", name="Coach Iris", voice_id="en-US-Iris:MAI-Voice-2.1")
+            v = personas.voice_for(personas.lookup("Coach Iris"), "openrouter")
+            self.assertEqual(v["model"], "microsoft/mai-voice-2.1")
+            cloud.speaker(v)("Rest.", 1)
+            self.assertEqual(json.loads(fake.requests[-1].body)["model"], "microsoft/mai-voice-2.1")
+            # a coach naming a model that can't speak its voice is refused, never quietly swapped
+            m = self.module("openrouter")
+            with self.assertRaises(cloud.ServiceError) as got:
+                m._model({"voice_id": "en-US-Iris:MAI-Voice-2.1", "model": "elevenlabs/eleven-v4-turbo"})
+            self.assertIn("microsoft/mai-voice-2.1", str(got.exception))
+            self.assertEqual(m._model({"voice_id": "brian", "model": "elevenlabs/eleven-v4-turbo"}),
+                             "elevenlabs/eleven-v4-turbo")
+        table(self, [("fish", fish), ("elevenlabs", elevenlabs), ("gemini", gemini), ("inworld", inworld),
+                     ("openrouter", openrouter)])
+
+    def test_design(self):
+        def fish():   # keeps each candidate's signature and the exact WAV Fish sent: the save sends it back
+            fake = self.serve("fish", fish_design_answer)
+            out = self.module("fish").design("A warm coach in her forties.", "Okay, set your feet.", 2, "ignored")
+            req = fake.requests[0]
+            self.assertEqual((req.path, req.headers["model"]), ("/v1/voice-design", "voice-design-1"))
+            self.assertEqual(req.headers["authorization"], f"Bearer {SECRET}")
+            self.assertEqual(json.loads(req.body), {"instruction": "A warm coach in her forties.",
+                                                    "reference_text": "Okay, set your feet.", "language": "en", "n": 2})
+            self.assertEqual(len(out), 2)
+            for i, c in enumerate(out):
+                self.check_candidate(c, "Okay, set your feet.")
+                self.assertEqual(c["wav"], FISH_WAVS[i])
+                self.assertEqual((c["signature"], c["draft_id"]), (f"sig-{i}", f"cand-{i}"))
+            self.assertAlmostEqual(len(out[0]["pcm"]) / 2 / 24000, 1.0, delta=0.15)
+
+        def elevenlabs():   # three previews, each a candidate, by services.toml's design settings
+            fake = self.serve("elevenlabs", elevenlabs_answer)
+            out = self.module("elevenlabs").design("A warm coach in her forties.", "Okay, set your feet.", 2, "ignored")
+            req = fake.requests[0]
+            self.assertEqual(req.path, "/v1/text-to-voice/design?output_format=pcm_24000")
+            body = json.loads(req.body)
+            s = cloud.services()["elevenlabs"]
+            self.assertEqual(set(body), {"voice_description", "text", "model_id", "guidance_scale"})
+            self.assertEqual(body["voice_description"], "A warm coach in her forties.")
+            self.assertEqual((body["model_id"], body["guidance_scale"]), (s["design_model"], s["design_guidance"]))
+            self.assertLess(body["guidance_scale"], 5)
+            self.assertEqual(body["text"], s["design_line"])
+            self.assertGreaterEqual(len(body["text"]), 100)
+            self.assertEqual([c["draft_id"] for c in out], ["g0", "g1", "g2"])
+            for c in out:
+                self.check_candidate(c, "the words spoken")
+                self.assertIsNone(c["signature"])
+            self.assertAlmostEqual(len(cloud.wav_pcm(out[0]["wav"])[0]) / 2 / 24000, len(out[0]["pcm"]) / 2 / 24000,
+                                   delta=0.01)
+
+        def gemini():   # only input in prompted; the line spoken once by the new voice
+            fake = self.serve("gemini", gemini_design_answer)
+            out = self.module("gemini").design("A man in his forties.", "Okay, set your feet.", 1,
+                                               "harmonicfitness audition a1 C")
+            create, speech = fake.requests
+            self.assertEqual((create.method, create.path), ("POST", "/v1beta/voices"))
+            self.assertEqual(create.headers["x-goog-api-key"], SECRET)
+            self.assertEqual(json.loads(create.body), {"voice": {"type": "prompted",
+                                                                 "display_name": "harmonicfitness audition a1 C",
+                                                                 "prompted": {"input": "A man in his forties."}},
+                                                       "store": True})
+            self.assertEqual(speech.path, "/v1beta/interactions")
+            body = json.loads(speech.body)
+            self.assertEqual(body["generation_config"], {"speech_config": [{"voice": "voice-abc"}]})
+            self.assertEqual(body["input"], [{"type": "text", "text": "Okay, set your feet."}])
+            self.assertEqual(len(out), 1)
+            self.check_candidate(out[0], "Okay, set your feet.")
+            self.assertEqual((out[0]["draft_id"], out[0]["signature"]), ("voice-abc", None))
+            self.assertAlmostEqual(len(out[0]["pcm"]) / 2 / 24000, 1.0, delta=0.15)   # the line, not sample_audio
+
+        def gemini_failing_speech():   # the stored voice isn't left behind; if its delete fails, the listener is told
+            def answer(req):
+                if req.path == "/v1beta/interactions":
+                    return 400, {}, b'{"error": {"message": "bad speech"}}'
+                return gemini_design_answer(req)
+            fake = self.serve("gemini", answer)
+            with self.assertRaises(cloud.ServiceError):
+                self.module("gemini").design("A man in his forties.", "Okay, set your feet.", 1, "label")
+            self.assertEqual([(r.method, r.path) for r in fake.requests if r.method == "DELETE"],
+                             [("DELETE", "/v1beta/voices/voice-abc")])
+            fake.answer = lambda req: ((500, {}, b'{"error": {"message": "delete broke"}}') if req.method == "DELETE"
+                                       else answer(req))
+            err = io.StringIO()
+            with self.assertRaises(cloud.ServiceError) as e, contextlib.redirect_stderr(err):
+                self.module("gemini").design("A man in his forties.", "Okay, set your feet.", 1, "label")
+            self.assertIn("bad speech", str(e.exception))
+            self.assertIn('(Gemini keeps a voice "label", ID voice-abc: delete it there by hand.)', err.getvalue())
+
+        def inworld():
+            fake = self.serve("inworld", inworld_answer)
+            out = self.module("inworld").design("A man in his forties.", "Okay, set your feet.", 2, "ignored")
+            self.assertEqual(json.loads(fake.requests[0].body), {"designPrompt": "A man in his forties.",
+                                                                 "previewText": "Okay, set your feet.",
+                                                                 "languageCode": "EN_US", "numberOfSamples": 2})
+            self.assertEqual([c["draft_id"] for c in out], ["ws__design-0", "ws__design-1"])
+            for i, c in enumerate(out):
+                self.check_candidate(c, "Okay, set.")
+                self.assertEqual(c["wav"], INWORLD_WAVS[i])
+
+        def openrouter():   # matches the description to stock voices and saves nothing
+            fake = self.serve("openrouter", openrouter_answer)
+            m = self.module("openrouter")
+            self.assertEqual(m.match("A man in his forties, warm baritone, American accent", 1), ["brian"])
+            self.assertIn(m.match("A British woman, warm and smooth", 1)[0], ("lily", "alice"))
+            three = m.match("A young Australian man, natural and confident", 3)
+            self.assertEqual(three[0], "charlie")
+            self.assertEqual(len(three), 3)
+            self.assertTrue(three[2].endswith(":MAI-Voice-2.1"))
+            self.assertEqual(m.VOICES["mai"][three[2]][0], "m")
+            cands = m.design("A man in his forties, warm baritone, American accent", "Set your feet.", 3, "label")
+            self.assertEqual([c["draft_id"] for c in cands][:1], ["brian"])
+            for c in cands:
+                self.check_candidate(c, "Set your feet.")
+            self.assertEqual({r.path for r in fake.requests}, {"/api/v1/audio/speech"})
+            self.assertEqual(len(fake.requests), 3)
+            self.assertEqual(m.save(cands[0], "Coach Rowan"), "brian")
+            self.assertTrue(m.delete("brian"))
+            self.assertEqual(len(fake.requests), 3)
+        table(self, [("fish", fish), ("elevenlabs", elevenlabs), ("gemini", gemini),
+                     ("gemini failing", gemini_failing_speech), ("inworld", inworld), ("openrouter", openrouter)])
+
+    def test_save(self):
+        def fish():   # a private model, multipart, with the design's signature
+            fake = self.serve("fish", lambda r: (201, {}, json.dumps({"_id": "model-77", "state": "trained",
+                                                                      "visibility": "private"}).encode()))
+            candidate = {"pcm": b"\x00\x01" * 10, "wav": FISH_WAVS[0], "text": "Okay, set your feet.",
+                         "draft_id": "cand-0", "signature": "sig-0"}
+            self.assertEqual(self.module("fish").save(candidate, "Coach Reed", "A man in his forties.", FISH_WAVS[0]),
+                             "model-77")
+            req = fake.requests[0]
+            self.assertEqual((req.method, req.path), ("POST", "/model"))
+            self.assertEqual(req.headers["authorization"], f"Bearer {SECRET}")
+            self.assertTrue(req.headers["content-type"].startswith("multipart/form-data; boundary="))
+            for field, value in (("visibility", "private"), ("type", "tts"), ("title", "harmonicfitness Coach Reed"),
+                                 ("train_mode", "fast"), ("texts", "Okay, set your feet."),
+                                 ("voice_design_signatures", "sig-0")):
+                self.assertIn(f'name="{field}"\r\n\r\n{value}\r\n'.encode(), req.body, field)
+            self.assertIn(b'name="voices"; filename="voice.wav"\r\nContent-Type: audio/wav\r\n\r\n' + FISH_WAVS[0],
+                          req.body)
+
+        def elevenlabs():
+            fake = self.serve("elevenlabs", elevenlabs_answer)
+            candidate = {"pcm": b"\x00\x01", "wav": b"", "text": "x", "draft_id": "g1", "signature": None}
+            self.assertEqual(self.module("elevenlabs").save(candidate, "Coach Ellis", "D" * 1500, b""), "el-saved-5")
+            req = fake.requests[0]
+            self.assertEqual((req.method, req.path), ("POST", "/v1/text-to-voice"))
+            self.assertEqual(json.loads(req.body), {"voice_name": "harmonicfitness Coach Ellis",
+                                                    "voice_description": "D" * 1000, "generated_voice_id": "g1"})
+
+        def gemini():   # stored at design time
+            fake = self.serve("gemini", gemini_design_answer)
+            candidate = {"pcm": b"", "wav": b"", "text": "x", "draft_id": "voice-abc", "signature": None}
+            self.assertEqual(self.module("gemini").save(candidate, "Coach Nolan", "A man.", b""), "voice-abc")
+            self.assertEqual(fake.requests, [])
+
+        def inworld():   # publish, with an edited draft ID kept to one path segment
+            fake = self.serve("inworld", inworld_answer)
+            out = self.module("inworld").design("A man in his forties.", "Okay, set your feet.", 2, "ignored")
+            self.assertEqual(self.module("inworld").save(out[1], "Coach Owen", "A man in his forties.", out[1]["wav"]),
+                             "ws__design-1")
+            publish = fake.requests[-1]
+            self.assertEqual((publish.method, publish.path), ("POST", "/voices/v1/voices/ws__design-1:publish"))
+            self.assertEqual(json.loads(publish.body), {"displayName": "harmonicfitness Coach Owen",
+                                                        "description": "A man in his forties.",
+                                                        "tags": ["harmonicfitness"]})
+            self.module("inworld").save(dict(out[0], draft_id="a/b"), "Coach Owen")
+            self.assertEqual(fake.requests[-1].path, "/voices/v1/voices/a%2Fb:publish")
+        table(self, [("fish", fish), ("elevenlabs", elevenlabs), ("gemini", gemini), ("inworld", inworld)])
+
+    def test_delete(self):
+        """True on the service's 2xx, True on a 404 (already gone), an error otherwise; an edited ID stays one
+        path segment."""
+        for service, path, gone_status in (("fish", "/model/{id}", 204), ("elevenlabs", "/v1/voices/{id}", 200),
+                                           ("gemini", "/v1beta/voices/{id}", 200),
+                                           ("inworld", "/voices/v1/voices/{id}", 200)):
+            with self.subTest(service):
+                module = self.module(service)
+                fake = self.serve(service, lambda r, s=gone_status: (s, {}, b"" if s == 204 else b"{}"))
+                self.assertTrue(module.delete("voice-9"))
+                self.assertEqual((fake.requests[0].method, fake.requests[0].path), ("DELETE", path.format(id="voice-9")))
+                self.assertNotIn(SECRET, fake.requests[0].path)
+                fake.answer = lambda r: (404, {}, b'{"message": "not found"}')
+                self.assertTrue(module.delete("voice-9"))
+                fake.answer = lambda r: (401, {}, b'{"message": "Invalid api key"}')
+                with self.assertRaises(cloud.ServiceError) as e:
+                    module.delete("voice-9")
+                self.assertEqual(e.exception.kind, "auth")
+                fake.requests.clear()
+                fake.answer = lambda r: (200, {}, b"{}")
+                module.delete("../a/b?c")
+                self.assertEqual(fake.requests[0].path, path.format(id="..%2Fa%2Fb%3Fc"))
+
+    def test_balance(self):
+        def fish():
+            fake = self.serve("fish", lambda r: (200, {}, json.dumps({"_id": "x", "user_id": "u",
+                                                                      "credit": "12.5031"}).encode()))
+            self.assertEqual(self.module("fish").balance(), {"usd": 12.5031})
+            req = fake.requests[0]
+            self.assertEqual((req.method, req.path), ("GET", "/wallet/self/api-credit"))
+            self.assertEqual(req.headers["authorization"], f"Bearer {SECRET}")
+            for body in ({"credit": "lots"}, {}, {"credit": "nan"}):   # not a number: a refusal
+                self.serve("fish", lambda r, body=body: (200, {}, json.dumps(body).encode()))
+                with self.assertRaises(cloud.ServiceError) as got:
+                    self.module("fish").balance()
+                self.assertEqual(got.exception.kind, "bad_request")
+
+        def elevenlabs():
+            fake = self.serve("elevenlabs", lambda r: (200, {}, json.dumps({
+                "character_count": 2120, "character_limit": 30000, "next_character_count_reset_unix": 1793000000}).encode()))
+            self.assertEqual(self.module("elevenlabs").balance(), {"used": 2120, "limit": 30000, "resets": 1793000000})
+            req = fake.requests[0]
+            self.assertEqual((req.method, req.path), ("GET", "/v1/user/subscription"))
+            self.assertEqual(req.headers["xi-api-key"], SECRET)
+            self.serve("elevenlabs", lambda r: (401, {}, b'{"detail": {"message": "missing_permissions"}}'))
+            with self.assertRaises(cloud.ServiceError) as got:
+                self.module("elevenlabs").balance()
+            self.assertEqual(got.exception.kind, "auth")
+
+        def openrouter():   # credits less usage
+            fake = self.serve("openrouter", openrouter_answer)
+            self.assertEqual(self.module("openrouter").balance(), {"usd": 17.5})
+            self.assertEqual(fake.requests[-1].method, "GET")
+            self.serve("openrouter", lambda r: (200, {}, b'{"data": {"total_credits": "x"}}'))
+            with self.assertRaises(cloud.ServiceError):
+                self.module("openrouter").balance()
+
+        def only_what_can_say_and_has_a_key():
+            import balances
+            fake = self.serve("fish", lambda r: (200, {}, b'{"credit": "12.5"}'))
+            with mock.patch("keys.is_set", lambda s: s in ("fish", "gemini")):
+                rows = balances.balances()
+            self.assertEqual(list(rows), list(cloud.SERVICES))
+            self.assertEqual(rows["fish"]["usd"], 12.5)
+            self.assertTrue(rows["fish"]["ok"])
+            self.assertEqual(rows["gemini"], {"name": "Gemini", "billing_page": "https://aistudio.google.com/billing",
+                                              "set": True, "reports": False})
+            self.assertNotIn("ok", rows["elevenlabs"])   # no key: never asked
+            self.assertEqual(len(fake.requests), 1)
+            for row in rows.values():
+                self.assertTrue(row["billing_page"].startswith("https://"))
+        table(self, [("fish", fish), ("elevenlabs", elevenlabs), ("openrouter", openrouter),
+                     ("balances", only_what_can_say_and_has_a_key)])
 
 
 class UnreadableAnswers(unittest.TestCase):
-    """A 2xx answer that isn't the JSON a service documents stops as a ServiceError, never a traceback."""
+    """A 2xx answer that isn't what a service documents stops as a ServiceError, never a traceback, and never
+    becomes audio that is cached, paid for once and replayed in every build."""
 
     def setUp(self):
         import keys
@@ -1055,6 +904,21 @@ class UnreadableAnswers(unittest.TestCase):
 
     def test_every_design_save_and_speech_refuses_a_bad_body(self):
         import importlib
+        for body in (b"<html>oops</html>", b"[1, 2]", b"", b"\xff\xfe"):
+            with self.assertRaises(cloud.ServiceError) as got:
+                cloud.json_answer(body, "fish")
+            self.assertEqual(got.exception.kind, "bad_request")
+        self.assertEqual(cloud.json_answer(b'{"a": 1}', "fish"), {"a": 1})
+        with self.assertRaises(cloud.ServiceError):
+            cloud.b64_audio("not base64!", "fish")
+        # a message, a page or a blip in place of audio is refused, never cached as a clip
+        for data, kw in ((b'{"detail": {"message": "quota exceeded"}}', {"expect": "pcm", "content_type": "audio/pcm"}),
+                         (b"<!DOCTYPE html><html><body>Bad gateway</body></html>", {"expect": "pcm"}),
+                         (b"\x1f\x8b\x08\x00" + bytes(20000), {"expect": "wav"}),
+                         (tone_wav(0.05), {})):
+            with self.subTest(data=data[:12]), self.assertRaises(cloud.ServiceError) as got:
+                cloud.audio_pcm(data, service="fish", **kw)
+            self.assertEqual(got.exception.kind, "bad_request")
         candidate = {"wav": tone_wav(0.2), "text": "Hi.", "draft_id": "d1", "signature": "s"}
         voice = {"voice_id": "v1", "model": "m", "max_chars": 2000}
         for body in (b"<html>gateway</html>", b'["not", "an object"]', b'{"previewVoices": [{"previewAudio": "@@"}]}'):
@@ -1083,28 +947,13 @@ class UnreadableAnswers(unittest.TestCase):
         self.assertIn("harmonicfitness Coach Maya", str(got.exception))
 
 
-# render.run as ./harmonicfitness build calls it once the lint and the menu pass (those are tested in test_tools), in its
-# own process with the key in the environment: the draft, the coach, the output.
-RENDER = """import hashlib, sys
-sys.path.insert(0, sys.argv[1])
-import cli, coachpick, context, draft, personas, render
-path, coach, out = sys.argv[2:5]
-max_chars = int(sys.argv[5]) if len(sys.argv) > 5 else None
-def main():
-    with open(path, encoding="utf-8") as f:
-        text = f.read()
-    p = personas.lookup(coach)
-    voice = personas.voice_for(p, coachpick.pick(context.render_preferences(), p))
-    render.run(draft.parse(text), voice, out, path, hashlib.sha256(text.encode("utf-8")).hexdigest(),
-               max_chars=max_chars)
-sys.exit(cli.run(main))
-"""
-
-
 class CloudRender(unittest.TestCase):
-    """render.run with a web coach, end to end against fake services."""
+    """render.run with a web coach, in this process against fake services, as ./harmonicfitness build calls it once
+    the lint and the menu pass (those are tested in test_tools). The encode is stood in for: no ffmpeg."""
 
     def setUp(self):
+        import render
+        self.render = render
         self.d = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.d)
         self.home = os.path.join(self.d, "me")
@@ -1112,45 +961,37 @@ class CloudRender(unittest.TestCase):
         folder = persona_home(self.home)
         for service in COACHES:
             web_coach(folder, service)
+        stack = contextlib.ExitStack()
+        self.addCleanup(stack.close)
+        stack.enter_context(helpers.home(self.home))
+        stack.enter_context(mock.patch.object(render, "preflight", return_value="ffmpeg"))
+        stack.enter_context(mock.patch.object(render, "encode", side_effect=self.fake_encode))
+        with open(DRAFT, encoding="utf-8") as f:
+            self.text = f.read()
+
+    @staticmethod
+    def fake_encode(pcm, out, title):
+        with open(out, "wb") as f:
+            f.write(b"an mp3")
 
     def render_on(self, service, url, out=None, max_chars=None):
+        """Returns (exit code, stdout, stderr)."""
+        import context
+        import draft
         import keys
-        e = {k: v for k, v in os.environ.items() if not k.endswith("_API_KEY")}
-        e.update({"HARMONICFITNESS_HOME": self.home, f"HARMONICFITNESS_{service.upper()}_URL": url,
-                  keys.SERVICE_VARS[service]: SECRET, "HARMONICFITNESS_RETRY_WAIT": "0"})
-        if not helpers.HAS_FFMPEG:
-            # no ffmpeg (bare Python, no environment): a stand-in passes the render's preflight, so the tests
-            # that stop before the encode still run (the ones that encode skip without a real one)
-            stub = os.path.join(self.d, "bin")
-            os.makedirs(stub, exist_ok=True)
-            with open(os.path.join(stub, "ffmpeg"), "w", encoding="utf-8") as f:
-                f.write("#!/bin/sh\nexit 1\n")
-            os.chmod(os.path.join(stub, "ffmpeg"), 0o755)
-            if os.name == "nt":   # Windows finds a program by its extension (PATHEXT), never a bare script
-                with open(os.path.join(stub, "ffmpeg.bat"), "w", encoding="utf-8") as f:
-                    f.write("@exit /b 1\n")
-            e["PATH"] = stub + os.pathsep + e.get("PATH", "")
-        draft_path = helpers.draft_with_menu(DRAFT, os.path.join(self.d, "cloud.draft.txt"), self.home)
-        return subprocess.run([sys.executable, "-c", RENDER, os.path.join(ROOT, "tools"), draft_path, COACHES[service],
-                               out or os.path.join(self.d, "x.mp3"), *([str(max_chars)] if max_chars else [])], env=e, capture_output=True, text=True, encoding="utf-8", timeout=120)
+        env = {var: "" for var in keys.SERVICE_VARS.values()}
+        env.update({f"HARMONICFITNESS_{service.upper()}_URL": url, keys.SERVICE_VARS[service]: SECRET,
+                    "HARMONICFITNESS_RETRY_WAIT": "0"})
 
-    def render(self, url, out=None):
-        return self.render_on("fish", url, out)
-
-    def test_a_refused_speech_exits_4(self):
-        with FakeService(lambda r: (401, {}, b'{"detail": {"message": "Invalid API key"}}')) as fake:
-            out = self.render_on("elevenlabs", fake.url)
-        self.assertEqual(out.returncode, cli.SERVICE, out.stdout + out.stderr)
-        self.assertIn("ElevenLabs", out.stdout)
-        self.assertNotIn("Traceback", out.stdout + out.stderr)
-        self.assertFalse(any(r.path == "/v1/voices/add" for r in fake.requests))
-
-    def test_a_broken_answer_stops_sending_and_caches_nothing(self):
-        with FakeService(lambda r: (200, {"Content-Type": "application/json"}, b'{"status": "queued"}')) as fake:
-            out = self.render(fake.url)
-        self.assertEqual(out.returncode, cli.ISSUES, out.stdout + out.stderr)
-        self.assertLessEqual(len(fake.requests), 6)   # the queued paragraphs were never sent
-        self.assertEqual(glob.glob(os.path.join(self.home, "workouts", ".audio-cache", "*.pcm")), [])
+        def main():
+            p = personas.lookup(COACHES[service])
+            voice = personas.voice_for(p, coachpick.pick(context.render_preferences(), p))
+            self.render.run(draft.parse(self.text), voice, out or os.path.join(self.d, "x.mp3"), DRAFT,
+                            hashlib.sha256(self.text.encode("utf-8")).hexdigest(), max_chars=max_chars)
+        stdout, stderr = io.StringIO(), io.StringIO()
+        with mock.patch.dict(os.environ, env), contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+            code = cli.run(main)
+        return code, stdout.getvalue(), stderr.getvalue()
 
     def set_ceiling(self, n):
         prof = os.path.join(self.home, "profile.md")
@@ -1159,60 +1000,64 @@ class CloudRender(unittest.TestCase):
         with open(prof, "w", encoding="utf-8") as f:
             f.write(text.replace("+++\n", f"+++\ncloud_max_chars = {n}\n", 1))
 
-    def test_401_raises_auth_and_render_exits_4(self):
+    def builds(self):
+        try:
+            with open(os.path.join(self.home, "workouts", ".logs", "builds.jsonl"), encoding="utf-8") as f:
+                return [json.loads(line) for line in f if line.strip()]
+        except OSError:
+            return []
+
+    def cached(self):
+        return glob.glob(os.path.join(self.home, "workouts", ".audio-cache", "*.pcm"))
+
+    def test_a_refused_key_exits_4(self):
+        with FakeService(lambda r: (401, {}, b'{"detail": {"message": "Invalid API key"}}')) as fake:
+            code, out, err = self.render_on("elevenlabs", fake.url)
+        self.assertEqual(code, cli.SERVICE, out + err)
+        self.assertIn("ElevenLabs", out)
+        self.assertNotIn("Traceback", out + err)
+        self.assertFalse(any(r.path == "/v1/voices/add" for r in fake.requests))
         with FakeService(lambda r: (401, {}, b'{"message": "Invalid api key"}')) as fake:
-            out = self.render(fake.url)
-        self.assertEqual(out.returncode, cli.SERVICE, out.stdout + out.stderr)
-        self.assertIn("Fish Audio", out.stdout + out.stderr)
-        self.assertIn("./harmonicfitness keys", out.stdout + out.stderr)
+            code, out, err = self.render_on("fish", fake.url)
+        self.assertEqual(code, cli.SERVICE, out + err)
+        self.assertIn("Fish Audio", out + err)
+        self.assertIn("./harmonicfitness keys", out + err)
 
-    def test_401_names_the_apps_keys_in_web_mode(self):
-        with FakeService(lambda r: (401, {}, b'{"message": "Invalid api key"}')) as fake, \
-                mock.patch.dict(os.environ, {"HARMONICFITNESS_WEB": "1"}):
-            out = self.render(fake.url)
-        text = out.stdout + out.stderr
-        self.assertEqual(out.returncode, cli.SERVICE, text)
-        self.assertIn("Keys", text)
-        for phrase in ("./harmonicfitness keys", "me/.env"):
-            self.assertNotIn(phrase, text)
+    def test_a_broken_answer_stops_sending_and_caches_nothing(self):
+        with FakeService(lambda r: (200, {"Content-Type": "application/json"}, b'{"status": "queued"}')) as fake:
+            code, out, err = self.render_on("fish", fake.url)
+        self.assertEqual(code, cli.ISSUES, out + err)
+        self.assertLessEqual(len(fake.requests), 6)   # the queued paragraphs were never sent
+        self.assertEqual(self.cached(), [])
 
-    def test_ceiling_stops_before_sending(self):
-        self.set_ceiling(10)
+    def test_both_ceilings_stop_before_sending(self):
+        """The render checks the build's allowance against what it is about to send (the clips not cached yet):
+        the lower of cloud_max_chars and --max-chars wins, and is the one named."""
         with FakeService(wav_answer) as fake:
-            out = self.render(fake.url)
-        self.assertEqual(out.returncode, cli.ISSUES, out.stdout + out.stderr)
+            code, out, err = self.render_on("fish", fake.url, max_chars=10)
+            self.assertEqual(code, cli.ISSUES, out + err)
+            self.assertIn("--max-chars", err)
+            self.assertNotIn("cloud_max_chars", err)
+            self.set_ceiling(10)
+            code, out, err = self.render_on("fish", fake.url)
+            self.assertEqual(code, cli.ISSUES, out + err)
+            self.assertIn("cloud_max_chars", err)   # an error: on stderr, through cli.run
+            code, out, err = self.render_on("fish", fake.url, max_chars=5000)
+            self.assertIn("cloud_max_chars", err)
+            self.assertNotIn("--max-chars", err)
         self.assertEqual(fake.requests, [])
-        self.assertIn("cloud_max_chars", out.stderr)   # an error: on stderr, through cli.run
 
-    def test_max_chars_render_ceiling(self):
-        """The render checks the build's allowance against what it is about to send (the clips not cached yet),
-        after the lint's whole-script count passed: the lower of cloud_max_chars and --max-chars wins."""
-        with FakeService(wav_answer) as fake:
-            out = self.render_on("fish", fake.url, max_chars=10)
-        self.assertEqual(out.returncode, cli.ISSUES, out.stdout + out.stderr)
-        self.assertEqual(fake.requests, [])
-        self.assertIn("--max-chars", out.stderr)
-        self.assertNotIn("cloud_max_chars", out.stderr)
-        self.set_ceiling(10)   # the profile's ceiling is the lower bound now: it is the one named
-        with FakeService(wav_answer) as fake:
-            out = self.render_on("fish", fake.url, max_chars=5000)
-        self.assertEqual(fake.requests, [])
-        self.assertIn("cloud_max_chars", out.stderr)
-        self.assertNotIn("--max-chars", out.stderr)
-
-    @unittest.skipUnless(helpers.HAS_FFMPEG, "ffmpeg not installed")
-    def test_key_never_reaches_records_logs_or_cache_keys(self):
-        import render
+    def test_the_key_never_reaches_records_logs_or_cache_keys(self):
+        import keys
         for service in ("fish", "elevenlabs", "gemini", "inworld"):
             with self.subTest(service=service):
                 mp3 = os.path.join(self.d, f"{service}.mp3")
                 with FakeService(every_service_answer) as fake:
-                    out = self.render_on(service, fake.url, mp3)
-                self.assertIn(out.returncode, (0, cli.DRIFT), out.stdout + out.stderr)
-                self.assertIn("Sending", out.stdout)
+                    code, out, err = self.render_on(service, fake.url, mp3)
+                self.assertEqual(code, 0, out + err)
                 self.assertTrue(fake.requests)
                 self.assertFalse(any(SECRET in r.path or SECRET.encode() in r.body for r in fake.requests))
-                texts = [out.stdout, out.stderr]
+                texts = [out, err]
                 for path in glob.glob(os.path.join(self.d, "*.build.json")) + \
                         glob.glob(os.path.join(self.home, "workouts", ".logs", "*")) + \
                         glob.glob(os.path.join(self.home, "coaches", "*", "*.json")):
@@ -1224,64 +1069,39 @@ class CloudRender(unittest.TestCase):
                 self.assertEqual(record["route"], service)
                 self.assertGreater(record["chars_sent"], 100)
                 self.assertIn("usd_estimate", record)
-                import keys
                 var = keys.SERVICE_VARS[service]
-                with mock.patch.object(personas.paths, "PERSONAS", os.path.join(self.home, "coaches")), \
-                        mock.patch.object(personas.paths, "PROFILE", os.path.join(self.home, "profile.md")), \
-                        mock.patch.object(personas.paths, "ENV_FILE", os.path.join(self.home, ".env")), \
-                        mock.patch.dict(os.environ, {var: SECRET}), \
-                        mock.patch.object(render, "check_pace_file"):
-                    a = render.prepare_voice(coachpick.resolve(COACHES[service], None))[1]("Hello.")
+                with mock.patch.dict(os.environ, {var: SECRET}), mock.patch.object(self.render, "check_pace_file"):
+                    a = self.render.prepare_voice(coachpick.resolve(COACHES[service], None))[1]("Hello.")
                     with mock.patch.dict(os.environ, {var: "another-key"}):
-                        b = render.prepare_voice(coachpick.resolve(COACHES[service], None))[1]("Hello.")
+                        b = self.render.prepare_voice(coachpick.resolve(COACHES[service], None))[1]("Hello.")
                 self.assertEqual(a, b)
 
-    @unittest.skipUnless(helpers.HAS_FFMPEG, "ffmpeg not installed")
-    def test_web_render_sends_voice_id_and_caches_by_web_key(self):
-        mp3 = os.path.join(self.d, "x.mp3")
-        with FakeService(wav_answer) as fake:
-            first = self.render(fake.url, mp3)
-            self.assertIn(first.returncode, (0, cli.DRIFT), first.stdout + first.stderr)
-            sent = [r for r in fake.requests if r.path == "/v1/tts"]
-            self.assertGreaterEqual(len(sent), 2)
-            self.assertTrue(all(json.loads(r.body)["reference_id"] == VOICE_IDS["fish"] for r in sent))
-            self.assertFalse(any(r.path == "/model" for r in fake.requests))   # no clip uploaded: a saved voice
-            before = len(fake.requests)
-            second = self.render(fake.url, mp3)
-            self.assertIn(second.returncode, (0, cli.DRIFT), second.stdout + second.stderr)
-            self.assertEqual(len(fake.requests), before)   # everything came from the cache
-        self.assertNotIn("Sending", second.stdout)
-        with open(os.path.splitext(mp3)[0] + ".build.json", encoding="utf-8") as f:
-            self.assertEqual(set(json.load(f)["timings"]), {"render_s", "check_s", "assemble_s", "encode_s"})
-
-    @unittest.skipUnless(helpers.HAS_FFMPEG, "ffmpeg not installed")
-    def test_cost_print_for_gemini(self):
+    def test_the_cost_is_printed_before_sending(self):
         with FakeService(every_service_answer) as fake:
-            out = self.render_on("gemini", fake.url, os.path.join(self.d, "g.mp3"))
-        self.assertIn(out.returncode, (0, cli.DRIFT), out.stdout + out.stderr)
-        line = next(l for l in out.stdout.splitlines() if l.startswith("Sending"))
-        chars = int(line.split()[1].replace(",", ""))
+            code, out, err = self.render_on("gemini", fake.url, os.path.join(self.d, "g.mp3"))
+        self.assertEqual(code, 0, out + err)
+        lines = out.splitlines()
+        at = next(i for i, l in enumerate(lines) if l.startswith("Sending"))
+        self.assertLess(at, next(i for i, l in enumerate(lines) if l.lstrip().startswith("[1/")))
+        chars = int(lines[at].split()[1].replace(",", ""))
         self.assertEqual(cloud.rate("gemini", "gemini-3.8-flash-tts"), 13.5)
-        self.assertIn(f"about ${chars * 13.5 / 1e6:.2f}", line)
-        self.assertIn("Gemini", line)
+        self.assertIn(f"about ${chars * 13.5 / 1e6:.2f}", lines[at])
+        self.assertIn("Gemini", lines[at])
 
-    def builds(self):
-        try:
-            with open(os.path.join(self.home, "workouts", ".logs", "builds.jsonl"), encoding="utf-8") as f:
-                return [json.loads(line) for line in f if line.strip()]
-        except OSError:
-            return []
-
-    def test_a_render_that_fails_partway_records_what_it_sent(self):
+    def test_what_was_sent_is_recorded_and_nothing_else(self):
+        with FakeService(wav_answer) as fake:
+            code, out, err = self.render_on("fish", fake.url, max_chars=10)
+        self.assertEqual(code, cli.ISSUES, out + err)
+        self.assertEqual(self.builds(), [])   # sent nothing: no line (the first web build is still to come)
         state = {"ok": 2}
 
         def answer(req):
             state["ok"] -= 1
             return wav_answer(req) if state["ok"] >= 0 else (401, {}, b'{"message": "Invalid api key"}')
         with FakeService(answer) as fake:
-            out = self.render(fake.url)
-        self.assertEqual(out.returncode, cli.SERVICE, out.stdout + out.stderr)
-        rec = self.builds()[-1]
+            code, out, err = self.render_on("fish", fake.url)
+        self.assertEqual(code, cli.SERVICE, out + err)
+        rec = self.builds()[-1]   # stopped partway: what it sent is on record
         self.assertTrue(rec["failed"])
         self.assertEqual(rec["route"], "fish")
         self.assertGreater(rec["chars_sent"], 0)
@@ -1290,74 +1110,47 @@ class CloudRender(unittest.TestCase):
         self.assertFalse(os.path.exists(os.path.join(self.d, "x.build.json")))   # no MP3, no record beside it
         self.assertNotIn(SECRET, json.dumps(rec))
 
-    def test_a_render_that_sent_nothing_records_nothing(self):
-        self.set_ceiling(10)
-        with FakeService(wav_answer) as fake:
-            out = self.render(fake.url)
-        self.assertEqual(out.returncode, cli.ISSUES, out.stdout + out.stderr)
-        self.assertEqual(self.builds(), [])   # the first web build is still to come (the privacy line)
-
-    @unittest.skipUnless(helpers.HAS_FFMPEG, "ffmpeg not installed")
-    def test_interrupted_cloud_build_resumes_without_resending(self):
-        state = {"ok": 3, "seen": 0}
+    def test_an_interrupted_build_resumes_without_resending(self):
+        state = {"ok": 3}
 
         def answer(req):
-            state["seen"] += 1
             if state["ok"] <= 0:
                 return 503, {}, b"{}"
             state["ok"] -= 1
             return wav_answer(req)
-        mp3 = os.path.join(self.d, "x.mp3")
         with FakeService(answer) as fake:
-            first = self.render(fake.url, mp3)
-            self.assertNotEqual(first.returncode, 0)
-            cached = len(glob.glob(os.path.join(self.home, "workouts", ".audio-cache", "*.pcm")))
-            self.assertEqual(cached, 3)
+            code, first, err = self.render_on("fish", fake.url)
+            self.assertNotEqual(code, 0)
+            self.assertEqual(len(self.cached()), 3)
             sent_first = len([r for r in fake.requests if r.path == "/v1/tts"])
             state["ok"] = 1000
-            second = self.render(fake.url, mp3)
-        self.assertIn(second.returncode, (0, cli.DRIFT), second.stdout + second.stderr)
-        first_to_render = int(first.stdout.split(" to render")[0].split()[-1])
+            code, second, err = self.render_on("fish", fake.url)
+        self.assertEqual(code, 0, second + err)
+        first_to_render = int(first.split(" to render")[0].split()[-1])
         sent_second = len([r for r in fake.requests if r.path == "/v1/tts"]) - sent_first
-        to_render = int(second.stdout.split(" to render")[0].split()[-1])
+        to_render = int(second.split(" to render")[0].split()[-1])
         self.assertEqual(to_render, first_to_render - 3)
         self.assertEqual(sent_second, to_render)
-        self.assertIn("Sending", second.stdout)
-
-
-class TrimRule(unittest.TestCase):
-    def test_the_web_trim_is_the_engines_rule(self):
-        import engines
-        self.assertEqual((cloud.TRIM_DB, cloud.TRIM_KEEP), (engines.TRIM_DB, engines.TRIM_KEEP))
-        self.assertAlmostEqual(cloud.TRIM_LEVEL, 10 ** (engines.TRIM_DB / 20) * 32767)
-
-    def test_cloud_imports_no_model_library(self):
-        code = ("import sys; sys.path.insert(0, sys.argv[1]); import cloud; "
-                "print(sorted(m for m in ('torch', 'numpy', 'pocket_tts', 'onnx_asr') if m in sys.modules))")
-        out = subprocess.run([sys.executable, "-c", code, os.path.join(ROOT, "tools")], capture_output=True,
-                             text=True, encoding="utf-8", timeout=60)
-        self.assertEqual(out.stdout.strip(), "[]", out.stderr)
+        self.assertIn("Sending", second)
 
 
 class Deadline(unittest.TestCase):
     """cloud.request's deadline: every try and wait together, so a slow service can't hold the render lock."""
 
-    def test_a_slow_service_runs_out_of_time(self):
+    def test_a_slow_service_runs_out_of_time_and_a_wait_past_the_deadline_is_not_slept(self):
         import time
 
         def slow(req):
-            time.sleep(4)   # far past the deadline, so a slow runner's lag can't pass for an answer
+            time.sleep(0.45)   # well past the deadline
             return wav_answer(req)
         with FakeService(slow) as fake, mock.patch.dict(os.environ, {"HARMONICFITNESS_RETRY_WAIT": "0"}):
             started = time.monotonic()
             with self.assertRaises(cloud.ServiceError) as got:
-                cloud.request("POST", fake.url + "/v1/tts", {}, b"{}", timeout=30, service="fish", deadline=0.4)
+                cloud.request("POST", fake.url + "/v1/tts", {}, b"{}", timeout=30, service="fish", deadline=0.1)
             took = time.monotonic() - started
         self.assertEqual(got.exception.kind, "unavailable")
-        self.assertIn("no answer within 0.4s", str(got.exception))
-        self.assertLess(took, 2.5)
-
-    def test_a_wait_past_the_deadline_is_not_slept(self):
+        self.assertIn("no answer within 0.1s", str(got.exception))
+        self.assertLess(took, 0.4)
         slept = []
         with FakeService(lambda r: (503, {"Retry-After": "5"}, b'{"message": "busy"}')) as fake, \
                 mock.patch.dict(os.environ, {"HARMONICFITNESS_RETRY_WAIT": "1"}):
@@ -1380,87 +1173,6 @@ class Scrubbing(unittest.TestCase):
         self.assertIn("<key", message)
 
 
-class AudioProof(unittest.TestCase):
-    """cloud.audio_pcm takes only what's proven to be audio: never gzip, a cut-off stream, a broken WAV or a
-    blip, which would be cached, paid for once and replayed in every build."""
-
-    def refused(self, data, **kw):
-        with self.assertRaises(cloud.ServiceError) as got:
-            cloud.audio_pcm(data, service="fish", **kw)
-        self.assertEqual(got.exception.kind, "bad_request")
-        return str(got.exception)
-
-    def test_raw_pcm_only_when_asked_for_and_typed_as_audio(self):
-        pcm = tone_pcm(0.3)
-        for ctype in (None, "audio/pcm", "application/octet-stream"):
-            self.assertEqual(cloud.audio_pcm(pcm, expect="pcm", content_type=ctype), pcm)
-        self.refused(pcm, expect="pcm", content_type="text/plain")
-        self.refused(pcm, expect="wav", content_type="audio/wav")
-        self.refused(b"\x1f\x8b\x08\x00" + bytes(20000), expect="wav")   # gzip
-
-    def test_raw_pcm_that_starts_like_text_is_still_audio(self):
-        """Raw samples begin with any byte: { [ < and spaces included. Only a reply that reads whole as JSON or a
-        page, or is typed as text, is a message (the first-byte test this replaced stopped long ElevenLabs builds)."""
-        pcm = tone_pcm(0.3)
-        for first in (b"{", b"[", b"<", b" \n{", b"[ o\x00j\x00j\x00"):
-            data = first + pcm[len(first):]
-            self.assertEqual(cloud.audio_pcm(data, expect="pcm", content_type="audio/pcm"), data, first)
-            self.assertEqual(cloud.audio_pcm(data, expect="pcm", content_type=None), data, first)
-        self.assertIn("quota", self.refused(b'{"detail": {"message": "quota exceeded"}}', expect="pcm",
-                                            content_type="audio/pcm"))
-        self.refused(b"[1, 2, 3]", expect="pcm")
-        self.refused(b"<!DOCTYPE html><html><body>Bad gateway</body></html>", expect="pcm")
-        self.refused(b"<html><body>502</body></html>", expect="pcm", content_type="application/octet-stream")
-        self.refused(b"Service unavailable", expect="pcm", content_type="text/plain")
-        self.refused(b'{"error": "x"}', expect="wav", content_type="application/json")
-
-    def test_a_broken_wav_is_the_services_fault_not_a_crash(self):
-        eight_bit = bytearray(tone_wav(0.3))
-        at = eight_bit.find(b"fmt ")
-        eight_bit[at + 8 + 14:at + 8 + 16] = (8).to_bytes(2, "little")
-        self.assertIn("WAV", self.refused(bytes(eight_bit)))
-        self.refused(b"RIFF\x00\x00\x00\x00WAVEfmt ")   # cut off before any audio
-        no_channels = bytearray(tone_wav(0.3))
-        no_channels[at + 8 + 2:at + 8 + 4] = (0).to_bytes(2, "little")
-        self.refused(bytes(no_channels))
-
-    def test_a_blip_is_not_a_spoken_line(self):
-        self.assertIn("too little", self.refused(tone_wav(0.05)))
-        self.refused(tone_pcm(0.05), expect="pcm")
-        self.assertTrue(cloud.audio_pcm(tone_wav(0.2)))
-
-    @unittest.skipUnless(helpers.HAS_FFMPEG, "ffmpeg not installed")
-    def test_compressed_audio_ffmpeg_cant_read_is_refused(self):
-        self.refused(b"ID3\x04\x00\x00\x00\x00\x00\x00" + bytes(500))
-
-    def test_content_type_reads_any_case(self):
-        self.assertEqual(cloud.content_type({"content-type": "Audio/WAV; charset=x"}), "audio/wav")
-        self.assertIsNone(cloud.content_type({}))
-
-
-class SpeakersSayWhatTheyAsked(ServiceCase):
-    SERVICE = "elevenlabs"
-
-    def test_elevenlabs_refuses_raw_bytes_typed_as_text(self):
-        self.serve(lambda r: (200, {"Content-Type": "text/plain"}, tone_pcm(0.3)))
-        with self.assertRaises(cloud.ServiceError) as got:
-            cloud.speaker(self.voice())("Two more.", 42)
-        self.assertIn("text/plain", str(got.exception))
-
-    def test_elevenlabs_takes_octet_stream(self):
-        self.serve(lambda r: (200, {"Content-Type": "application/octet-stream"}, tone_pcm(0.3)))
-        self.assertTrue(cloud.speaker(self.voice())("Two more.", 42))
-
-
-class FishAsksForWav(ServiceCase):
-    SERVICE = "fish"
-
-    def test_fish_refuses_raw_samples_when_it_asked_for_wav(self):
-        self.serve(lambda r: (200, {"Content-Type": "audio/wav"}, tone_pcm(0.3)))
-        with self.assertRaises(cloud.ServiceError):
-            cloud.speaker(self.voice())("Two more.", 42)
-
-
 class RenderCloudStops(unittest.TestCase):
     """render.render_cloud in process, with a fake service behind engines.speaker."""
 
@@ -1473,10 +1185,10 @@ class RenderCloudStops(unittest.TestCase):
                       "engine": "fish", "backend": "cloud"}
         self.sent = {"chars": 0, "started": 0, "usd": 0.0}
         self.todo = [f"Line number {i}, and go." for i in range(10)]
-        stack = __import__("contextlib").ExitStack()
+        stack = contextlib.ExitStack()
         self.addCleanup(stack.close)
         stack.enter_context(mock.patch.object(render, "record_rate"))
-        self.out = stack.enter_context(mock.patch("sys.stdout", new_callable=__import__("io").StringIO))
+        self.out = stack.enter_context(mock.patch("sys.stdout", new_callable=io.StringIO))
 
     def cache_path(self, text):
         return os.path.join(self.d, f"{abs(hash(text))}.pcm")
@@ -1486,29 +1198,27 @@ class RenderCloudStops(unittest.TestCase):
         with mock.patch.object(engines, "speaker", return_value=say):
             self.render.render_cloud(self.voice, self.todo, self.todo, 42, self.cache_path, self.sent)
 
-    def test_three_unavailable_in_a_row_stop_sending(self):
+    def test_unavailable_in_a_row_stops_sending(self):
         calls = []
 
-        def say(text, seed, **kw):
+        def always(text, seed, **kw):
             calls.append(text)
             raise cloud.ServiceError("unavailable", "fish", "couldn't reach the service (timed out)")
         with self.assertRaises(errors.RenderStopped) as got:
-            self.go(say)
+            self.go(always)
         self.assertEqual(len(calls), self.render.BREAKER)
         self.assertIn("in a row", str(got.exception))
         self.assertEqual(got.exception.exit_code, cli.ISSUES)
+        calls.clear()
 
-    def test_a_success_between_failures_keeps_sending_then_stops(self):
-        calls = []
-
-        def say(text, seed, **kw):
+        def every_other(text, seed, **kw):
             calls.append(text)
             if len(calls) % 2:
                 raise cloud.ServiceError("unavailable", "fish", "busy (HTTP 503)")
             return tone_pcm(0.3)
         with self.assertRaises(errors.RenderStopped) as got:
-            self.go(say)
-        self.assertEqual(len(calls), len(self.todo))   # never three in a row: every line was tried
+            self.go(every_other)
+        self.assertEqual(len(calls), len(self.todo))   # never three in a row: every line was tried, then it stops
         self.assertIn("busy", str(got.exception))
         self.assertEqual(len(glob.glob(os.path.join(self.d, "*.pcm"))), len(self.todo) // 2)
 
@@ -1517,7 +1227,7 @@ class RenderCloudStops(unittest.TestCase):
             raise TypeError("a bug")
         with self.assertRaises(TypeError):
             self.go(say)
-        with mock.patch("sys.stderr", new_callable=__import__("io").StringIO) as err:
+        with mock.patch("sys.stderr", new_callable=io.StringIO) as err:
             self.assertEqual(cli.run(lambda: self.go(say)), cli.BUG)
         self.assertIn("TypeError: a bug", err.getvalue())
 

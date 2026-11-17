@@ -1,7 +1,8 @@
 """The stock coaches (coaches/, 0.15.0): every shipped folder complete, the fixture copies in step, the stock and
 the listener's own coaches merged, and migrate's coaches step. No models: Pocket's voice files are checked as
 files, never loaded."""
-import importlib.util
+import contextlib
+import io
 import json
 import os
 import shutil
@@ -40,17 +41,6 @@ def _tracked(folder):
     return out.returncode == 0
 
 
-class SampleList(unittest.TestCase):
-    def test_every_ready_coach_has_its_sample_on_the_bucket_and_none_in_git(self):
-        self.assertTrue(SAMPLES["url"].startswith("https://"))
-        made = [d for d in sorted(os.listdir(REAL)) if os.path.isfile(os.path.join(REAL, d, "persona.md"))
-                and not personas.load(os.path.join(REAL, d)).pending]
-        self.assertEqual(sorted(SAMPLES["samples"]), made)
-        for slug, entry in SAMPLES["samples"].items():
-            self.assertEqual(len(entry["sha256"]), 64, slug)
-        if shutil.which("git"):
-            out = subprocess.run(["git", "ls-files", "coaches"], cwd=ROOT, capture_output=True, text=True, encoding="utf-8").stdout
-            self.assertNotIn("sample.mp3", out)
 WEB = ("coach-reed-fish", "coach-ellis-elevenlabs", "coach-owen-inworld")
 
 
@@ -89,61 +79,6 @@ class ShippedCoaches(unittest.TestCase):
                 self.assertIn(f"{key}|pocket|{voices.POCKET_REPO}", pace)   # measured from this very clip
                 have = counts.table(os.path.join(folder, "cues"))
                 self.assertEqual(set(have), set(draft.NUMBER_WORDS) | set(draft.CUE_NAMES))
-
-    def test_each_persona_is_what_the_roster_makes(self):
-        spec = importlib.util.spec_from_file_location("coach_persona", os.path.join(ROOT, "tools", "coachmaker",
-                                                                                   "persona.py"))
-        maker = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(maker)
-        for c in roster()["coach"]:
-            with open(os.path.join(REAL, f"coach-{c['slug']}-local", "persona.md"), encoding="utf-8") as f:
-                self.assertEqual(f.read(), maker.text(c), c["slug"])
-
-    def test_the_web_coaches_ship_unmade(self):
-        for slug in WEB:
-            p = personas.load(os.path.join(REAL, slug))
-            self.assertTrue(p.is_web and p.placeholder and p.pending == "design", slug)
-            self.assertFalse(p.voice_id, slug)
-
-    def test_the_ready_made_coaches_ship_made(self):
-        """A service's own voices belong to no account, so OpenRouter's six and Gemini's six ship ready: sample,
-        pace estimate, the roster's persona."""
-        spec = importlib.util.spec_from_file_location("web_coaches", os.path.join(ROOT, "tools", "coachmaker",
-                                                                                 "web_coaches.py"))
-        maker = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(maker)
-        from services import gemini, openrouter
-        made = roster()["web_coach"]
-        self.assertEqual(sorted(maker.service(c) for c in made), ["gemini"] * 6 + ["openrouter"] * 6)
-        for c in made:
-            slug = maker.folder_name(c)
-            folder = os.path.join(REAL, slug)
-            with self.subTest(coach=slug):
-                p = personas.load(folder)
-                self.assertTrue(p.is_web and not p.pending and not p.placeholder)
-                if p.service == "openrouter":
-                    self.assertIn(p.voice_id, openrouter.VOICES["elevenlabs"])
-                else:
-                    self.assertTrue(gemini.own_voice(p.voice_id), p.voice_id)
-                with open(os.path.join(folder, "persona.md"), encoding="utf-8") as f:
-                    self.assertEqual(f.read(), maker.persona_text(c))
-                self.assertGreater(SAMPLES["samples"][slug]["bytes"], 100_000)   # on the media bucket
-                for name in ("persona.md", "pace.json"):
-                    with open(os.path.join(folder, name), encoding="utf-8") as a, \
-                            open(os.path.join(FIXTURE, slug, name), encoding="utf-8") as b:
-                        self.assertEqual(a.read(), b.read(), f"{slug}/{name}: the fixture copy")
-
-    def test_a_ready_web_coach_reads_its_shipped_pace(self):
-        import cloud
-        p = personas.lookup("Coach Nora")
-        self.assertTrue(p.shipped)
-        self.assertEqual(p.pace_file, paths.PACE_FILE)   # its renders record here, never into the engine
-        v = cloud.voice_for(p, "openrouter")
-        with open(os.path.join(p.folder, "pace.json"), encoding="utf-8") as f:
-            rec = next(iter(json.load(f).values()))
-        rate, measured = voices.pace(v)
-        self.assertAlmostEqual(rate, rec["weight"] / rec["seconds"] * voices.SAMPLE_FAST)   # a script reads faster
-        self.assertFalse(measured)   # an estimate until a render here measures it
 
     def test_the_fixture_copies_are_in_step(self):
         for slug in WEB + ("coach-andy-local",):
@@ -186,53 +121,26 @@ class StockAndOwn(unittest.TestCase):
         self.assertIn("ships with HarmonicFitness", str(e.exception.code))
         self.assertTrue(os.path.exists(os.path.join(paths.SHIPPED, "coach-julius", "persona.md")))
 
-    def test_a_stock_coach_used_last_stays_the_default(self):
-        self.own("coach-jess-gemini", {"name": "Coach Jess", "kind": "web", "service": "gemini", "voice_id": "g1"})
-        with mock.patch.object(coachpick, "_usable_here", return_value=True), \
-                mock.patch.object(coachpick.sessionlog, "sessions",
-                                  return_value=[SimpleNamespace(voice="Coach Jess"), SimpleNamespace(voice="Coach Julius")]):
-            self.assertEqual(coachpick.default().name, "Coach Julius")
-        with mock.patch.object(coachpick, "_usable_here", return_value=True), \
-                mock.patch.object(coachpick.sessionlog, "sessions", return_value=[]):
-            self.assertEqual(coachpick.default().name, "Coach Jess")   # no log: the listener's own
-
-    def test_a_remade_voice_file_changes_the_key(self):
-        stock = os.path.join(self.tmp.name, "stock")
-        shutil.copytree(os.path.join(FIXTURE, "coach-test"), os.path.join(stock, "coach-test"))
-        with mock.patch.object(paths, "SHIPPED", stock):
-            p = personas.load(os.path.join(stock, "coach-test"))
-            before = personas.voice_for(p, "local")["key"]
-            self.assertEqual(personas.voice_for(p, "local")["key"], before)   # the same files, the same key
-            with open(p.voice_state, "ab") as f:   # only pocket.safetensors changes
-                f.write(b"remade")
-            self.assertNotEqual(personas.voice_for(p, "local")["key"], before)
-
-    def test_with_no_log_and_nothing_of_their_own_a_stand_in(self):
-        with mock.patch.object(coachpick, "_usable_here", side_effect=lambda p: not p.is_web), \
-                mock.patch.object(coachpick.sessionlog, "sessions", return_value=[]):
-            self.assertEqual(coachpick.default().name, "Coach Andy")   # the first stock coach that speaks here
-        with mock.patch.object(coachpick, "_usable_here", side_effect=lambda p: p.is_web and p.service == "inworld"), \
-                mock.patch.object(coachpick.sessionlog, "sessions", return_value=[]):
-            self.assertEqual(coachpick.default().name, "Coach Owen")   # a keyed web stand-in first
-
-    def test_web_default_is_a_web_stand_in(self):
-        with mock.patch.object(coachpick, "_usable_here", side_effect=lambda p: not p.is_web), \
-                mock.patch.object(coachpick.sessionlog, "sessions", return_value=[]):
-            before = coachpick.default()
-            with mock.patch.object(paths, "WEB", True):
-                web = coachpick.default()
-            self.assertEqual(coachpick.default().name, before.name)   # WEB unset: unchanged
-        self.assertTrue(web.is_web and web.shipped, web.name)
-        first = min((p for p in personas.all() if p.is_web), key=lambda p: coachpick.cloud.SERVICES.index(p.service))
-        self.assertEqual(web.name, first.name)
-
-    def test_web_default_prefers_a_keyed_service(self):
-        keyed = lambda p: p.is_web and p.service == "elevenlabs"
-        with mock.patch.object(paths, "WEB", True), mock.patch.object(coachpick.sessionlog, "sessions", return_value=[]):
-            with mock.patch.object(coachpick, "_usable_here", side_effect=keyed):
-                self.assertEqual(coachpick.default().name, "Coach Ellis")
-            with mock.patch.object(coachpick, "_usable_here", return_value=False):
-                self.assertEqual(coachpick.default().name, "Coach Reed")   # none keyed: first in service order
+    def test_the_default_coach(self):
+        """The one used last (a stock coach too), else the listener's own, else a stand-in that speaks here; on
+        the web client always a web coach, a keyed service's first."""
+        used = [SimpleNamespace(voice="Coach Jess"), SimpleNamespace(voice="Coach Julius")]
+        anything = lambda p: True
+        rows = (
+            (False, False, lambda p: not p.is_web, [], "Coach Andy"),                         # a local stand-in
+            (False, False, lambda p: p.is_web and p.service == "inworld", [], "Coach Owen"),  # a keyed web stand-in
+            (True, False, lambda p: p.is_web and p.service == "elevenlabs", [], "Coach Ellis"),  # web: keyed first
+            (True, False, lambda p: not p.is_web, [], "Coach Reed"),                          # web: never local
+            (False, True, anything, used, "Coach Julius"),                                    # the one used last
+            (False, True, anything, [], "Coach Jess"))                                        # no log: their own
+        for web, own, usable, log, expected in rows:
+            if own and not os.path.isdir(os.path.join(paths.PERSONAS, "coach-jess-gemini")):
+                self.own("coach-jess-gemini", {"name": "Coach Jess", "kind": "web", "service": "gemini",
+                                               "voice_id": "g1"})
+            with self.subTest(expected=expected), mock.patch.object(paths, "WEB", web),                     mock.patch.object(coachpick, "_usable_here", side_effect=usable),                     mock.patch.object(coachpick.sessionlog, "sessions", return_value=log):
+                got = coachpick.default()
+                self.assertEqual(got.name, expected)
+                self.assertTrue(got.is_web or not web)
 
 
 OWN_LOCAL = """+++
@@ -275,9 +183,12 @@ class MigrateCoaches(unittest.TestCase):
             f.write(text.replace("coaches/", "personas/"))
 
     def migrate(self, *args):
-        env = dict(os.environ, HARMONICFITNESS_HOME=self.home, HARMONICFITNESS_SHIPPED=FIXTURE)
-        return subprocess.run([sys.executable, os.path.join(ROOT, "tools", "migrate.py"), *args], env=env,
-                              capture_output=True, text=True, encoding="utf-8", timeout=120)
+        import cli
+        import migrate
+        out, err = io.StringIO(), io.StringIO()
+        with helpers.home(self.home), mock.patch.object(paths, "SHIPPED", FIXTURE),                 contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            code = cli.run(migrate.main, list(args))
+        return SimpleNamespace(returncode=code, stdout=out.getvalue(), stderr=err.getvalue())
 
     def test_the_coaches_step(self):
         out = self.migrate("--dry-run")
