@@ -127,7 +127,8 @@ def skill_text(engine_root: str, setup: bool = False, coach: bool = False, write
             text = skeleton_rules(text)
         parts.append(f"<file path=\"{rel}\">\n{text}\n</file>")
     if not setup:   # the setup skill's photo rules, which its whole text carries when it comes
-        parts.append(f"<file path=\"{SETUP[0]}\" section=\"Kits from photos\">\n{kits_from_photos(engine_root)}\n</file>")
+        # its own tag, not the skill's path: a listener who is set up never gets the setup skill itself
+        parts.append(f"<section of=\"the setup skill\" name=\"Kits from photos\">\n{kits_from_photos(engine_root)}\n</section>")
     return "\n\n".join(parts)
 
 

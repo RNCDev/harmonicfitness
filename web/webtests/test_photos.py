@@ -138,6 +138,8 @@ class History(unittest.TestCase):
 class Kept(DBCase):
     def setUp(self):
         self.conn.rollback()
+        self.conn.execute("delete from turn_photos")   # what another test left untaken
+        self.conn.commit()
         _, self.uk = self.make_user()
 
     def queued(self, n=2):
