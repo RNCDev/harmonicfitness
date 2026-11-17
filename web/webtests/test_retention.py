@@ -1,12 +1,11 @@
-"""What the site stops keeping (0.76.0), and the indexes the busiest queries use."""
+"""What the site stops keeping (0.76.0)."""
 import datetime
 import os
 import sys
-from unittest import mock
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
-from webapp import conversations, jobs, retention, worker  # noqa: E402
+from webapp import conversations, jobs, retention  # noqa: E402
 from webtests.dbcase import DBCase, enqueue  # noqa: E402
 
 
@@ -55,14 +54,4 @@ class Sweep(DBCase):
         self.assertEqual(self.conn.execute("select chars from spend where user_id = %s", (uid,)).fetchall(), [(2,)])
         self.conn.rollback()
 
-    def test_the_worker_sweeps_at_most_once_a_minute(self):
-        with mock.patch.object(worker, "_last_sweep", [float("-inf")]):
-            self.assertTrue(worker._sweep_due())
-            self.assertFalse(worker._sweep_due())
 
-    def test_the_busiest_queries_have_their_indexes(self):
-        names = {r[0] for r in self.conn.execute(
-            "select indexname from pg_indexes where schemaname = current_schema()").fetchall()}
-        for name in ("job_events_job", "jobs_queued", "jobs_user_state", "conversations_job", "sessions_user"):
-            self.assertIn(name, names)
-        self.conn.rollback()

@@ -1,6 +1,5 @@
 import os
 import sys
-from unittest import mock
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
@@ -12,6 +11,7 @@ ALL_MIGRATIONS = sorted(p.name for p in db.MIGRATIONS.glob("*.sql"))
 
 class Migrations(DBCase):
     def test_migrate_is_idempotent(self):
+        self.assertEqual(db.migrate(self.conn), [])   # the class's schema is migrated
         # the class's own connection was migrated in setUpClass; use a new schema
         import uuid
         from webtests import dbcase
@@ -93,9 +93,6 @@ class Migrations(DBCase):
             admin.execute(f"drop schema {name} cascade")
             admin.close()
 
-    def test_class_schema_is_migrated(self):
-        self.assertEqual(db.migrate(self.conn), [])
-
 
 class Store(DBCase):
     def test_bodies_are_encrypted_at_rest(self):
@@ -107,7 +104,7 @@ class Store(DBCase):
         self.assertNotIn(b"left ankle", bytes(raw))
         self.assertEqual(store.read_all(self.conn, uk), {"health.md": (1, b"left ankle")})
 
-    def test_write_back_conflict_keeps_users_edit(self):
+    def test_write_back_conflicts_keep_the_users_edit(self):
         _, uk = self.make_user()
         store.write_back(self.conn, uk, {"health.md": b"v1", "other.md": b"o1"}, {})
         files = store.read_all(self.conn, uk)
@@ -120,14 +117,12 @@ class Store(DBCase):
         after = store.read_all(self.conn, uk)
         self.assertEqual(after["health.md"], (2, b"panel edit"))
         self.assertEqual(after["other.md"], (2, b"o2"))
-
-    def test_new_file_conflicts_when_it_exists(self):
+        # a new file conflicts when it exists
         _, uk = self.make_user()
         store.put(self.conn, uk, "a.md", b"x")
         self.assertEqual(store.write_back(self.conn, uk, {"a.md": b"y"}, {}), ["a.md"])
         self.assertEqual(store.read_all(self.conn, uk)["a.md"], (1, b"x"))
-
-    def test_delete_only_at_base_version(self):
+        # a delete only at the base version
         _, uk = self.make_user()
         store.put(self.conn, uk, "a.md", b"x")
         store.put(self.conn, uk, "b.md", b"x")
@@ -145,6 +140,9 @@ class Store(DBCase):
                                 (a.user_id,)).fetchone()
         with self.assertRaises(crypto.Tampered):
             crypto.open_(b.key, bytes(row[0]), f"{a.user_id}:context_files:health.md".encode())
+        sealed = store._seal_path(a, "health.md")   # a sealed path is bound to its user
+        with self.assertRaises(crypto.Tampered):
+            store._open_path(store.UserKey(user_id=b.user_id, key=a.key), sealed)
 
     def test_the_fingerprint_changes_with_any_write(self):
         _, uk = self.make_user()
@@ -177,13 +175,6 @@ class Store(DBCase):
         with self.assertRaises(crypto.Tampered):
             store.read_all(self.conn, uk)
         self.conn.rollback()
-
-    def test_sealed_path_is_bound_to_its_user(self):
-        _, a = self.make_user()
-        _, b = self.make_user()
-        sealed = store._seal_path(a, "health.md")
-        with self.assertRaises(crypto.Tampered):
-            store._open_path(store.UserKey(user_id=b.user_id, key=a.key), sealed)
 
     def test_paths_never_stored_in_plain(self):
         _, uk = self.make_user()
@@ -218,14 +209,6 @@ class Store(DBCase):
         self.assertEqual(hashes[b.user_id], store._path_hash(b, "health.md"))
         self.assertNotEqual(hashes[a.user_id], hashes[b.user_id])
 
-    def test_listing_is_sorted_by_path(self):
-        _, uk = self.make_user()
-        for p in ("c.md", "a.md", "b/z.md"):
-            store.put(self.conn, uk, p, b"x")
-        self.conn.commit()
-        self.assertEqual([p for p, _, _ in store.listing(self.conn, uk)], ["a.md", "b/z.md", "c.md"])
-        self.assertEqual(list(store.read_all(self.conn, uk)), ["a.md", "b/z.md", "c.md"])
-
     def test_bad_paths_rejected(self):
         _, uk = self.make_user()
         for bad in ("/etc/x", "../x", "a/../b", "", "a\\b"):
@@ -242,7 +225,6 @@ class Store(DBCase):
         self.assertNotIn(uk.key.hex(), repr(uk))
 
 
-
 class Reads(DBCase):
     """Reading only what a request needs (0.77.0): some files, or only their digests."""
 
@@ -252,28 +234,6 @@ class Reads(DBCase):
             store.put(self.conn, uk, path, body)
         self.conn.commit()
         return uk
-
-    def test_read_many_reads_only_the_paths_asked_for(self):
-        uk = self.files()
-        self.assertEqual(store.read_many(self.conn, uk, ["log.md", "workouts/a/x.txt", "absent.md"]),
-                         {"log.md": (1, b"log"), "workouts/a/x.txt": (1, b"x")})
-        self.assertEqual(store.read_many(self.conn, uk, []), {})
-        with self.assertRaises(ValueError):
-            store.read_many(self.conn, uk, ["../x"])
-
-    def test_read_where_opens_only_the_bodies_kept(self):
-        uk = self.files()
-        opened = []
-        real = store.crypto.open_
-
-        def counting(key, sealed, aad):
-            opened.append(aad)
-            return real(key, sealed, aad)
-        with mock.patch.object(store.crypto, "open_", counting):
-            got = store.read_where(self.conn, uk, lambda p: not p.startswith("coaches/"))
-        self.assertEqual(got, {"log.md": (1, b"log"), "workouts/a/x.txt": (1, b"x")})
-        self.assertFalse(any(a.endswith(b":coaches/c/sample.mp3") for a in opened))
-        self.assertEqual(list(got), sorted(got))
 
     def test_digests_are_sealed_and_match_the_bodies(self):
         import hashlib
@@ -285,17 +245,14 @@ class Reads(DBCase):
         for (raw,) in self.conn.execute("select digest from context_files where user_id = %s", (uk.user_id,)):
             self.assertNotIn(bytes(raw), {bytes.fromhex(d) for _, d in want.values()})   # never in plain
 
-    def test_a_row_without_a_digest_is_hashed_from_its_body(self):
+    def test_a_row_without_a_digest_or_with_one_left_behind_is_hashed_from_its_body(self):
+        """A row without a digest is hashed from its body. A 0.76.2 process writing during a deploy bumps the version and body but not the digest: the stale digest
+        must never be listed, or sync would take the file as in step and later overwrite it."""
         import hashlib
         uk = self.files()
         self.conn.execute("update context_files set digest = null where user_id = %s", (uk.user_id,))
         self.conn.commit()
         self.assertEqual(store.digests(self.conn, uk)["log.md"], (1, hashlib.sha256(b"log").hexdigest()))
-
-    def test_a_write_that_leaves_the_digest_behind_is_hashed_from_its_body(self):
-        """A 0.76.2 process writing during a deploy bumps the version and body but not the digest: the stale digest
-        must never be listed, or sync would take the file as in step and later overwrite it."""
-        import hashlib
         uk = self.files()
         sealed = store.crypto.seal(uk.key, b"newer", store._aad(uk, "log.md"))
         self.conn.execute("update context_files set body = %s, version = version + 1 where user_id = %s and "

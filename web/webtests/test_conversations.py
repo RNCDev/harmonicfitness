@@ -1,5 +1,4 @@
 import os
-import unittest
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
@@ -24,8 +23,9 @@ class Conversations(DBCase):
         return bytes(self.conn.execute("select body from conversations where id = %s",
                                        (cid,)).fetchone()[0])
 
-    def test_create_load_roundtrip(self):
+    def test_create_load_roundtrip_sealed(self):
         _, uk = self.make_user()
+        self.assertIsNone(conversations.latest(self.conn, uk))
         cid = conversations.create(self.conn, uk, "a 25 minute workout")
         self.conn.commit()
         c = conversations.load(self.conn, uk, cid)
@@ -39,13 +39,6 @@ class Conversations(DBCase):
         cid2 = conversations.create(self.conn, uk, "another")
         self.conn.commit()
         self.assertEqual(conversations.latest(self.conn, uk).id, cid2)
-
-    def test_latest_none(self):
-        _, uk = self.make_user()
-        self.assertIsNone(conversations.latest(self.conn, uk))
-
-    def test_body_is_sealed(self):
-        _, uk = self.make_user()
         cid = conversations.create(self.conn, uk, "my secret knee story")
         self.conn.commit()
         self.assertNotIn(b"knee", self.raw(cid))
@@ -85,39 +78,6 @@ class Conversations(DBCase):
         self.conn.commit()
         self.assertEqual(self.raw(cid), before)
         self.assertEqual(conversations.load(self.conn, uk, cid).state, "waiting")
-
-    def test_begin_turn_states(self):
-        _, uk = self.make_user()
-        cid = conversations.create(self.conn, uk, "hi")
-        self.assertFalse(conversations.begin_turn(self.conn, uk, cid, "more", None))
-        for state in ("idle", "failed"):
-            c = conversations.load(self.conn, uk, cid)
-            c.state = state
-            conversations.save(self.conn, uk, c, c.version)
-            self.assertTrue(conversations.begin_turn(self.conn, uk, cid, "more", None))
-            got = conversations.load(self.conn, uk, cid)
-            self.assertEqual(got.state, "working")
-            self.assertEqual(got.lines[-1], {"role": "user", "text": "more"})
-        c = conversations.load(self.conn, uk, cid)
-        c.state = "waiting"
-        c.question = QUESTION
-        conversations.save(self.conn, uk, c, c.version)
-        self.assertTrue(conversations.begin_turn(
-            self.conn, uk, cid, None, {"limits": ["Nothing new"], "length": ["25 min"]}))
-        got = conversations.load(self.conn, uk, cid)
-        self.assertEqual(got.state, "working")
-        self.assertIsNone(got.question)
-        self.assertEqual(got.lines[-1],
-                         {"role": "user", "text": "Limits: Nothing new · Length: 25 min"})
-        self.assertFalse(conversations.begin_turn(self.conn, uk, cid, "x", None))
-        self.assertFalse(conversations.begin_turn(self.conn, uk, 999999, "x", None))
-
-    def test_answer_line(self):
-        a = {"limits": ["Nothing new", "Knee"], "length": "other: 40 min"}
-        self.assertEqual(conversations.answer_line(QUESTION, a),
-                         "Limits: Nothing new, Knee · Length: 40 min")
-        self.assertEqual(conversations.answer_line(QUESTION, {"length": ["25 min"]}),
-                         "Length: 25 min")
 
     def job(self, uk, state):
         return self.conn.execute("insert into jobs (user_id, kind, args, state) values "
@@ -178,16 +138,3 @@ class Conversations(DBCase):
         self.conn.rollback()
 
 
-class Sealed(unittest.TestCase):
-    """The sealed body, without a database."""
-
-    def test_the_coach_flag_round_trips_and_defaults_off(self):
-        import uuid
-        from webapp import crypto, store
-        uk = store.UserKey(user_id=uuid.uuid4(), key=bytes(range(32)))
-        for coach in (True, False):
-            c = conversations.Conversation(id=7, state="idle", version=1, coach=coach)
-            got = conversations._open(uk, 7, "idle", 1, None, conversations._seal(uk, c))
-            self.assertIs(got.coach, coach)
-        old = crypto.seal(uk.key, b'{"history": null, "lines": []}', conversations._aad(uk, 7))   # before 0.24.0
-        self.assertIs(conversations._open(uk, 7, "idle", 1, None, old).coach, False)

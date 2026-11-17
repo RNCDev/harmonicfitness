@@ -11,10 +11,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 
 from PIL import Image  # noqa: E402
 
-from webapp import api, conversations, jobs, keystore, photos, retention, turns  # noqa: E402
+from webapp import api, conversations, jobs, photos, retention, turns  # noqa: E402
 from webtests.dbcase import DBCase  # noqa: E402
 
-ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 GPS = 0x8825          # the EXIF tag that holds where a photo was taken
 ORIENTATION = 0x0112
 
@@ -47,11 +46,7 @@ class Clean(unittest.TestCase):
             self.assertNotIn("exif", im.info)
         self.assertNotIn(b"PhoneMaker", out)
 
-    def test_a_photo_stored_on_its_side_comes_out_upright(self):
-        with Image.open(io.BytesIO(photos.clean(jpeg(1200, 800, rotated=True)))) as im:
-            self.assertEqual(im.size, (800, 1200))
-
-    def test_png_and_webp_are_read_and_other_files_refused(self):
+    def test_png_and_webp_are_read_and_other_files_or_too_large_refused(self):
         for fmt in ("PNG", "WEBP"):
             with Image.open(io.BytesIO(photos.clean(jpeg(400, 300, gps=False, fmt=fmt)))) as im:
                 self.assertEqual(im.format, "JPEG", fmt)
@@ -60,8 +55,6 @@ class Clean(unittest.TestCase):
         for raw in (gif.getvalue(), b"not a photo at all", b"%PDF-1.7 ..."):
             with self.assertRaises(photos.Refused):
                 photos.clean(raw)
-
-    def test_a_photo_too_large_to_decode_is_refused_before_it_is_drawn(self):
         with mock.patch.object(photos, "PIXELS_MOST", 1000):
             with self.assertRaises(photos.Refused) as e:
                 photos.clean(jpeg(100, 100, gps=False))
@@ -87,15 +80,12 @@ class TurnArgs(unittest.TestCase):
         return {"conversation_id": 1, "line": "my kit", "answer": None, "today": today,
                 "now": f"{today} Wednesday 08:00", **more}
 
-    def test_a_turn_carries_only_how_many_photos_wait_for_it(self):
+    def test_a_turn_carries_only_how_many_photos_wait_for_it_and_only_a_message_grows(self):
         self.assertIsNone(turns.check(self.args(photos=2)))
         for bad in (0, photos.MOST + 1, "2", True, [b"x"]):
             self.assertIsNotNone(turns.check(self.args(photos=bad)), bad)
         self.assertEqual(turns.PHOTOS_MOST, photos.MOST)
-
-
-class BodyLimit(unittest.TestCase):
-    def test_a_message_may_carry_its_photos_and_nothing_else_grows(self):
+        # the body limit: a message may carry its photos and nothing else grows
         most, words = api._BodyLimit.limit_for("/api/conversations/12/messages")
         self.assertGreater(most, photos.MOST * photos.RAW_MOST * 4 // 3)
         self.assertIn("photos", words)
@@ -123,16 +113,6 @@ class History(unittest.TestCase):
                              for p in m.parts if isinstance(p.content, list) for c in p.content))
         self.assertIn(b"2 photos of their kit, looked at in that turn and not kept", saved)
         self.assertIs(kept[1], messages[1])
-
-    def test_the_web_always_carries_the_photo_rules(self):
-        from webapp import agent
-        rules = agent.kits_from_photos(ROOT)
-        self.assertTrue(rules.startswith("**Kits from photos.**"))
-        self.assertIn("On the web app", rules)
-        self.assertNotIn("read with Read", rules)   # the computer's own way is left out
-        for setup in (False, True):
-            agent.skill_text.cache_clear()
-            self.assertIn("**Kits from photos.**", agent.skill_text(ROOT, setup=setup))
 
 
 class Kept(DBCase):

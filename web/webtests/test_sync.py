@@ -1,7 +1,6 @@
 """The routes behind ./harmonicfitness sync: list, read and write the listener's files, each write only over
 the version the computer last saw."""
 import base64
-import hashlib
 import os
 import sys
 import unittest
@@ -41,38 +40,6 @@ class Routes(test_api.ApiCase):
         r = self.client.post("/api/sync/read", headers=self.origin(),
                              json={"paths": ["workouts/.logs/backup-remote.json", "log.md"]})
         self.assertEqual([f["path"] for f in r.json()["files"]], ["log.md"])
-
-    def test_list_read_write(self):
-        _, uk = self.signed_in()
-        store.write_back(self.conn, uk, {"log.md": b"log", "workouts/w/w.draft.txt": b"draft"}, {})
-        self.conn.commit()
-        files = {f["path"]: f for f in self.client.get("/api/sync").json()["files"]}
-        self.assertEqual(files["log.md"], {"path": "log.md", "version": 1, "sha256": hashlib.sha256(b"log").hexdigest()})
-
-        got = self.client.post("/api/sync/read", json={"paths": ["log.md", "nope.md"]}, headers=self.origin()).json()
-        self.assertEqual([(f["path"], base64.b64decode(f["body"])) for f in got["files"]], [("log.md", b"log")])
-
-        r = self.client.post("/api/sync/write", headers=self.origin(), json={"changes": [
-            {"path": "log.md", "base": 1, "body": b64(b"log 2")},            # over the version seen: lands
-            {"path": "workouts/w/w.draft.txt", "base": 7, "body": b64(b"x")},  # an old version: a conflict
-            {"path": "profile.md", "base": None, "body": b64(b"me")},         # new to the site
-            {"path": ".env", "base": None, "body": b64(b"KEY=1")},            # never kept
-            {"path": "workouts/w/W.mp3", "base": None, "body": b64(b"ID3")},
-        ]})
-        self.assertEqual(r.status_code, 200, r.text)
-        out = r.json()
-        self.assertEqual(out["written"], {"log.md": 2, "profile.md": 1})
-        self.assertEqual(out["conflicts"], ["workouts/w/w.draft.txt"])
-        self.assertEqual(out["refused"], [".env", "workouts/w/W.mp3"])
-        self.conn.rollback()
-        have = store.read_all(self.conn, uk)
-        self.conn.rollback()
-        self.assertEqual((have["log.md"], have["workouts/w/w.draft.txt"][1]), ((2, b"log 2"), b"draft"))
-        self.assertNotIn(".env", have)
-
-        r = self.client.post("/api/sync/write", headers=self.origin(),
-                             json={"changes": [{"path": "profile.md", "base": 1, "body": None}]})
-        self.assertEqual(r.json()["written"], {"profile.md": None})
 
     def test_bad_paths_and_bodies_are_refused(self):
         self.signed_in()

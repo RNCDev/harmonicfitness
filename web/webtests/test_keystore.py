@@ -1,7 +1,6 @@
 import os
 import sys
 import time
-import uuid
 from datetime import datetime
 from unittest import mock
 
@@ -56,7 +55,7 @@ class KeyStore(DBCase):
         with self.assertRaises(crypto.Tampered):
             keystore.open_all(self.conn, uka)
 
-    def test_delete(self):
+    def test_delete_and_cascade(self):
         _, uk = self.make_user()
         keystore.put(self.conn, uk, "fish", "k-123456789")
         self.conn.commit()
@@ -64,8 +63,6 @@ class KeyStore(DBCase):
         self.assertFalse(keystore.delete(self.conn, uk, "fish"))
         self.conn.commit()
         self.assertEqual(keystore.open_all(self.conn, uk), {})
-
-    def test_cascade(self):
         uid, uk = self.make_user()
         keystore.put(self.conn, uk, "fish", "k-123456789")
         self.conn.commit()

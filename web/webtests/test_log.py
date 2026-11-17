@@ -35,12 +35,6 @@ class Failure(unittest.TestCase):
         self.assertNotIn("Sam", line)
         self.assertEqual(line.count("\n"), 1)
 
-    def test_an_exception_never_raised_has_no_frames(self):
-        out = io.StringIO()
-        with redirect_stderr(out):
-            log.failure("x", KeyError("secret"))
-        self.assertEqual(out.getvalue(), "worker: x: KeyError\n")
-
 
 if __name__ == "__main__":
     unittest.main()

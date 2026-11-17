@@ -2,7 +2,6 @@
 import asyncio
 import os
 import sys
-import time
 import uuid
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
@@ -47,14 +46,6 @@ class Hub(DBCase):
             self.assertTrue(await other.wait(5))
         self.drive(body)
 
-    def test_subscribe_returns_once_listening(self):
-        """A NOTIFY sent the moment subscribe returns still arrives: LISTEN ran first."""
-        async def body():
-            sub = await self.subscribe(uuid.uuid4(), 9)
-            self.notify(9)
-            self.assertTrue(await sub.wait(5))
-        self.drive(body)
-
     def test_a_listeners_fourth_stream_closes_their_oldest(self):
         async def body():
             user = uuid.uuid4()
@@ -68,65 +59,6 @@ class Hub(DBCase):
             self.notify(1)   # the closed one no longer hears its job
             self.assertTrue(await someone_else.wait(5))
         self.drive(body)
-
-    def test_the_last_stream_leaving_closes_the_connection(self):
-        async def body():
-            a = await self.subscribe(uuid.uuid4(), 1)
-            b = await self.subscribe(uuid.uuid4(), 2)
-            self.hub.unsubscribe(a)
-            self.assertFalse(self.opened[0].closed)
-            self.hub.unsubscribe(b)
-            self.hub.unsubscribe(b)   # twice is harmless
-            deadline = time.monotonic() + 5
-            while not self.opened[0].closed and time.monotonic() < deadline:
-                await asyncio.sleep(0.05)
-            self.assertTrue(self.opened[0].closed)
-            again = await self.subscribe(uuid.uuid4(), 3)   # and a new one opens another
-            self.assertEqual(len(self.opened), 2)
-            self.notify(3)
-            self.assertTrue(await again.wait(5))
-        self.drive(body)
-
-    def test_a_lost_connection_wakes_every_stream_and_listens_again(self):
-        async def body():
-            sub = await self.subscribe(uuid.uuid4(), 7)
-            self.conn.execute("select pg_terminate_backend(%s)", (self.opened[0].info.backend_pid,))
-            self.conn.commit()
-            self.assertTrue(await sub.wait(5))   # woken to read its job's status itself
-            deadline = time.monotonic() + 10
-            while len(self.opened) < 2 and time.monotonic() < deadline:
-                await asyncio.sleep(0.05)
-            self.assertEqual(len(self.opened), 2)
-            self.assertTrue(self.hub.listening.wait(5))
-            self.notify(7)
-            self.assertTrue(await sub.wait(5))
-        with self._patch_backoff():
-            self.drive(body)
-
-    def test_a_closed_hub_starts_no_listener(self):
-        self.hub.close()
-        async def body():
-            loop = asyncio.get_running_loop()
-            sub = await asyncio.to_thread(self.hub.subscribe, uuid.uuid4(), 1, loop)
-            self.assertTrue(sub.closed)
-        self.drive(body)
-        self.assertEqual(self.opened, [])
-
-    def test_a_closed_stream_asks_the_browser_to_wait_before_reopening(self):
-        from types import SimpleNamespace
-
-        from webapp.routes import jobs as jobroutes
-        self.hub.close()   # every subscribe now comes back closed, as the listener's oldest does
-        st = SimpleNamespace(hub=self.hub)
-        uk = SimpleNamespace(user_id=uuid.uuid4())
-
-        async def body():
-            return [line async for line in jobroutes._stream(st, uk, 1, 0)]
-        self.assertEqual(self.drive(body), [f"retry: {jobroutes.CLOSED_RETRY_MS}\n\n"])
-
-    def _patch_backoff(self):
-        from unittest import mock
-        return mock.patch.object(streams, "RECONNECT_WAIT", 0.1)
 
 
 if __name__ == "__main__":

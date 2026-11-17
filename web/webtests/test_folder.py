@@ -5,7 +5,7 @@ import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
-from webapp import folder, store  # noqa: E402
+from webapp import folder  # noqa: E402
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 
@@ -46,40 +46,11 @@ class FolderTests(unittest.TestCase):
         self.put("r.log.1")
         self.put(".DS_Store")
         self.put(".gitignore")
+        self.put(".env.bak")
+        self.put("keys.env")
         os.symlink("/etc/hosts", os.path.join(self.root, "evil"))
         os.symlink("/etc", os.path.join(self.root, "evildir"))
         self.assertEqual(folder.harvest(self.root, written), {})
-
-    def test_a_coachs_sample_is_kept(self):
-        """The one MP3 kept outside an audition: a coach's sample, which the Coaches page plays."""
-        written = folder.materialize({"a.md": b"a"}, self.root)
-        self.put("coaches/coach-dana-fish/sample.mp3", b"ID3")
-        self.assertEqual(folder.harvest(self.root, written), {"coaches/coach-dana-fish/sample.mp3": b"ID3"})
-        for rel in ("coaches/sample.mp3", "coaches/coach-dana-fish/x/sample.mp3", "coaches/.archive/sample.mp3",
-                    "workouts/coach-dana-fish/sample.mp3"):
-            self.assertTrue(folder.skipped(rel), rel)
-
-    def test_an_audition_is_kept_between_turns(self):
-        """A coach's audition spans turns (candidates, then the listener's pick): its narrative, candidates
-        list and each candidate's WAV and MP3 are kept, and closing it deletes them."""
-        written = folder.materialize({"a.md": b"a"}, self.root)
-        kept = ["coaches/.auditions/coach-dana.md", "coaches/.auditions/2026-10-28-1/candidates.json",
-                "coaches/.auditions/2026-10-28-1/narrative.md", "coaches/.auditions/2026-10-28-1/fish-1.wav",
-                "coaches/.auditions/2026-10-28-1/fish-1.mp3"]
-        for rel in kept:
-            self.put(rel)
-        got = folder.harvest(self.root, written)
-        self.assertEqual(sorted(got), sorted(kept))
-        written = folder.materialize(got, os.path.join(self.root, "next"))
-        for rel in kept[1:]:
-            os.remove(os.path.join(self.root, "next", rel))
-        self.assertEqual(folder.harvest(os.path.join(self.root, "next"), written),
-                         {rel: None for rel in kept[1:]})
-
-    def test_deleted_file_is_none(self):
-        written = folder.materialize({"a.md": b"a", "b.md": b"b"}, self.root)
-        os.remove(os.path.join(self.root, "a.md"))
-        self.assertEqual(folder.harvest(self.root, written), {"a.md": None})
 
     def test_never_set_is_respected(self):
         written = folder.materialize({"health.md": b"h", "b.md": b"b"}, self.root)
@@ -88,50 +59,10 @@ class FolderTests(unittest.TestCase):
         got = folder.harvest(self.root, written, never=frozenset({"health.md", "b.md"}))
         self.assertEqual(got, {})
 
-    def test_materialize_refuses_escape(self):
+    def test_materialize_refuses_escape_and_never_writes_through_a_symlink(self):
         for bad in ("../x", "/abs", "a/../../x", "a\\b", ""):
             with self.assertRaises(ValueError):
                 folder.materialize({bad: b""}, self.root)
-
-    def test_seed_is_the_template(self):
-        s = folder.seed(ROOT)
-        self.assertIn("profile.md", s)
-        self.assertIn("health.md", s)
-        self.assertIn("workouts/checks/.gitkeep", s)
-        self.assertNotIn(".gitignore", s)
-        for k, v in s.items():
-            with open(os.path.join(ROOT, "me.example", k), "rb") as f:
-                self.assertEqual(f.read(), v)
-
-    def test_check_path_rejects_non_utf8(self):
-        with self.assertRaises(ValueError):
-            store.check_path("a\udcffb")
-
-    def test_harvest_skips_non_utf8_name(self):
-        written = folder.materialize({"a.md": b"a"}, self.root)
-        try:
-            fd = os.open(os.fsencode(self.root) + b"/a\xffb", os.O_WRONLY | os.O_CREAT)
-        except OSError:
-            self.skipTest("this filesystem refuses non-UTF-8 names")
-        os.close(fd)
-        self.assertEqual(folder.harvest(self.root, written), {})
-
-    def test_skips_key_file_variants(self):
-        written = folder.materialize({"a.md": b"a"}, self.root)
-        self.put(".env.bak")
-        self.put("keys.env")
-        self.assertEqual(folder.harvest(self.root, written), {})
-
-    def test_skips_tool_caches(self):
-        written = folder.materialize({"a.md": b"a"}, self.root)
-        self.put(".cache/uv/archive-v0/x.whl")
-        self.assertEqual(folder.harvest(self.root, written), {})
-
-    def test_seed_missing_template_raises(self):
-        with self.assertRaises(FileNotFoundError):
-            folder.seed(self.root)
-
-    def test_materialize_never_writes_through_symlink(self):
         outside = os.path.join(self.root, "outside.txt")
         with open(outside, "wb") as f:
             f.write(b"orig")

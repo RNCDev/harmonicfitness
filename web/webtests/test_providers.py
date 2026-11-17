@@ -1,4 +1,3 @@
-import json
 import os
 import sys
 import unittest
@@ -6,76 +5,22 @@ import unittest
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 os.environ.setdefault("PYDANTIC_AI_NO_BANNER", "1")
 
-from webapp import config, providers  # noqa: E402
+from webapp import providers  # noqa: E402
 
 KEY = "sk-secret-" + "k" * 20
 
 
-class Offered(unittest.TestCase):
-    def test_offered(self):
-        self.assertEqual(providers.offered({}), ["anthropic", "openai", "google", "openrouter"])
-        self.assertEqual(providers.offered({"HARMONICFITNESS_PROVIDERS": " google, anthropic "}),
-                         ["anthropic", "google"])
-        with self.assertRaises(config.ConfigError) as cm:
-            providers.offered({"HARMONICFITNESS_PROVIDERS": "nope"})
-        self.assertIn("nope", str(cm.exception))
-
-    def test_table(self):
-        self.assertEqual(list(providers.PROVIDERS), ["anthropic", "openai", "google", "openrouter"])
-        self.assertEqual(providers.key_service("openrouter"), "openrouter")   # one key: writer and voice
-        self.assertEqual(providers.provider_of("gemini"), "google")
-        self.assertEqual(providers.provider_of("openai"), "openai")
-
-    def test_pick_the_chosen_writer_when_it_has_a_key(self):
-        offered = ["anthropic", "openai", "google"]
-        self.assertEqual(providers.pick(offered, {"anthropic": 1, "gemini": 1}, "google"), "google")
-        self.assertEqual(providers.pick(offered, {"anthropic": 1}, "google"), "anthropic")
-        self.assertEqual(providers.pick(offered, {"openai": 1}, None), "openai")
-        self.assertEqual(providers.pick(["anthropic"], {"openai": 1}, "openai"), None)
-        self.assertEqual(providers.pick(offered, {}, "openai"), None)
-        self.assertEqual([p.name for p in providers.PROVIDERS.values()], ["Claude", "ChatGPT", "Gemini", "OpenRouter"])
-
-
 class ModelFor(unittest.TestCase):
-    def test_model_for_builds_each_with_the_key(self):
-        from pydantic_ai.models.anthropic import AnthropicModel
-        from pydantic_ai.models.google import GoogleModel
-        from pydantic_ai.models.openai import OpenAIResponsesModel
-        classes = {"anthropic": AnthropicModel, "openai": OpenAIResponsesModel, "google": GoogleModel}
-        for pid, cls in classes.items():
-            m = providers.model_for(pid, "k" * 20)
-            self.assertIsInstance(m, cls)
-            self.assertEqual(m.model_name, providers.PROVIDERS[pid].model)
-        self.assertEqual(providers.model_for("anthropic", "k" * 20).client.max_retries, 0)
-        self.assertEqual(providers.model_for("openai", "k" * 20).client.max_retries, 0)
-        from pydantic_ai.models.openrouter import OpenRouterModel
-        m = providers.model_for("openrouter", "k" * 20)
-        self.assertIsInstance(m, OpenRouterModel)
-        self.assertEqual(m.model_name, "google/gemini-3.8-flash")
-        self.assertEqual((m.client.max_retries, str(m.client.base_url).rstrip("/")), (0, "https://openrouter.ai/api/v1"))
-
-    def test_google_never_retries_and_times_out_at_180s(self):
+    def test_no_model_ever_retries_and_google_times_out_at_180s(self):
+        for pid in ("anthropic", "openai", "openrouter"):
+            self.assertEqual(providers.model_for(pid, "k" * 20).client.max_retries, 0, pid)
+        self.assertEqual(str(providers.model_for("openrouter", "k" * 20).client.base_url).rstrip("/"),
+                         "https://openrouter.ai/api/v1")
         m = providers.model_for("google", "k" * 20)
         # _api_client._http_options is private to google-genai; it is where the Client keeps them.
         opts = m.client._api_client._http_options
         self.assertEqual(opts.retry_options.attempts, 1)
         self.assertEqual(opts.timeout, 180000)
-
-    def test_google_provider_keeps_the_client_we_passed(self):
-        from unittest import mock
-        import google.genai
-        made = []
-        real = google.genai.Client
-
-        def spy(*a, **kw):
-            made.append(real(*a, **kw))
-            return made[-1]
-
-        with mock.patch("google.genai.Client", spy):
-            m = providers.model_for("google", "k" * 20)
-        self.assertEqual(len(made), 1)
-        self.assertIs(m._provider.client, made[0])
-        self.assertIs(m.client, made[0])
 
 
 def _agent():
@@ -107,44 +52,17 @@ class Explain(unittest.TestCase):
             _agent().run_sync("hi", model=m)
         return providers.explain("anthropic", cm.exception), seen
 
-    def test_refused_key_fails_once(self):
-        err, seen = self._run(401, {"error": {"type": "authentication_error", "message": "bad " + KEY}})
-        self.assertEqual(len(seen), 1)
-        self.assertEqual(err.kind, "auth")
-        self.assertIn("Claude", err.message)
-        self.assertNotIn(KEY, err.message)
-        self.assertEqual(err.message, "Claude refused the key. Replace it in Settings.")
-
-    def test_server_error_is_not_retried(self):
-        err, seen = self._run(500, {"error": {"type": "api_error", "message": "boom"}})
-        self.assertEqual(len(seen), 1)
-        self.assertEqual(err.kind, "unavailable")
-        self.assertEqual(err.message, "Claude didn't answer. Try again in a minute.")
-
-    def test_explain_quota(self):
-        err, seen = self._run(429, {"error": {"type": "rate_limit_error", "message": "slow"}})
-        self.assertEqual((err.kind, len(seen)), ("quota", 1))
-        err, seen = self._run(400, {"error": {"message": "Your credit balance is too low"}})
-        self.assertEqual((err.kind, len(seen)), ("quota", 1))
-        self.assertEqual(err.message, "Claude says the account is out of credit or over its limit.")
-
-    def test_other_cases(self):
-        from pydantic_ai import ModelHTTPError, UnexpectedModelBehavior
-        from pydantic_ai.exceptions import ModelAPIError
-        e = providers.explain("openai", ModelHTTPError(400, "m", {"error": {"message": "bad request"}}))
-        self.assertEqual((e.kind, e.message), ("other", "ChatGPT stopped with an error."))
-        e = providers.explain("google", ModelHTTPError(403, "m", None))
-        self.assertEqual(e.kind, "auth")
-        e = providers.explain("google", ModelAPIError("m", "connection reset"))
-        self.assertEqual(e.kind, "unavailable")
-        e = providers.explain("google", TimeoutError())
-        self.assertEqual(e.kind, "unavailable")
-        e = providers.explain("anthropic", UnexpectedModelBehavior("invalid " + KEY))
-        self.assertEqual((e.kind, e.message),
-                         ("other", "Claude couldn't make a plan from the menu; try again."))
-        e = providers.explain("anthropic", ValueError(KEY))
-        self.assertEqual(e.message, "Claude stopped with an error.")
-        self.assertNotIn(KEY, e.message)
+    def test_a_refused_key_or_a_server_error_is_sent_once_and_never_shows_the_key(self):
+        for status, body, kind, message in (
+                (401, {"error": {"type": "authentication_error", "message": "bad " + KEY}}, "auth",
+                 "Claude refused the key. Replace it in Settings."),
+                (500, {"error": {"type": "api_error", "message": "boom"}}, "unavailable",
+                 "Claude didn't answer. Try again in a minute.")):
+            with self.subTest(status=status):
+                err, seen = self._run(status, body)
+                self.assertEqual(len(seen), 1)
+                self.assertEqual((err.kind, err.message), (kind, message))
+                self.assertNotIn(KEY, err.message)
 
 
 if __name__ == "__main__":

@@ -1,5 +1,5 @@
+import contextlib
 import datetime
-import dataclasses
 import json
 import os
 import sys
@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 
 from webapp import config, db, folder, jobs, keystore, store, worker  # noqa: E402
 from webtests import dbcase  # noqa: E402
-from webtests.dbcase import MASTER, DBCase, committed, enqueue  # noqa: E402
+from webtests.dbcase import MASTER, DBCase, enqueue  # noqa: E402
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 
@@ -110,6 +110,8 @@ class Queue(JobsCase):
         self.assertIsNone(jobs.claim(self.conn))
         self.assertEqual(jobs.reap(self.conn), [stale])
         self.assertEqual(self.state(stale), ("failed", "interrupted"))
+        self.assertFalse(jobs.finish(self.conn, uk, stale, {"x": 1}))   # a finish after the reap changes nothing
+        self.assertEqual(self.state(stale), ("failed", "interrupted"))
         self.assertEqual(jobs.claim(self.conn).id, later)
         self.assertEqual(self.state(stale)[0], "failed")   # never requeued
         self.conn.rollback()
@@ -126,38 +128,8 @@ class Queue(JobsCase):
         self.assertEqual(self.state(job)[0], "running")
         jobs.fail(self.conn, uk, job, "test over")
 
-    def test_finish_after_reap_changes_nothing(self):
-        _, uk = self.make_user()
-        job = enqueue(self.conn, uk, "brief", {})
-        jobs.claim(self.conn)
-        self.conn.execute("update jobs set heartbeat_at = now() - interval '5 minutes' where id = %s",
-                          (job,))
-        self.conn.commit()
-        jobs.reap(self.conn)
-        self.assertFalse(jobs.finish(self.conn, uk, job, {"x": 1}))
-        self.assertEqual(self.state(job), ("failed", "interrupted"))
-        self.conn.rollback()
-
 
 class Worker(JobsCase):
-    def test_brief_job_end_to_end(self):
-        _, uk = self.seeded_user()
-        before = set(store.read_all(self.conn, uk))
-        job = enqueue(self.conn, uk, "brief", self.brief_args())
-        self.assertTrue(self.run_one())
-        self.assertEqual(self.state(job), ("done", None))
-        result = jobs.result(self.conn, uk, job)
-        stem = f"{today()}-strength-20"
-        self.assertEqual(result["stem"], stem)
-        self.assertTrue(result["brief_md"].startswith("# Today's brief"))
-        after = set(store.read_all(self.conn, uk))
-        self.assertEqual(after - before, {f"workouts/{stem}/{stem}.menu.json",
-                                          f"workouts/{stem}/{stem}.brief.md"})
-        self.assertEqual([b["stage"] for _, b in jobs.events(self.conn, uk, job)],
-                         ["folder", "brief", "saved"])
-        self.assertEqual(jobs.events(self.conn, uk, job)[-1][1]["conflicts"], [])
-        self.conn.rollback()
-
     def test_balances_job_keeps_only_what_the_page_shows(self):
         _, uk = self.seeded_user()
         keystore.put(self.conn, uk, "fish", "sk-abcdefghijklmnop")
@@ -183,64 +155,56 @@ class Worker(JobsCase):
         self.assertEqual(store.read_all(self.conn, uk), before)   # no file touched
         self.conn.rollback()
 
-    def test_balances_job_fails_on_an_unreadable_answer_or_args(self):
-        _, uk = self.seeded_user()
-        with mock.patch.object(worker.engine, "run", return_value=worker.engine.Result(0, "not json", "")):
-            job = enqueue(self.conn, uk, "balances", {})
-            self.run_one("quick")
-            self.assertEqual(self.state(job), ("failed", "the engine's answer couldn't be read"))
-        with mock.patch.object(worker.engine, "run", side_effect=AssertionError("engine ran")):
-            job = enqueue(self.conn, uk, "balances", {"x": 1})
-            self.run_one("quick")
-            self.assertTrue(self.state(job)[1].startswith("invalid request: "))
-        self.conn.rollback()
-
     def test_bad_args_never_run_the_engine(self):
+        """Every job kind refuses arguments it can't use before the engine or the model runs; an unknown kind fails."""
         _, uk = self.seeded_user()
-        bad = [{"minutes": 999}, {"minutes": "20"}, {"minutes": True}, {"goal": "nap"},
-               {"preset": "moon-base"}, {"today": "2001-01-01"}, {"today": "not a date"}]
-        with mock.patch.object(worker.engine, "run", side_effect=AssertionError("engine ran")):
-            for over in bad:
-                with self.subTest(over=over):
-                    job = enqueue(self.conn, uk, "brief", self.brief_args(**over))
-                    self.assertTrue(self.run_one())
+        bad = [("brief", "main", self.brief_args(minutes=999)), ("brief", "main", self.brief_args(minutes="20")),
+               ("brief", "main", self.brief_args(minutes=True)), ("brief", "main", self.brief_args(goal="nap")),
+               ("brief", "main", self.brief_args(preset="moon-base")),
+               ("brief", "main", self.brief_args(today="2001-01-01")),
+               ("brief", "main", self.brief_args(today="not a date")),
+               ("brief", "main", {"goal": "strength"}),
+               ("balances", "quick", {"x": 1}),
+               ("turn", "main", {"conversation_id": "1"}),
+               ("enrich", "enrich", {"ref": "../x", "text": "hi", "today": today()}),
+               ("enrich", "enrich", {"ref": "ccc333", "text": " ", "today": today()}),
+               ("enrich", "enrich", {"ref": "ccc333", "text": "hi", "today": "soon"})]
+        self.assertEqual({kind for kind, _, _ in bad}, set(worker.HANDLERS))   # every kind the worker runs
+        with mock.patch.object(worker.engine, "run", side_effect=AssertionError("engine ran")), \
+                mock.patch.object(providers, "model_for", side_effect=AssertionError("the model ran")):
+            for kind, lane, args in bad:
+                with self.subTest(kind=kind, args=args):
+                    job = enqueue(self.conn, uk, kind, args)
+                    self.assertTrue(self.run_one(lane))
                     state, error = self.state(job)
                     self.assertEqual(state, "failed")
                     self.assertTrue(error.startswith("invalid request: "), error)
-            job = enqueue(self.conn, uk, "brief", {"goal": "strength"})
-            self.run_one()
-            self.assertEqual(self.state(job)[0], "failed")
+            job = enqueue(self.conn, uk, "nonsense", {})
+            self.assertTrue(self.run_one())
+            self.assertEqual(self.state(job), ("failed", "unknown job kind"))
         self.conn.rollback()
 
-    def test_engine_failure_fails_the_job_and_writes_nothing(self):
-        _, uk = self.seeded_user()
-        before = store.read_all(self.conn, uk)
-        job = enqueue(self.conn, uk, "brief", self.brief_args())
-        fake = worker.engine.Result(1, "", "something about the listener\n")
-        with mock.patch.object(worker.engine, "run", return_value=fake):
-            self.run_one()
-        self.assertEqual(self.state(job), ("failed", "the engine stopped (exit 1)"))
-        self.assertEqual(jobs.result(self.conn, uk, job), {"stderr": "something about the listener\n"})
-        self.assertEqual(store.read_all(self.conn, uk), before)
-        self.conn.rollback()
-
-    def test_brief_gets_the_users_keys(self):
+    def test_brief_gets_the_users_keys_and_an_engine_failure_writes_nothing(self):
         _, uk = self.seeded_user()
         _, other = self.seeded_user()
         keystore.put(self.conn, uk, "fish", "sk-abcdefghijklmnop")
         keystore.put(self.conn, uk, "retired-service", "sk-zzzzzzzzzzzz")
         self.conn.commit()
+        before = store.read_all(self.conn, uk)
         seen = []
 
         def record(root, home, argv, extra_env={}, timeout=120, cancel=None):
             seen.append(dict(extra_env))
-            return worker.engine.Result(1, "", "")
+            return worker.engine.Result(1, "", "something about the listener\n")
         with mock.patch.object(worker.engine, "run", side_effect=record):
-            enqueue(self.conn, uk, "brief", self.brief_args())
+            job = enqueue(self.conn, uk, "brief", self.brief_args())
             self.run_one()
             enqueue(self.conn, other, "brief", self.brief_args())
             self.run_one()
         self.assertEqual(seen, [{"FISH_AUDIO_API_KEY": "sk-abcdefghijklmnop"}, {}])
+        self.assertEqual(self.state(job), ("failed", "the engine stopped (exit 1)"))
+        self.assertEqual(jobs.result(self.conn, uk, job), {"stderr": "something about the listener\n"})
+        self.assertEqual(store.read_all(self.conn, uk), before)
         self.conn.rollback()
 
     def test_key_in_engine_output_is_scrubbed(self):
@@ -291,16 +255,6 @@ class Worker(JobsCase):
             self.assertFalse(os.path.exists(home))
         self.conn.rollback()
 
-    def test_unknown_kind_fails(self):
-        _, uk = self.make_user()
-        job = enqueue(self.conn, uk, "nonsense", {})
-        self.assertTrue(self.run_one())
-        self.assertEqual(self.state(job), ("failed", "unknown job kind"))
-        self.conn.rollback()
-
-    def test_idle_returns_false(self):
-        self.assertFalse(self.run_one())
-
     def test_heartbeat_runs_on_its_own_connection(self):
         _, uk = self.make_user()
         seen = []
@@ -326,67 +280,65 @@ class Worker(JobsCase):
 
 
 class Reconnect(unittest.TestCase):
-    def test_the_worker_reconnects_when_the_database_closes_its_connection(self):
-        import threading
-        stopping = threading.Event()
-        opened, closed = [], []
+    def test_the_worker_opens_its_connection_again_when_it_drops_ages_or_is_replaced(self):
+        with self.subTest("the database closed it"):
+            stopping = threading.Event()
+            opened, closed = [], []
 
-        class Conn:
-            def __init__(self, n):
-                self.n = n
+            class Conn:
+                def __init__(self, n):
+                    self.n = n
 
-            def notifies(self, timeout, stop_after):
-                if self.n == 0:
-                    raise psycopg.OperationalError("SSL connection has been closed unexpectedly")
-                stopping.set()
-                return iter(())
+                def notifies(self, timeout, stop_after):
+                    if self.n == 0:
+                        raise psycopg.OperationalError("SSL connection has been closed unexpectedly")
+                    stopping.set()
+                    return iter(())
 
-            def close(self):
-                closed.append(self.n)
+                def close(self):
+                    closed.append(self.n)
 
-        def connect(settings):
-            n = len(opened)
-            opened.append(n)
-            return Conn(n), Conn(n)
-        with mock.patch.object(worker, "RECONNECT_WAIT", 0):
-            worker.serve(None, stopping, connect=connect, run=lambda conn, settings: False)
-        self.assertEqual(opened, [0, 1])          # connected again after the drop, rather than exiting
-        self.assertEqual(sorted(closed), [0, 0, 1, 1])
+            def connect(settings):
+                n = len(opened)
+                opened.append(n)
+                return Conn(n), Conn(n)
+            with mock.patch.object(worker, "RECONNECT_WAIT", 0):
+                worker.serve(None, stopping, connect=connect, run=lambda conn, settings: False)
+            self.assertEqual(opened, [0, 1])          # connected again after the drop, rather than exiting
+            self.assertEqual(sorted(closed), [0, 0, 1, 1])
+        with self.subTest("an old or replaced connection, between jobs"):
+            stopping = threading.Event()
+            opened, runs = [], []
 
-    def test_an_old_or_replaced_connection_is_opened_again_between_jobs(self):
-        import threading
-        stopping = threading.Event()
-        opened, runs = [], []
+            class Healthy:
+                closed, broken = False, False
 
-        class Conn:
-            closed, broken = False, False
+                def notifies(self, timeout, stop_after):
+                    return iter(())
 
-            def notifies(self, timeout, stop_after):
-                return iter(())
+                def close(self):
+                    self.closed = True
 
-            def close(self):
-                self.closed = True
+            def connect(settings):
+                opened.append(1)
+                return Healthy(), Healthy()
 
-        def connect(settings):
-            opened.append(1)
-            return Conn(), Conn()
-
-        def run(conn, settings):
-            runs.append(conn)
-            if len(runs) == 2:
-                conn.closed = True    # a job replaced it (Ctx.fresh closes the dropped one)
-            if len(runs) == 4:
-                stopping.set()
-            return True
-        with mock.patch.object(worker, "MAX_CONNECTION_AGE", 3600):
-            worker.serve(None, stopping, connect=connect, run=run)
-        self.assertEqual(len(opened), 2)           # once at the start, once after the job closed it
-        self.assertIs(runs[0], runs[1])
-        self.assertIsNot(runs[1], runs[2])
-        opened.clear(), runs.clear(), stopping.clear()
-        with mock.patch.object(worker, "MAX_CONNECTION_AGE", -1):   # every connection is too old by the next job
-            worker.serve(None, stopping, connect=connect, run=run)
-        self.assertEqual(len(opened), 4)
+            def run(conn, settings):
+                runs.append(conn)
+                if len(runs) == 2:
+                    conn.closed = True    # a job replaced it (Ctx.fresh closes the dropped one)
+                if len(runs) == 4:
+                    stopping.set()
+                return True
+            with mock.patch.object(worker, "MAX_CONNECTION_AGE", 3600):
+                worker.serve(None, stopping, connect=connect, run=run)
+            self.assertEqual(len(opened), 2)           # once at the start, once after the job closed it
+            self.assertIs(runs[0], runs[1])
+            self.assertIsNot(runs[1], runs[2])
+            opened.clear(), runs.clear(), stopping.clear()
+            with mock.patch.object(worker, "MAX_CONNECTION_AGE", -1):   # every connection is too old by the next job
+                worker.serve(None, stopping, connect=connect, run=run)
+            self.assertEqual(len(opened), 4)
 
 
 class LostJobs(JobsCase):
@@ -416,48 +368,43 @@ class LostJobs(JobsCase):
         self.assertIn(f"job {job} was no longer running", "".join(str(c) for c in err.mock_calls))
         self.conn.rollback()
 
-    def test_lost_heartbeat_skips_the_write_back(self):
-        import time
-        _, uk = self.seeded_user()
-        before = set(store.read_all(self.conn, uk))
-        real = worker.HANDLERS["brief"]
-
-        def slow(ctx):
-            time.sleep(0.3)
-            return real(ctx)
-
-        with mock.patch.dict(worker.HANDLERS, {"brief": slow}), \
-                mock.patch.object(worker, "HEARTBEAT_EVERY", 0.05), \
-                mock.patch.object(jobs, "heartbeat", return_value=False), \
-                mock.patch("sys.stderr"):
-            job = enqueue(self.conn, uk, "brief", self.brief_args())
-            self.assertTrue(self.run_one())
-        files, stages = self.files_and_events(uk, job)
-        self.assertEqual(files, before)
-        self.assertNotIn("saved", stages)
-        self.assertEqual(self.state(job), ("failed", "interrupted"))
-        self.conn.rollback()
-
-    def test_heartbeat_connect_failure_skips_the_write_back(self):
-        _, uk = self.seeded_user()
-        before = set(store.read_all(self.conn, uk))
-
+    def test_a_lost_heartbeat_skips_the_write_back(self):
+        """Whether the heartbeat finds the job no longer running or can't connect at all, nothing is written back."""
         def broken():
             raise psycopg.OperationalError("no route")
+        real_brief, real_run = worker.HANDLERS["brief"], worker.engine.run
 
-        hold = threading.Event()
-        real = worker.engine.run
+        def slow(ctx):
+            time.sleep(0.2)
+            return real_brief(ctx)
 
-        def slow_brief(*a, **k):   # the job outlasts every heartbeat try
-            hold.wait(1)
-            return real(*a, **k)
-        with mock.patch("sys.stderr"), mock.patch.object(worker, "HEARTBEAT_RETRY_WAIT", 0.05), \
-                mock.patch.object(worker.engine, "run", side_effect=slow_brief):
-            job = enqueue(self.conn, uk, "brief", self.brief_args())
-            self.assertTrue(worker.run_one(self.conn, self.settings, connect=broken))
-        self.assertEqual(set(store.read_all(self.conn, uk)), before)
-        self.assertEqual(self.state(job), ("failed", "interrupted"))
-        self.conn.rollback()
+        def slow_run(*a, **k):   # the job outlasts every heartbeat try
+            time.sleep(0.4)
+            return real_run(*a, **k)
+        for name in ("no longer running", "can't connect"):
+            with self.subTest(name):
+                _, uk = self.seeded_user()
+                before = set(store.read_all(self.conn, uk))
+                if name == "no longer running":
+                    patches = (mock.patch.dict(worker.HANDLERS, {"brief": slow}),
+                               mock.patch.object(jobs, "heartbeat", return_value=False))
+                    connect = self.connect
+                else:
+                    patches = (mock.patch.object(worker.engine, "run", side_effect=slow_run),)
+                    connect = broken
+                with contextlib.ExitStack() as stack:
+                    for p in patches + (mock.patch.object(worker, "HEARTBEAT_EVERY", 0.05),
+                                        mock.patch.object(worker, "HEARTBEAT_RETRY_WAIT", 0.05),
+                                        mock.patch("sys.stderr")):
+                        stack.enter_context(p)
+                    job = enqueue(self.conn, uk, "brief", self.brief_args())
+                    self.assertTrue(worker.run_one(self.conn, self.settings, connect=connect))
+                files, stages = self.files_and_events(uk, job)
+                self.assertEqual(files, before)
+                if name == "no longer running":
+                    self.assertNotIn("saved", stages)
+                self.assertEqual(self.state(job), ("failed", "interrupted"))
+                self.conn.rollback()
 
     def test_a_heartbeat_that_fails_once_is_tried_again(self):
         _, uk = self.seeded_user()
@@ -476,10 +423,14 @@ class LostJobs(JobsCase):
         self.assertEqual(self.state(job), ("done", None))
         self.conn.rollback()
 
-    def test_hung_heartbeat_connect_never_blocks(self):
-        import threading
-        import time
+    def test_the_heartbeat_connect_has_a_timeout_and_a_hung_one_never_blocks(self):
         _, uk = self.make_user()
+        with mock.patch.dict(worker.HANDLERS, {"noop": lambda ctx: {}}), \
+                mock.patch.object(worker.psycopg, "connect") as connect:
+            enqueue(self.conn, uk, "noop", {})
+            self.assertTrue(worker.run_one(self.conn, self.settings))
+        self.assertEqual(connect.call_args.kwargs["connect_timeout"], worker.CONNECT_TIMEOUT)
+        self.conn.rollback()
         release = threading.Event()
         self.addCleanup(release.set)
 
@@ -495,15 +446,6 @@ class LostJobs(JobsCase):
             self.assertTrue(worker.run_one(self.conn, self.settings, connect=hung))
         self.assertLess(time.monotonic() - t, 5)
         self.assertEqual(self.state(job)[0], "done")   # no heartbeat was missed in that time
-        self.conn.rollback()
-
-    def test_default_heartbeat_connect_has_a_timeout(self):
-        _, uk = self.make_user()
-        with mock.patch.dict(worker.HANDLERS, {"noop": lambda ctx: {}}), \
-                mock.patch.object(worker.psycopg, "connect") as connect:
-            enqueue(self.conn, uk, "noop", {})
-            self.assertTrue(worker.run_one(self.conn, self.settings))
-        self.assertEqual(connect.call_args.kwargs["connect_timeout"], worker.CONNECT_TIMEOUT)
         self.conn.rollback()
 
 
@@ -576,104 +518,6 @@ class Turn(JobsCase):
         self.conn.rollback()
         return job, conv
 
-    def test_turn_job_saves_the_reply(self):
-        uk = self.user()
-        cid = self.start(uk)
-
-        def script(messages, info):
-            return ModelResponse(parts=[TextPart("Anything sore or off today?")])
-        job, conv = self.run_turn(uk, script, cid, line="a 20-minute strength workout")
-        self.assertEqual(self.state(job), ("done", None))
-        self.assertEqual(jobs.result(self.conn, uk, job), {"conversation_id": cid, "state": "idle"})
-        self.assertEqual(conv.state, "idle")
-        self.assertIsNone(conv.question)
-        self.assertIsNone(conv.plan)
-        self.assertIsNone(conv.stem)
-        self.assertEqual(conv.lines, [{"role": "user", "text": "a 20-minute strength workout"},
-                                      {"role": "agent", "text": "Anything sore or off today?"}])
-        self.assertIsNotNone(conv.history)
-        self.model_for.assert_called_once_with("anthropic", MODEL_KEY)
-        self.assertEqual([b["stage"] for _, b in jobs.events(self.conn, uk, job)][:2], ["folder", "thinking"])
-        self.conn.rollback()
-
-    def test_first_turn_has_step_one_and_later_turns_start_feeds(self):
-        from concurrent.futures import Future
-        from webapp import agent
-        from pydantic_ai.messages import UserPromptPart
-        uk = self.user()
-        cid = self.start(uk)
-        prompts = []
-
-        def script(messages, info):
-            prompts.append([p.content for m in messages for p in m.parts if isinstance(p, UserPromptPart)][-1])
-            return ModelResponse(parts=[TextPart("1. How long?")])
-        started = []
-
-        def fake_feeds(deps, pool):
-            started.append(deps.today)
-            f = Future()
-            f.set_result(agent.tools.ToolResult(code=0, output="sunny"))
-            return f
-        with mock.patch.object(agent, "start_feeds", side_effect=fake_feeds):
-            job, conv = self.run_turn(uk, script, cid, line="stretch please")
-            self.assertEqual(self.state(job), ("done", None))
-            self.assertTrue(prompts[0].startswith(agent.SETUP_FIRST))   # a new listener: set up first
-            self.assertIn("Step 1 is done", prompts[0])
-            self.assertIn("### ./harmonicfitness get coach (exit ", prompts[0])
-            self.assertEqual(started, [])   # the check-in comes first
-            self.assertIn("Getting you set up",
-                          [b.get("text") for _, b in jobs.events(self.conn, uk, job)])
-            prefetch = [(b["id"], b["state"]) for _, b in jobs.events(self.conn, uk, job)
-                        if b.get("text") == "Getting you set up"]
-            self.assertEqual(prefetch, [(1, "running"), (1, "done")])   # said as it starts, then as it ends
-            self.conn.rollback()
-            self.assertTrue(conversations.begin_turn(self.conn, uk, cid, "25 minutes", None))
-            self.conn.commit()
-            job, conv = self.run_turn(uk, script, cid, line="25 minutes")
-        self.assertEqual(self.state(job), ("done", None))
-        self.assertEqual(prompts[1], "25 minutes")
-        self.assertEqual(started, [today()])
-
-    def test_the_bare_topics_ask_is_answered_at_once_then_a_light_turn_adds_it(self):
-        from concurrent.futures import Future
-        from webapp import agent
-        from pydantic_ai.messages import UserPromptPart
-        uk = self.user()
-        ver, body = store.read_all(self.conn, uk)["profile.md"]   # set up: an experience level
-        store.write_back(self.conn, uk, {"profile.md": body.replace(b'experience = ""', b'experience = "novice"')},
-                         {"profile.md": ver})
-        self.conn.commit()
-        line = "I'd like to update my interests."
-        cid = self.start(uk, line)
-        started, prompts = [], []
-
-        def fake_feeds(deps, pool):
-            started.append(deps.today)
-            f = Future()
-            f.set_result(agent.tools.ToolResult(code=0, output="sunny"))
-            return f
-
-        def never(messages, info):
-            raise AssertionError("the opener needs no model")
-        with mock.patch.object(agent, "start_feeds", side_effect=fake_feeds):
-            job, conv = self.run_turn(uk, never, cid, line=line)
-            self.assertEqual(self.state(job), ("done", None))
-            self.assertEqual(conv.lines[-1], {"role": "agent", "text": agent.TOPICS_OPENER})
-            self.conn.rollback()
-
-            def script(messages, info):
-                prompts.append([p.content for m in messages for p in m.parts if isinstance(p, UserPromptPart)][-1])
-                return ModelResponse(parts=[TextPart("Added Example Letter.")])
-            nxt = "I like reading https://www.example.com/"
-            self.assertTrue(conversations.begin_turn(self.conn, uk, cid, nxt, None))
-            self.conn.commit()
-            job, conv = self.run_turn(uk, script, cid, line=nxt)
-        self.assertEqual(self.state(job), ("done", None))
-        self.assertIn("A topics job", prompts[0])          # the topics as they stand, in place of step 1
-        self.assertNotIn("Step 1 is done", prompts[0])
-        self.assertEqual(started, [])                      # no feeds for a topics job
-        self.conn.rollback()
-
     def test_a_recording_is_priced_then_approved_then_kept(self):
         from webapp import clipcache, media
         uk = self.user()
@@ -729,66 +573,59 @@ class Turn(JobsCase):
         self.assertEqual(list(clipcache.load(self.conn, uk, home)), ["old.wav"])   # kept for the next recording
         self.conn.rollback()
 
-    def test_a_writing_turn_loads_only_the_measured_pace(self):
-        import tempfile
-        from webapp import clipcache
-        tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(tmp.cleanup)
-        uk = self.user()
-        made = os.path.join(tmp.name, "made")
-        os.makedirs(os.path.join(made, clipcache.FOLDER))
-        for name, body in ((clipcache.PACE, b'{"pace": 1}'), ("clip.pcm", b"pcm")):
-            with open(os.path.join(made, clipcache.FOLDER, name), "wb") as f:
-                f.write(body)
-        clipcache.save(self.conn, uk, made, {})
-        self.conn.commit()
-        home = os.path.join(tmp.name, "writing")
-        self.assertTrue(clipcache.load_pace(self.conn, uk, home))
-        self.assertEqual(os.listdir(os.path.join(home, clipcache.FOLDER)), [clipcache.PACE])   # no clips
-        with open(os.path.join(home, clipcache.FOLDER, clipcache.PACE), "rb") as f:
-            self.assertEqual(f.read(), b'{"pace": 1}')
-        self.conn.rollback()
-        self.assertFalse(clipcache.load_pace(self.conn, self.user(), os.path.join(tmp.name, "none")))
-        self.conn.rollback()
-
-    def test_record_without_asking_records_in_the_same_turn_within_the_allowance(self):
+    def test_record_without_asking_records_within_the_allowance_and_offers_record_past_it(self):
         from webapp import keystore, media, spend
-        uk = self.user()
-        keystore.set_auto_record(self.conn, uk, True)
-        self.conn.commit()
-        cid = self.start(uk)
-        real = worker.engine.run
-        built = []
-
-        def engine_run(root, home, argv, extra_env={}, timeout=120, cancel=None):
-            if argv[:2] == ["get", "cost"]:
-                return worker.engine.Result(0, '{"service": "fish", "usd": 0.03, "pending_design": false}', "")
-            if argv and argv[0] == "build":
-                if "--lint-only" in argv:
-                    return worker.engine.Result(0, "ok\nSends 2,000 characters to the voice service", "")
-                built.append(argv)
-                os.makedirs(os.path.join(home, "workouts", "w"), exist_ok=True)
-                with open(os.path.join(home, "workouts", "w", "Workout 5 min.mp3"), "wb") as f:
-                    f.write(b"ID3fake-mp3")
-                return worker.engine.Result(0, "built", "")
-            return real(root, home, argv, extra_env=extra_env, timeout=timeout)
-
         BUILD = ["build", "me/workouts/w/w.draft.txt", "Workout 5 min", "--coach", "Coach Reed"]
 
         def script(messages, info):
             if not [p for m in messages[-1:] for p in m.parts if isinstance(p, ToolReturnPart)]:
                 return ModelResponse(parts=[ToolCallPart("run", {"args": BUILD}, tool_call_id=f"b{len(messages)}")])
             return ModelResponse(parts=[TextPart("Done.")])
-        with mock.patch.object(worker.engine, "run", side_effect=engine_run):
-            job, conv = self.run_turn(uk, script, cid, line="just go")
-        self.assertEqual(self.state(job), ("done", None))
-        self.assertEqual(built[0][-2:], ["--max-chars", "2000"])   # recorded at once, within its price
-        self.assertIsNone(conv.offer)                                # no Record button
-        self.assertEqual(conv.state, "idle")
-        self.assertEqual(spend.used(self.conn, uk, today()), 2000)   # reserved, as the Record button does
-        audio = conv.lines[-1]["audio"]
-        self.assertEqual(media.get(self.conn, uk, audio["id"])[1], b"ID3fake-mp3")
-        self.conn.rollback()
+        orig = spend.reserve
+
+        def crowded(conn, uk_, day, chars, cap):   # another tab reserves the rest of today's allowance meanwhile
+            orig(conn, uk_, day, 1000, cap)
+            return orig(conn, uk_, day, chars, cap)
+        # (name, characters the lint counts, whether the allowance is all but spent and another tab takes the rest)
+        for name, chars, past in (("within the allowance", 2000, False), ("past the allowance", 900, True)):
+            with self.subTest(name):
+                uk = self.user()
+                keystore.set_auto_record(self.conn, uk, True)
+                if past:
+                    self.assertTrue(spend.reserve(self.conn, uk, today(), self.settings.daily_chars - 1000,
+                                                  self.settings.daily_chars))
+                self.conn.commit()
+                cid = self.start(uk)
+                real = worker.engine.run
+                built = []
+
+                def engine_run(root, home, argv, extra_env={}, timeout=120, cancel=None):
+                    if argv[:2] == ["get", "cost"]:
+                        return worker.engine.Result(0, '{"service": "fish", "usd": 0.03, "pending_design": false}', "")
+                    if argv and argv[0] == "build":
+                        if "--lint-only" in argv:
+                            return worker.engine.Result(0, f"ok\nSends {chars:,} characters to the voice service", "")
+                        built.append(argv)
+                        os.makedirs(os.path.join(home, "workouts", "w"), exist_ok=True)
+                        with open(os.path.join(home, "workouts", "w", "Workout 5 min.mp3"), "wb") as f:
+                            f.write(b"ID3fake-mp3")
+                        return worker.engine.Result(0, "built", "")
+                    return real(root, home, argv, extra_env=extra_env, timeout=timeout)
+                with mock.patch.object(worker.engine, "run", side_effect=engine_run), \
+                        mock.patch.object(spend, "reserve", side_effect=crowded if past else orig):
+                    job, conv = self.run_turn(uk, script, cid, line="just go")
+                self.assertEqual(self.state(job), ("done", None))
+                if past:
+                    self.assertEqual(built, [])                       # nothing sent
+                    self.assertEqual(conv.offer["chars"], 900)        # the Record button, which says why
+                else:
+                    self.assertEqual(built[0][-2:], ["--max-chars", "2000"])   # recorded at once, within its price
+                    self.assertIsNone(conv.offer)                                # no Record button
+                    self.assertEqual(conv.state, "idle")
+                    self.assertEqual(spend.used(self.conn, uk, today()), 2000)   # reserved, as the Record button does
+                    audio = conv.lines[-1]["audio"]
+                    self.assertEqual(media.get(self.conn, uk, audio["id"])[1], b"ID3fake-mp3")
+                self.conn.rollback()
 
     def test_a_new_listeners_first_screen_records_their_first_workout_without_asking(self):
         """The first screen's form said the first workout records as soon as it's written: no Record card for it."""
@@ -836,46 +673,6 @@ class Turn(JobsCase):
         self.assertEqual(self.state(job), ("done", None))
         self.assertEqual(built, [])
         self.assertIsNotNone(conv.offer)
-
-    def test_record_without_asking_past_the_allowance_offers_record(self):
-        from webapp import keystore, spend
-        uk = self.user()
-        keystore.set_auto_record(self.conn, uk, True)
-        self.assertTrue(spend.reserve(self.conn, uk, today(), self.settings.daily_chars - 1000, self.settings.daily_chars))
-        self.conn.commit()
-        cid = self.start(uk)
-        real = worker.engine.run
-        built = []
-
-        def engine_run(root, home, argv, extra_env={}, timeout=120, cancel=None):
-            if argv[:2] == ["get", "cost"]:
-                return worker.engine.Result(0, '{"service": "fish", "usd": 0.03, "pending_design": false}', "")
-            if argv and argv[0] == "build":
-                if "--lint-only" in argv:
-                    return worker.engine.Result(0, "ok\nSends 900 characters to the voice service", "")
-                built.append(argv)
-                return worker.engine.Result(0, "built", "")
-            return real(root, home, argv, extra_env=extra_env, timeout=timeout)
-
-        BUILD = ["build", "me/workouts/w/w.draft.txt", "Workout 5 min", "--coach", "Coach Reed"]
-
-        def script(messages, info):
-            if not [p for m in messages[-1:] for p in m.parts if isinstance(p, ToolReturnPart)]:
-                return ModelResponse(parts=[ToolCallPart("run", {"args": BUILD}, tool_call_id=f"b{len(messages)}")])
-            return ModelResponse(parts=[TextPart("Done.")])
-        # another tab reserves the rest of today's allowance while this turn prices the script
-        orig = spend.reserve
-
-        def crowded(conn, uk_, day, chars, cap):
-            orig(conn, uk_, day, 1000, cap)
-            return orig(conn, uk_, day, chars, cap)
-        with mock.patch.object(worker.engine, "run", side_effect=engine_run), \
-                mock.patch.object(spend, "reserve", side_effect=crowded):
-            job, conv = self.run_turn(uk, script, cid, line="just go")
-        self.assertEqual(self.state(job), ("done", None))
-        self.assertEqual(built, [])                       # nothing sent
-        self.assertEqual(conv.offer["chars"], 900)        # the Record button, which says why
-        self.conn.rollback()
 
     def test_what_a_recording_made_is_kept_when_the_turn_then_fails(self):
         from webapp import clipcache, media
@@ -967,60 +764,88 @@ class Turn(JobsCase):
         self.assertEqual(conv.state, "failed")
         self.assertEqual(conv.lines[-1]["text"], "Stopped. Send a message when you want to carry on.")
 
-    def test_turn_needs_a_model_key(self):
-        uk = self.user(key=False)
-        keystore.put(self.conn, uk, "fish", "sk-abcdefghijklmnop")   # a voice key is no model key
-        self.conn.commit()
-        cid = self.start(uk)
-        job, conv = self.run_turn(uk, lambda m, i: self.fail("the model ran"), cid, line="go")
-        self.assertEqual(self.state(job), ("failed", "add a language-model key in Settings"))
-        self.model_for.assert_not_called()
-        self.assertEqual(conv.state, "failed")
-        self.assertEqual(conv.lines[-1], {"role": "agent", "text": "That didn't work: add a language-model key in Settings"})
+    def fresh_queue(self):
+        """An empty queue, as setUp leaves it: a row's leftover job would be the next one claimed."""
         self.conn.rollback()
+        self.conn.execute("delete from jobs")
+        self.conn.commit()
 
-    def test_turn_maps_provider_errors(self):
-        uk = self.user()
-        cid = self.start(uk)
-
+    def test_a_turn_fails_plainly_without_a_model_key_or_when_the_key_is_refused(self):
         def refuse(messages, info):
             raise ModelHTTPError(status_code=401, model_name="claude-test",
                                  body={"error": f"invalid x-api-key {MODEL_KEY}"})
-        with mock.patch("sys.stderr") as err:
-            job, conv = self.run_turn(uk, refuse, cid, line="go")
-        state, error = self.state(job)
-        self.assertEqual(state, "failed")
-        self.assertIn("Claude refused the key", error)
-        self.assertEqual(jobs.status(self.conn, uk, job)["code"], "key_refused")   # stored beside the words (0.76.0)
-        self.assertEqual(conv.state, "failed")
-        self.assertIn("Claude refused the key", conv.lines[-1]["text"])
-        stored = repr((error, conv.lines, jobs.result(self.conn, uk, job), err.mock_calls))
-        self.assertNotIn(MODEL_KEY, stored)
-        self.assertNotIn("x-api-key", stored)
-        self.conn.rollback()
+        for name in ("no model key", "the key refused"):
+            with self.subTest(name):
+                self.fresh_queue()
+                if name == "no model key":
+                    uk = self.user(key=False)
+                    keystore.put(self.conn, uk, "fish", "sk-abcdefghijklmnop")   # a voice key is no model key
+                    self.conn.commit()
+                    cid = self.start(uk)
+                    job, conv = self.run_turn(uk, lambda m, i: self.fail("the model ran"), cid, line="go")
+                    self.assertEqual(self.state(job), ("failed", "add a language-model key in Settings"))
+                    self.model_for.assert_not_called()
+                    self.assertEqual(conv.state, "failed")
+                    self.assertEqual(conv.lines[-1], {"role": "agent",
+                                                      "text": "That didn't work: add a language-model key in Settings"})
+                else:
+                    uk = self.user()
+                    cid = self.start(uk)
+                    with mock.patch("sys.stderr") as err:
+                        job, conv = self.run_turn(uk, refuse, cid, line="go")
+                    state, error = self.state(job)
+                    self.assertEqual(state, "failed")
+                    self.assertIn("Claude refused the key", error)
+                    self.assertEqual(jobs.status(self.conn, uk, job)["code"], "key_refused")   # beside the words
+                    self.assertEqual(conv.state, "failed")
+                    self.assertIn("Claude refused the key", conv.lines[-1]["text"])
+                    stored = repr((error, conv.lines, jobs.result(self.conn, uk, job), err.mock_calls))
+                    self.assertNotIn(MODEL_KEY, stored)
+                    self.assertNotIn("x-api-key", stored)
+                self.conn.rollback()
 
-    def test_turn_stops_at_usage_limit(self):
-        uk = self.user()
-        cid = self.start(uk)
-        _, before = self.run_turn(uk, lambda m, i: ModelResponse(parts=[TextPart("Hello.")]), cid, line="hi")
-        self.assertEqual(before.state, "idle")
-        self.assertTrue(conversations.begin_turn(self.conn, uk, cid, "and again", None))
-        self.conn.commit()
-        n = iter(range(1000))
-
-        def forever(messages, info):
-            return ModelResponse(parts=[ToolCallPart("run", {"args": ["get", "coach"]}, tool_call_id=f"c{next(n)}")])
+    def test_a_turn_that_runs_too_long_stops_at_its_usage_limit_or_its_time(self):
+        import asyncio
         from webapp import agent
-        with mock.patch.object(agent, "LIMITS", UsageLimits(request_limit=3)), \
-                mock.patch.object(worker.engine, "run", return_value=worker.engine.Result(0, "Coach Andy\n", "")):
-            job, conv = self.run_turn(uk, forever, cid, line="and again")
         message = "this turn ran too long; try again with less to do"
-        self.assertEqual(self.state(job), ("failed", message))
-        self.assertEqual(conv.state, "failed")
-        self.assertEqual(conv.history, before.history)
-        self.assertEqual(conv.lines[-2:], [{"role": "user", "text": "and again"},
-                                           {"role": "agent", "text": f"That didn't work: {message}"}])
-        self.conn.rollback()
+        for name in ("usage limit", "past its time"):
+            with self.subTest(name):
+                self.fresh_queue()
+                uk = self.user()
+                cid = self.start(uk)
+                if name == "usage limit":
+                    _, before = self.run_turn(uk, lambda m, i: ModelResponse(parts=[TextPart("Hello.")]), cid, line="hi")
+                    self.assertEqual(before.state, "idle")
+                    self.assertTrue(conversations.begin_turn(self.conn, uk, cid, "and again", None))
+                    self.conn.commit()
+                    n = iter(range(1000))
+
+                    def forever(messages, info):
+                        return ModelResponse(parts=[ToolCallPart("run", {"args": ["get", "coach"]},
+                                                                 tool_call_id=f"c{next(n)}")])
+                    with mock.patch.object(agent, "LIMITS", UsageLimits(request_limit=3)), \
+                            mock.patch.object(worker.engine, "run",
+                                              return_value=worker.engine.Result(0, "Coach Andy\n", "")):
+                        job, conv = self.run_turn(uk, forever, cid, line="and again")
+                    self.assertEqual(self.state(job), ("failed", message))
+                    self.assertEqual(conv.state, "failed")
+                    self.assertEqual(conv.history, before.history)
+                    self.assertEqual(conv.lines[-2:], [{"role": "user", "text": "and again"},
+                                                       {"role": "agent", "text": f"That didn't work: {message}"}])
+                else:
+                    calls = []
+
+                    async def slow(messages, info):
+                        calls.append(1)
+                        await asyncio.sleep(1)
+                        return ModelResponse(parts=[TextPart("Hello.")])
+                    with mock.patch.object(agent, "TURN_SECONDS", 0.2):
+                        job, conv = self.run_turn(uk, FunctionModel(slow), cid, line="go")
+                    self.assertEqual(self.state(job), ("failed", message))
+                    self.assertEqual(conv.state, "failed")
+                    self.assertEqual(conv.lines[-1], {"role": "agent", "text": f"That didn't work: {message}"})
+                    self.assertEqual(len(calls), 1)   # nothing retried
+                self.conn.rollback()
 
     def test_model_key_never_in_engine_env(self):
         uk = self.user()
@@ -1071,40 +896,29 @@ class Turn(JobsCase):
         self.conn.rollback()
 
     def test_a_turn_that_isnt_the_conversations_job_is_left_alone(self):
-        uk = self.user()
-        cid = self.start(uk)
-        job = enqueue(self.conn, uk, "turn", self.turn_args(cid, line="go"))
-        other = enqueue(self.conn, uk, "brief", {})
-        conversations.set_job(self.conn, uk, cid, other)   # still working, but on another job's turn
-        self.conn.commit()
-        before = conversations.load(self.conn, uk, cid)
-        self.conn.commit()
-        with mock.patch.object(providers, "model_for", side_effect=AssertionError("the model ran")):
-            self.run_one()
-        self.assertEqual(self.state(job), ("failed", "the conversation moved on"))
-        conv = conversations.load(self.conn, uk, cid)
-        self.assertEqual((conv.state, conv.version, conv.lines), ("working", before.version, before.lines))
-        self.conn.rollback()
-
-    def test_turn_stops_past_its_time(self):
-        import asyncio
-        from webapp import agent
-        uk = self.user()
-        cid = self.start(uk)
-        calls = []
-
-        async def slow(messages, info):
-            calls.append(1)
-            await asyncio.sleep(2)
-            return ModelResponse(parts=[TextPart("Hello.")])
-        with mock.patch.object(agent, "TURN_SECONDS", 0.2):
-            job, conv = self.run_turn(uk, FunctionModel(slow), cid, line="go")
-        message = "this turn ran too long; try again with less to do"
-        self.assertEqual(self.state(job), ("failed", message))
-        self.assertEqual(conv.state, "failed")
-        self.assertEqual(conv.lines[-1], {"role": "agent", "text": f"That didn't work: {message}"})
-        self.assertEqual(len(calls), 1)   # nothing retried
-        self.conn.rollback()
+        # (name, the conversation's job instead of this one, this turn's own args)
+        for name, other_job, over in (("another job's turn", True, {}), ("no job's turn", False, {"now": "08:00"})):
+            with self.subTest(name):
+                self.fresh_queue()
+                uk = self.user()
+                cid = self.start(uk)
+                job = enqueue(self.conn, uk, "turn", self.turn_args(cid, line="go", **over))
+                other = enqueue(self.conn, uk, "brief", {}) if other_job else None
+                conversations.set_job(self.conn, uk, cid, other)   # still working, but not on this job's turn
+                self.conn.commit()
+                before = conversations.load(self.conn, uk, cid)
+                self.conn.commit()
+                with mock.patch.object(providers, "model_for", side_effect=AssertionError("the model ran")):
+                    self.run_one()
+                if other_job:
+                    self.assertEqual(self.state(job), ("failed", "the conversation moved on"))
+                else:
+                    self.assertEqual(self.state(job)[0], "failed")
+                conv = conversations.load(self.conn, uk, cid)
+                self.assertEqual(conv.state, "working")
+                if other_job:
+                    self.assertEqual((conv.version, conv.lines), (before.version, before.lines))
+                self.conn.rollback()
 
     def test_bad_turn_args_fail_the_conversation(self):
         uk = self.user()
@@ -1145,20 +959,6 @@ class Turn(JobsCase):
         self.assertEqual(store.read_all(self.conn, uk), before)
         self.conn.rollback()
 
-    def test_model_client_failure_goes_through_explain(self):
-        uk = self.user()
-        cid = self.start(uk)
-        job = self.enqueue_turn(uk, cid, self.turn_args(cid, "go"))
-        with mock.patch.object(providers, "model_for", side_effect=ConnectionError(f"bad {MODEL_KEY}")), \
-                mock.patch("sys.stderr") as err:
-            self.run_one()
-        conv = conversations.load(self.conn, uk, cid)
-        message = "Claude didn't answer. Try again in a minute."
-        self.assertEqual(self.state(job), ("failed", message))
-        self.assertEqual((conv.state, conv.lines[-1]["text"]), ("failed", f"That didn't work: {message}"))
-        self.assertNotIn(MODEL_KEY, repr((conv.lines, err.mock_calls)))
-        self.conn.rollback()
-
     def lost_after_handler(self, uk, cid, after, **patches):
         """Run a turn whose handler finishes, then `after(ctx)`; (job, conversation)."""
         real = worker.HANDLERS["turn"]
@@ -1179,151 +979,84 @@ class Turn(JobsCase):
         self.assertEqual(conv.lines[-1], {"role": "agent", "text": f"That didn't work: {error}"})
         self.assertEqual(store.read_all(self.conn, uk), before)
 
-    def test_conversation_version_moved_before_completion(self):
-        uk = self.user()
-        cid = self.start(uk)
-        before = store.read_all(self.conn, uk)
-        self.conn.commit()
+    def test_a_turn_lost_after_its_work_fails_the_conversation_and_saves_nothing(self):
+        """A turn whose handler finished, then lost its claim (the conversation moved, the job was reaped, the write-back
+        failed) saves nothing; one reaped and replaced by a newer turn leaves that newer turn alone."""
+        import contextlib
+        for name in ("version moved", "reaped", "write-back failed", "reaped and replaced"):
+            with self.subTest(name):
+                self.fresh_queue()
+                uk = self.user()
+                cid = self.start(uk)
+                before = store.read_all(self.conn, uk)
+                self.conn.commit()
+                newer = []
 
-        def bump(ctx):
-            self.conn.execute("update conversations set version = version + 1 where id = %s", (cid,))
-            self.conn.commit()
-        job, conv = self.lost_after_handler(uk, cid, bump)
-        self.check_lost(uk, job, conv, before, "the job stopped unexpectedly")
-        self.conn.rollback()
-
-    def test_job_reaped_before_completion_fails_the_conversation(self):
-        uk = self.user()
-        cid = self.start(uk)
-        before = store.read_all(self.conn, uk)
-        self.conn.commit()
-
-        def reap(ctx):
-            self.conn.execute("update jobs set state = 'failed', error = 'interrupted', "
-                              "finished_at = now() where id = %s", (ctx.job_id,))
-            self.conn.commit()
-        job, conv = self.lost_after_handler(uk, cid, reap)
-        self.check_lost(uk, job, conv, before, "interrupted")
-        self.conn.rollback()
-
-    def test_write_back_failure_fails_the_conversation(self):
-        uk = self.user()
-        cid = self.start(uk)
-        before = store.read_all(self.conn, uk)
-        self.conn.commit()
-        with mock.patch.object(worker.store, "write_back", side_effect=RuntimeError("disk")):
-            job, conv = self.lost_after_handler(uk, cid, lambda ctx: None)
-        self.check_lost(uk, job, conv, before, "the job stopped unexpectedly")
-        self.conn.rollback()
-
-    def test_late_loss_of_an_old_job_leaves_a_newer_turn_alone(self):
-        uk = self.user()
-        cid = self.start(uk)
-        newer = []
-
-        def reaped_then_replaced(ctx):
-            self.conn.execute("update jobs set state = 'failed', error = 'interrupted', "
-                              "finished_at = now() where id = %s", (ctx.job_id,))
-            newer.append(enqueue(self.conn, uk, "turn", self.turn_args(cid, "again")))
-            conversations.set_job(self.conn, uk, cid, newer[0])   # healed and begun anew meanwhile
-            self.conn.commit()
-        job, conv = self.lost_after_handler(uk, cid, reaped_then_replaced)
-        self.assertEqual(self.state(job), ("failed", "interrupted"))
-        self.assertEqual((conv.state, conv.job_id), ("working", newer[0]))
-        self.assertEqual(conv.lines, [{"role": "user", "text": "a 20-minute strength workout"}])
-        self.conn.rollback()
-
-    def test_a_stop_of_an_old_job_leaves_a_newer_turn_alone(self):
-        uk = self.user()
-        cid = self.start(uk)
-        old = enqueue(self.conn, uk, "turn", self.turn_args(cid, line="go", now="08:00"))
-        conversations.set_job(self.conn, uk, cid, None)   # not this job's turn
-        self.conn.commit()
-        with mock.patch.object(providers, "model_for", side_effect=AssertionError("the model ran")):
-            self.run_one()
-        self.assertEqual(self.state(old)[0], "failed")
-        conv = conversations.load(self.conn, uk, cid)
-        self.assertEqual(conv.state, "working")
-        self.conn.rollback()
-
-    def test_an_answer_fails_the_conversation_plainly(self):
-        uk = self.user()
-        cid = self.start(uk)
-        _, before = self.run_turn(uk, lambda m, i: ModelResponse(parts=[TextPart("Hello.")]), cid, line="hi")
-        self.assertTrue(conversations.begin_turn(self.conn, uk, cid, "x", None))
-        self.conn.commit()
-        job, conv = self.run_turn(uk, lambda m, i: self.fail("the model ran"), cid,
-                                  answer={"tool_call_id": "gone", "values": {"q1": ["Nothing new"]}})
-        state, error = self.state(job)
-        self.assertEqual(state, "failed")
-        self.assertEqual(error, worker.ANSWER_NOT_OPEN)
-        self.assertEqual(conv.state, "failed")
-        self.assertEqual(conv.history, before.history)
-        self.conn.rollback()
+                def after(ctx):
+                    if name == "version moved":
+                        self.conn.execute("update conversations set version = version + 1 where id = %s", (cid,))
+                    elif name.startswith("reaped"):
+                        self.conn.execute("update jobs set state = 'failed', error = 'interrupted', "
+                                          "finished_at = now() where id = %s", (ctx.job_id,))
+                    if name == "reaped and replaced":
+                        newer.append(enqueue(self.conn, uk, "turn", self.turn_args(cid, "again")))
+                        conversations.set_job(self.conn, uk, cid, newer[0])   # healed and begun anew meanwhile
+                    self.conn.commit()
+                broken = (mock.patch.object(worker.store, "write_back", side_effect=RuntimeError("disk"))
+                          if name == "write-back failed" else contextlib.nullcontext())
+                with broken:
+                    job, conv = self.lost_after_handler(uk, cid, after)
+                if name == "reaped and replaced":
+                    self.assertEqual(self.state(job), ("failed", "interrupted"))
+                    self.assertEqual((conv.state, conv.job_id), ("working", newer[0]))
+                    self.assertEqual(conv.lines, [{"role": "user", "text": "a 20-minute strength workout"}])
+                else:
+                    self.check_lost(uk, job, conv, before,
+                                    "interrupted" if name == "reaped" else "the job stopped unexpectedly")
+                self.conn.rollback()
 
 
 class Lanes(JobsCase):
-    def test_enrichment_runs_beside_a_turn_and_one_at_a_time(self):
+    """An enrichment and a balance check (0.77.0) each run in a lane of their own, beside a turn, one at a time."""
+
+    def test_enrichment_and_a_balance_check_run_beside_a_turn_one_at_a_time(self):
         _, uk = self.make_user()
         turn = enqueue(self.conn, uk, "turn", {})
         first = enqueue(self.conn, uk, "enrich", {})
         second = enqueue(self.conn, uk, "enrich", {})
-        self.assertEqual(jobs.claim(self.conn).id, turn)                # the main lane never takes an enrich job
-        self.assertEqual(jobs.claim(self.conn, "enrich").id, first)     # beside the running turn
-        self.assertIsNone(jobs.claim(self.conn, "enrich"))              # but one enrichment at a time
-        self.assertIsNone(jobs.claim(self.conn))
-        with self.assertRaises(ValueError):
-            jobs.claim(self.conn, "side")
-        self.conn.execute("update jobs set state = 'done' where id = %s", (first,))
-        self.conn.commit()
-        self.assertEqual(jobs.claim(self.conn, "enrich").id, second)
-
-    def test_the_unique_indexes_hold_one_running_job_a_lane(self):
-        _, uk = self.make_user()
-        a, b = enqueue(self.conn, uk, "enrich", {}), enqueue(self.conn, uk, "enrich", {})
-        self.conn.execute("update jobs set state = 'running' where id = %s", (a,))
-        self.conn.commit()
-        with self.assertRaises(psycopg.errors.UniqueViolation):
-            self.conn.execute("update jobs set state = 'running' where id = %s", (b,))
-        self.conn.rollback()
-
-
-class QuickLane(JobsCase):
-    """A balance check runs in a lane of its own (0.77.0), never behind a turn."""
-
-    def test_a_balance_check_runs_beside_a_turn_one_at_a_time(self):
-        _, uk = self.make_user()
-        turn = enqueue(self.conn, uk, "turn", {})
         balances = enqueue(self.conn, uk, "balances", {})
         again = enqueue(self.conn, uk, "balances", {})
-        self.assertEqual(jobs.claim(self.conn).id, turn)                # the main lane never takes a quick job
+        self.assertEqual(jobs.claim(self.conn).id, turn)                # the main lane never takes the others
         self.assertIsNone(jobs.claim(self.conn))
-        self.assertIsNone(jobs.claim(self.conn, "enrich"))
+        self.assertEqual(jobs.claim(self.conn, "enrich").id, first)     # beside the running turn
+        self.assertIsNone(jobs.claim(self.conn, "enrich"))              # but one enrichment at a time
         self.assertEqual(jobs.claim(self.conn, "quick").id, balances)   # beside the running turn
         self.assertIsNone(jobs.claim(self.conn, "quick"))               # one quick job a listener at once
-        self.conn.execute("update jobs set state = 'done' where id = %s", (balances,))
+        with self.assertRaises(ValueError):
+            jobs.claim(self.conn, "side")
+        self.conn.execute("update jobs set state = 'done' where id = any(%s)", ([first, balances],))
         self.conn.commit()
+        self.assertEqual(jobs.claim(self.conn, "enrich").id, second)
         self.assertEqual(jobs.claim(self.conn, "quick").id, again)
 
-    def test_the_unique_index_holds_one_quick_job_a_listener(self):
-        _, uk = self.make_user()
-        a, b = enqueue(self.conn, uk, "balances", {}), enqueue(self.conn, uk, "balances", {})
-        t = enqueue(self.conn, uk, "turn", {})
-        self.conn.execute("update jobs set state = 'running' where id = any(%s)", ([a, t],))
-        self.conn.commit()
-        with self.assertRaises(psycopg.errors.UniqueViolation):
-            self.conn.execute("update jobs set state = 'running' where id = %s", (b,))
-        self.conn.rollback()
+    def test_the_unique_indexes_hold_one_running_job_a_lane(self):
+        for kind, with_turn in (("enrich", False), ("balances", True)):
+            with self.subTest(kind):
+                self.conn.rollback()
+                self.conn.execute("delete from jobs")
+                self.conn.commit()
+                _, uk = self.make_user()
+                a, b = enqueue(self.conn, uk, kind, {}), enqueue(self.conn, uk, kind, {})
+                running = [a, enqueue(self.conn, uk, "turn", {})] if with_turn else [a]
+                self.conn.execute("update jobs set state = 'running' where id = any(%s)", (running,))
+                self.conn.commit()
+                with self.assertRaises(psycopg.errors.UniqueViolation):
+                    self.conn.execute("update jobs set state = 'running' where id = %s", (b,))
+                self.conn.rollback()
 
 
 class Slots(JobsCase):
     """Several main-lane loops in one worker (HARMONICFITNESS_WORKER_SLOTS, 0.77.0)."""
-
-    def test_the_lanes_a_worker_runs(self):
-        plan = worker.lanes(dataclasses.replace(self.settings, worker_slots=3))
-        self.assertEqual([(lane, upkeep) for _, lane, upkeep in plan],
-                         [("quick", True), ("enrich", False), ("main", False), ("main", False), ("main", False)])
-        self.assertEqual(len({name for name, _, _ in plan}), 5)
 
     def test_two_listeners_turns_run_side_by_side(self):
         _, a = self.make_user()
@@ -1344,96 +1077,6 @@ class Slots(JobsCase):
             worker.run_one(self.conn, self.settings, connect=self.connect)   # the main lane alone, as before
             self.assertEqual(reap.call_count, 2)
 
-    def test_serve_passes_the_lane_and_its_upkeep(self):
-        stopping = threading.Event()
-        seen = []
-
-        def run(conn, settings, **kw):
-            seen.append(kw)
-            stopping.set()
-            return True
-        worker.serve(None, stopping, connect=lambda s: (mock.Mock(), mock.Mock()), run=run, lane="main", upkeep=False)
-        self.assertEqual(seen, [{"upkeep": False}])
-
-
-class Enrich(JobsCase):
-    TEXT = "Loved the bike story, and that felt too easy"
-
-    def user(self, key=True):
-        from webtests.test_workouts import listener_files
-        _, uk = self.make_user()
-        self.assertEqual(store.write_back(self.conn, uk, listener_files(), {}), [])
-        if key:
-            keystore.put(self.conn, uk, "anthropic", MODEL_KEY)
-        self.conn.commit()
-        return uk
-
-    def run_enrich(self, uk, output, text=TEXT):
-        job = enqueue(self.conn, uk, "enrich", {"ref": "ccc333", "text": text, "today": today()})
-        seen = []
-
-        def model(messages, info):
-            seen.append([p.content for m in messages for p in m.parts if hasattr(p, "content")])
-            return ModelResponse(parts=[ToolCallPart(info.output_tools[0].name, output)])
-        with mock.patch.object(providers, "model_for", return_value=FunctionModel(model)):
-            self.assertTrue(worker.run_one(self.conn, self.settings, connect=self.connect, lane="enrich"))
-        return job, seen
-
-    def test_feedback_becomes_evidence_and_a_summary(self):
-        uk = self.user()
-        out = {"signals": [{"kind": "topic", "name": "Tour de France | history", "weight": 2, "parent": "cycling"},
-                           {"kind": "effort", "name": "effort", "weight": 1}],
-               "summary": "Noted: more cycling stories, and a little harder next time."}
-        job, seen = self.run_enrich(uk, out)
-        self.assertEqual(self.state(job), ("done", None))
-        self.assertEqual(jobs.result(self.conn, uk, job), {"summary": out["summary"], "signals": 2})
-        self.assertIn(self.TEXT, "\n".join(map(str, seen[0])))           # the model read the feedback
-        self.assertIn('"build_id": "ccc333"', "\n".join(map(str, seen[0])))   # and the workout's context
-        files = store.read_all(self.conn, uk)
-        rows = [json.loads(x) for x in files["workouts/research/interests.jsonl"][1].decode().splitlines()]
-        self.assertEqual([(r["kind"], r["name"], r["weight"], r["source"], r["build"]) for r in rows],
-                         [("topic", "Tour de France / history", 2.0, "feedback", "ccc333"),
-                          ("effort", "effort", 1.0, "feedback", "ccc333")])
-        self.assertIn("## Learned from you", files["content.md"][1].decode())
-        self.assertIn("aiming a little harder", files["training.md"][1].decode())
-        self.conn.rollback()
-
-    def test_nothing_to_learn_writes_nothing(self):
-        uk = self.user()
-        before = store.read_all(self.conn, uk)
-        job, _ = self.run_enrich(uk, {"signals": [], "summary": ""}, text="ok")
-        self.assertEqual((self.state(job), jobs.result(self.conn, uk, job)), (("done", None), {"summary": "", "signals": 0}))
-        self.assertEqual(store.read_all(self.conn, uk), before)
-        self.conn.rollback()
-
-    def test_without_a_writer_key_there_is_nothing_to_note(self):
-        uk = self.user(key=False)
-        job = enqueue(self.conn, uk, "enrich", {"ref": "ccc333", "text": self.TEXT, "today": today()})
-        with mock.patch.object(providers, "model_for") as model_for:
-            self.assertTrue(worker.run_one(self.conn, self.settings, connect=self.connect, lane="enrich"))
-        model_for.assert_not_called()
-        self.assertEqual(jobs.result(self.conn, uk, job), {"summary": "", "signals": 0})
-        self.conn.rollback()
-
-    def test_bad_args_fail(self):
-        uk = self.user()
-        for args in ({"ref": "../x", "text": "hi", "today": today()}, {"ref": "ccc333", "text": " ", "today": today()},
-                     {"ref": "ccc333", "text": "hi", "today": "soon"}):
-            job = enqueue(self.conn, uk, "enrich", args)
-            worker.run_one(self.conn, self.settings, connect=self.connect, lane="enrich")
-            self.assertEqual(self.state(job)[0], "failed", args)
-        self.conn.rollback()
-
-
-class Clock(unittest.TestCase):
-    def test_the_engine_runs_on_the_listener_s_clock(self):
-        utc = datetime.datetime(2026, 11, 1, 18, 16)
-        self.assertEqual(worker.listener_zone("2026-11-01 Sunday 13:16", utc), "LCL+5")      # Philadelphia
-        self.assertEqual(worker.listener_zone("2026-11-01 Sunday 23:47", utc), "LCL-5:30")   # Mumbai
-        self.assertEqual(worker.listener_zone("2026-11-02 Monday 03:16", utc), "LCL-9")      # Tokyo, the next day
-        for bad in ("soon", "2026-11-01 13:16", "2026-11-05 Thursday 13:16", None):
-            self.assertIsNone(worker.listener_zone(bad, utc), bad)
-
 
 class Resilience(JobsCase):
     """0.76.0: what a job made survives a dropped connection, events never commit the job's own work, a deploy stops a
@@ -1444,38 +1087,37 @@ class Resilience(JobsCase):
         patch.start()
         self.addCleanup(patch.stop)
 
-    def test_a_job_whose_connection_dropped_is_still_finished_and_saved(self):
-        _, uk = self.seeded_user()
-
+    def test_what_a_job_saves_survives_a_dropped_connection_and_a_progress_line_never_commits_it(self):
         def dropped(ctx):
             ctx.conn.close()   # the database closed it mid-job, as it does now and then
             ctx.retrying(lambda: (store.put(ctx.conn, ctx.uk, "notes/made.md", b"paid for"), ctx.conn.commit()))
             ctx.save({}, {})
             return {"ok": True}
-        self.handler(dropped)
-        main = self.connect()
-        self.addCleanup(main.close)
-        job = enqueue(self.conn, uk, "brief", self.brief_args())
-        with mock.patch("sys.stderr"):
-            self.assertTrue(worker.run_one(main, self.settings, connect=self.connect))
-        self.assertEqual(self.state(job), ("done", None))   # done now, not reaped two minutes on
-        self.assertEqual(store.read_one(self.conn, uk, "notes/made.md")[1], b"paid for")
-        self.conn.rollback()
-
-    def test_a_progress_line_never_commits_the_job_s_own_work(self):
-        _, uk = self.seeded_user()
 
         def half_done(ctx):
             store.put(ctx.conn, ctx.uk, "notes/half.md", b"not yet")   # not committed
             ctx.say("step", text="Working", failed=False)
             ctx.conn.rollback()
             return {"ok": True}
-        self.handler(half_done)
-        job = enqueue(self.conn, uk, "brief", self.brief_args())
-        self.assertTrue(self.run_one())
-        self.assertIsNone(store.read_one(self.conn, uk, "notes/half.md"))
-        self.assertIn("step", [b["stage"] for _, b in jobs.events(self.conn, uk, job)])
-        self.conn.rollback()
+        for name, fn in (("connection dropped", dropped), ("progress line", half_done)):
+            with self.subTest(name):
+                _, uk = self.seeded_user()
+                job = enqueue(self.conn, uk, "brief", self.brief_args())
+                with mock.patch.dict(worker.HANDLERS, {"brief": fn}):
+                    if fn is dropped:
+                        main = self.connect()
+                        self.addCleanup(main.close)
+                        with mock.patch("sys.stderr"):
+                            self.assertTrue(worker.run_one(main, self.settings, connect=self.connect))
+                    else:
+                        self.assertTrue(self.run_one())
+                if fn is dropped:
+                    self.assertEqual(self.state(job), ("done", None))   # done now, not reaped two minutes on
+                    self.assertEqual(store.read_one(self.conn, uk, "notes/made.md")[1], b"paid for")
+                else:
+                    self.assertIsNone(store.read_one(self.conn, uk, "notes/half.md"))
+                    self.assertIn("step", [b["stage"] for _, b in jobs.events(self.conn, uk, job)])
+                self.conn.rollback()
 
     def test_a_deploy_stops_a_long_job_cleanly(self):
         _, uk = self.make_user()

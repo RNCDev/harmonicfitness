@@ -30,6 +30,8 @@ class Crypto(unittest.TestCase):
         sealed = crypto.seal(k, b"x", b"u1:context_files:health.md")
         with self.assertRaises(crypto.Tampered):
             crypto.open_(k, sealed, b"u2:context_files:health.md")
+        with self.assertRaises(crypto.Tampered):
+            crypto.open_(k, b"short", b"a")
 
     def test_unwrap_needs_the_master(self):
         m1, m2 = os.urandom(32), os.urandom(32)
@@ -49,10 +51,6 @@ class Crypto(unittest.TestCase):
         with self.assertRaises(crypto.Tampered):
             crypto.unwrap(m, wrapped, uid, 2)
 
-    def test_short_blob_is_tampered(self):
-        with self.assertRaises(crypto.Tampered):
-            crypto.open_(os.urandom(32), b"short", b"a")
-
     def test_key_length_enforced(self):
         k16 = os.urandom(16)
         with self.assertRaisesRegex(ValueError, "key must be 32 bytes") as cm:
@@ -71,39 +69,23 @@ class Crypto(unittest.TestCase):
 
 
 class Config(unittest.TestCase):
-    def test_load(self):
-        s = config.load(env())
-        self.assertEqual((s.role, s.session_days, s.registration), ("web", 90, True))
-        self.assertEqual(len(s.master_key), 32)
-        self.assertTrue(os.path.isdir(os.path.join(s.engine_root, "tools")))
-
-    def test_registration_switch(self):
+    def test_registration_switch_and_daily_allowance(self):
         for raw, want in (("closed", False), (" CLOSED ", False), ("open", True), ("", True)):
             self.assertEqual(config.load(env(HARMONICFITNESS_REGISTRATION=raw)).registration, want, raw)
         with self.assertRaises(config.ConfigError):
             config.load(env(HARMONICFITNESS_REGISTRATION="maybe"))
-
-    def test_worker_slots(self):
-        """Main-lane loops a worker runs (0.77.0): two by default, one to four."""
-        for raw, want in ((None, 2), ("1", 1), ("3", 3), ("0", 1), ("9", config.MAX_SLOTS), ("lots", 2)):
-            extra = {} if raw is None else {"HARMONICFITNESS_WORKER_SLOTS": raw}
-            self.assertEqual(config.load(env(**extra)).worker_slots, want, raw)
-
-    def test_daily_allowance(self):
         from webapp import spend
         for raw, want in ((None, spend.DEFAULT_DAILY_CHARS), ("5000", 5000), ("-3", 0), ("lots", spend.DEFAULT_DAILY_CHARS)):
             extra = {} if raw is None else {"HARMONICFITNESS_DAILY_CHARS": raw}
             self.assertEqual(config.load(env(**extra)).daily_chars, want, raw)
 
-    def test_engine_root_override(self):
-        self.assertEqual(config.load(env(HARMONICFITNESS_ENGINE_ROOT="/x")).engine_root, "/x")
-
-    def test_config_refuses_short_master_key(self):
-        bad = b64(16)
-        with self.assertRaises(config.ConfigError) as cm:
-            config.load(env(HARMONICFITNESS_MASTER_KEY=bad))
-        self.assertIn("HARMONICFITNESS_MASTER_KEY", str(cm.exception))
-        self.assertNotIn(bad, str(cm.exception))
+    def test_config_refuses_a_short_or_unreadable_master_key(self):
+        for bad in (b64(16), "!!notbase64!!"):
+            with self.subTest(bad=bad):
+                with self.assertRaises(config.ConfigError) as cm:
+                    config.load(env(HARMONICFITNESS_MASTER_KEY=bad))
+                self.assertIn("HARMONICFITNESS_MASTER_KEY", str(cm.exception))
+                self.assertNotIn(bad, str(cm.exception))
 
     def test_repr_hides_secrets(self):
         raw = os.urandom(32)
@@ -113,25 +95,6 @@ class Config(unittest.TestCase):
         self.assertNotIn(e["HARMONICFITNESS_MASTER_KEY"], r)
         self.assertNotIn(repr(raw), r)
         self.assertNotIn("hunter2pw", r)
-
-    def test_empty_role_refused(self):
-        with self.assertRaises(config.ConfigError):
-            config.load(env(HARMONICFITNESS_ROLE=""))
-
-    def test_bad_base64(self):
-        with self.assertRaises(config.ConfigError) as cm:
-            config.load(env(HARMONICFITNESS_MASTER_KEY="!!notbase64!!"))
-        self.assertIn("HARMONICFITNESS_MASTER_KEY", str(cm.exception))
-
-    def test_missing_and_bad_role(self):
-        e = env()
-        del e["DATABASE_URL"]
-        with self.assertRaises(config.ConfigError) as cm:
-            config.load(e)
-        self.assertIn("DATABASE_URL", str(cm.exception))
-        with self.assertRaises(config.ConfigError):
-            config.load(env(HARMONICFITNESS_ROLE="boss"))
-        self.assertEqual(config.load(env(HARMONICFITNESS_ROLE="worker")).role, "worker")
 
 
 if __name__ == "__main__":

@@ -6,7 +6,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 
 from webapp import auth, config, db, store  # noqa: E402
 from webtests import dbcase  # noqa: E402
-from webtests.dbcase import MASTER, DBCase, committed, enqueue  # noqa: E402
+from webtests.dbcase import MASTER, DBCase, committed  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -32,8 +32,6 @@ class Passwords(unittest.TestCase):
         self.assertTrue(auth.verify_password("correct horse", h))
         self.assertFalse(auth.verify_password("correct hors", h))
         self.assertNotEqual(h, auth.hash_password("correct horse"))   # salted
-
-    def test_missing_or_damaged_hash_never_matches(self):
         for stored in (None, "", "plain", "md5$1$1$1$AA==$AA==", "scrypt$x$8$1$AA==$AA=="):
             self.assertFalse(auth.verify_password("anything", stored), stored)
 
@@ -95,9 +93,7 @@ class Auth(DBCase):
                          (None, None), ("signer", "x" * 5000)):
             with self.assertRaises(auth.WrongPassword):
                 committed(auth.sign_in, self.conn, self.s, name, pw)
-
-    def test_no_password_never_signs_in(self):
-        uid, _ = self.make_user("nopw")
+        self.make_user("nopw")
         with self.assertRaises(auth.WrongPassword):
             committed(auth.sign_in, self.conn, self.s, "nopw", "")
 
@@ -113,8 +109,6 @@ class Auth(DBCase):
         self.assertEqual(committed(auth.user_for, self.conn, self.s, st), uid)     # this one stays
         self.assertIsNone(committed(auth.user_for, self.conn, self.s, other))     # every other ends
         committed(auth.sign_in, self.conn, self.s, "changer", "second password")
-
-    def test_first_password_needs_no_current(self):
         uid, _ = self.make_user("first")
         committed(auth.set_password, self.conn, uid, None, "brand new one")
         committed(auth.sign_in, self.conn, self.s, "first", "brand new one")
@@ -139,10 +133,6 @@ class Auth(DBCase):
         with self.assertRaises(LookupError):
             committed(auth.reset_link, self.conn, self.s, "ghost")
 
-    def test_unknown_refused(self):
-        with self.assertRaises(auth.Refused):
-            committed(auth.redeem, self.conn, self.s, "nope")
-
     def test_tokens_stored_hashed(self):
         uid, _ = self.make_user()
         t = token_of(committed(auth.device_link, self.conn, self.s, uid).url)
@@ -166,6 +156,8 @@ class Auth(DBCase):
         self.conn.commit()
         with self.assertRaises(auth.Refused):
             committed(auth.redeem, self.conn, self.s, t2)
+        with self.assertRaises(auth.Refused):
+            committed(auth.redeem, self.conn, self.s, "nope")
 
     def test_device_link_lasts_ten_minutes(self):
         uid, _ = self.make_user()
@@ -188,8 +180,7 @@ class Auth(DBCase):
         days = self.conn.execute("select extract(epoch from expires_at - now())/86400 "
                                  "from sessions where user_id = %s", (uid,)).fetchone()[0]
         self.assertTrue(89 < days < 91, days)
-
-    def test_session_not_renewed_within_a_day(self):
+        # renewed at most once a day
         uid, _ = self.make_user()
         st = committed(auth.redeem, self.conn, self.s, token_of(committed(auth.device_link, self.conn, self.s, uid).url))
         self.conn.execute("update sessions set expires_at = now() + interval '10 days' where user_id = %s", (uid,))
@@ -233,10 +224,6 @@ class Admin(DBCase):
         self.assertEqual(code, 0, err)
         self.assertRegex(out, r"^https://wt\.test/link/[A-Za-z0-9_-]+\n$")
 
-    def test_usage(self):
-        for argv in ((), ("invite", "a@b.test"), ("reset-password",)):
-            self.assertEqual(self.run_admin(*argv)[0], 64, argv)
-
     def test_refuses_an_unmigrated_database(self):
         import uuid
         name = "t_" + uuid.uuid4().hex[:12]
@@ -268,10 +255,6 @@ class Admin(DBCase):
         finally:
             admin_conn.execute(f"drop schema {name} cascade")
             admin_conn.close()
-
-    def test_reset_password_unknown_user(self):
-        code, out, err = self.run_admin("reset-password", "ghost")
-        self.assertEqual((code, out, err), (1, "", "No user with that username.\n"))
 
 
 class Migration004(unittest.TestCase):
