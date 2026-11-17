@@ -9,10 +9,10 @@ on:
 concurrency:
   group: tests-${{ github.ref == 'refs/heads/main' && github.sha || github.ref }}
   cancel-in-progress: true
-# Four jobs. The privacy checks run first and alone gate the rest; then the engine's tests (on Linux, a Mac
-# and Windows, each spread over the runner's cores by tools/testrun.py), the web app's tests and (on main) the
-# deploy run side by side, so a release goes live in about two minutes. A deploy can go out before a test fails;
-# the failure still shows here, and the fix is the next push.
+# Four jobs. The privacy checks run first and gate the rest; then the engine's tests (on Linux, a Mac and
+# Windows, each spread over the runner's cores by tools/testrun.py) and the web app's tests run side by side, and
+# (on main) the deploy waits for both: a failing test keeps the site as it was (2026-11-17; before, the deploy ran
+# beside the tests, and twice a failing push went live).
 jobs:
   privacy:
     runs-on: ubuntu-latest
@@ -122,11 +122,16 @@ jobs:
       - run: npm ci && npx tsc --noEmit -p . && npm test
         working-directory: web/client
 
-  # The web client on Fly.io, once the privacy checks pass on main (fly.toml), alongside the tests. The token is a
-  # deploy token for this one app (fly tokens create deploy -a harmonicfitness), the FLY_API_TOKEN secret.
+  # The web client on Fly.io, once the privacy checks and the tests pass on main (fly.toml). The engine's tests
+  # are skipped when a push changes only web/, the changelog or the version, which counts as passing; always()
+  # lets the deploy look at that result instead of being skipped with them. The token is a deploy token for this
+  # one app (fly tokens create deploy -a harmonicfitness), the FLY_API_TOKEN secret.
   deploy:
-    needs: privacy
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [privacy, engine, web]
+    if: >-
+      always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+      && needs.privacy.result == 'success' && needs.web.result == 'success'
+      && (needs.engine.result == 'success' || needs.engine.result == 'skipped')
     runs-on: ubuntu-latest
     concurrency:
       group: fly-deploy
