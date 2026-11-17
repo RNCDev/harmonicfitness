@@ -2,6 +2,29 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.84.0] - 2026-11-17
+
+A simpler test suite and a faster CI. About 2,000 tests become about 720, and a push is green in about a minute and a half instead of four (or fifteen, the day a Mac runner never came). Support for context folders from before 0.12.0 is removed.
+
+### Changed
+- **The tests guard what must never break, and nothing else.** Kept: the listener's safety (the screen, limits, the menu gate, the opening's rules), money (a paid call never retried, quotas, ceilings, Record approval, the allowance), privacy and keys, security, the integrity of the listener's files, and the enforcers. Dropped: wording, tuning numbers, audio rendering and encoding, the take checker and the maintainer-only tools (demos, ready-made workouts, remaking coaches, the bench). Repeated cases fold into one table each.
+  - Engine: 1,161 tests become 399, and the whole engine run takes about 50 s on Windows instead of about four minutes. Tests that started `./harmonicfitness` as a process (seconds each under Git Bash) now call the code in-process.
+  - Web server: about 600 become 215. Browser client: 223 become 104.
+- **`test changed` follows imports.** A test module is picked when it imports what changed, never because a file name such as `content.md` appears in passing, and the modules every tool imports (paths, context, cli, errors, fileio) are followed only when they changed themselves. One tool's change now picks a handful of modules, not all 45. The docs, the changelog and the version pick none.
+- **CI runs on Linux only:** the privacy job, then side by side the engine's tests with the new smoke test, the web server's against Postgres, and the browser client's. On main the deploy waits for all of them, then checks the live site serves the commit. Mac and Windows are no longer run in CI; the suite and the smoke test still run on them by hand.
+
+### Added
+- **`tools/smoke.sh`, the fresh-clone smoke test:** setup, doctor, check, a brief and a lint, in a temporary context folder of its own, with no voice and no MP3. `sh tools/smoke.sh` runs it on any system.
+
+### Removed
+- **Context folders from before 0.12.0 (schemas 4 and 5).** `migrate` no longer brings them up; any tool that meets one says to start again from the template (move `me/` aside, run `./harmonicfitness setup`, carry the details across) or to ask on GitHub. The steps that remain (the folder steps since then, the `.gitignore` additions) still run.
+
+### For forks
+- A `me/` folder at schema 4 or 5 must be migrated with 0.83.0 (or earlier) first, then brought to this version.
+- `tools/migrate.py` loses `to_5`, `to_6`, `STEPS`, `FLOOR`, `persona_to_5` and `PERSONA_STEPS`; `plan()` becomes `check_schemas()`. `tools/workouts.py` loses `reorganize` and the helpers only it used. `store.OLDER` is the refusal's wording.
+- `tools/testpick.py` matches imports only. A fork whose tests reach a tool without importing it should import it.
+- `.github/workflows/test.yml` has a `client` job of its own and no Mac or Windows matrix; the deploy needs `privacy`, `engine`, `web` and `client`.
+
 ## [0.83.0] - 2026-11-17
 
 Kit photos on the web app. The camera button beside the message box adds up to three photos of where the listener trains, and the coach reads the kit and its weights from them, reads it back, and writes nothing until the listener says it's right, as on a computer since 0.66.0. The photos are looked at, never kept.
