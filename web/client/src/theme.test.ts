@@ -25,13 +25,11 @@ describe("theme.css", () => {
     expect(css.replace(/@import "[^"]+";/g, "").trim()).toBe("");
   });
 
-  it("types in no colour, and mixes no tint: every one comes from tokens.css", () => {
+  it("types in no colour and mixes no tint, uses only tokens tokens.css defines, and names each colour by its role", () => {
     expect(broken(all(/#[0-9a-fA-F]{3,8}\b/g))).toEqual([]);
     expect(broken(all(/\brgba?\(|\bhsla?\(/g))).toEqual([]);
     expect(broken(all(/color-mix\(/g))).toEqual([]);
-  });
 
-  it("uses only tokens that tokens.css defines", () => {
     const defined = new Set([...strip(tokens).matchAll(/(--[\w-]+)\s*:/g)].map((m) => m[1]));
     const inline = new Set(["--done", "--hold"]);   // set on the element by its component (a seek's fill, a section's room)
     expect(broken((css) => {
@@ -39,6 +37,12 @@ describe("theme.css", () => {
       return [...new Set([...css.matchAll(/var\((--[\w-]+)/g)].map((m) => m[1]))]
         .filter((t) => !defined.has(t) && !local.has(t) && !inline.has(t));
     })).toEqual([]);
+
+    // the palette is tokens.css's own, never a rule's
+    const PALETTE = new RegExp(`var\\(--(${[...strip(tokens).slice(0, strip(tokens).indexOf("--hover:"))
+      .matchAll(/(--[\w-]+)\s*:/g)].map((m) => m[1].slice(2)).join("|")})\\)`, "g");
+    expect(PALETTE.source).toContain("selected");   // every colour named before the tints is the palette
+    expect(broken(all(PALETTE))).toEqual([]);
   });
 
   it("types no font size: the type scale's tokens, or a size relative to the text around it", () => {
@@ -49,13 +53,6 @@ describe("theme.css", () => {
     const SPACING = /(?:^|[;{\s])(?:padding|margin|gap|row-gap|column-gap|inset|top|left|right|bottom)[\w-]*\s*:([^;}]*)/g;
     expect(broken((css) => [...css.matchAll(SPACING)].flatMap((m) =>
       (m[1].match(/(?<![\w.-])\d+px/g) ?? []).filter((v) => parseInt(v, 10) > 2)))).toEqual([]);
-  });
-
-  it("names each colour by its role: the palette is tokens.css's own, never a rule's", () => {
-    const PALETTE = new RegExp(`var\\(--(${[...strip(tokens).slice(0, strip(tokens).indexOf("--hover:"))
-      .matchAll(/(--[\w-]+)\s*:/g)].map((m) => m[1].slice(2)).join("|")})\\)`, "g");
-    expect(PALETTE.source).toContain("selected");   // every colour named before the tints is the palette
-    expect(broken(all(PALETTE))).toEqual([]);
   });
 
   it("draws every line, ring and lift from the tokens: a geometry and a colour, never typed", () => {

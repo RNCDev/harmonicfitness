@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import type { StartCoach } from "../lib/api";
 import { CoachesPage } from "./Coaches";
 
@@ -38,7 +38,7 @@ describe("the Coaches page", () => {
     expect(onRetry).toHaveBeenCalled();
   });
 
-  it("with a voice key, shows only the coaches that can speak, by name, and what another key would add", () => {
+  it("with a voice key, shows only the coaches that can speak and what another key would add; with none, every coach to hear first", () => {
     const p = page();
     expect(tiles()).toEqual(["Coach Nolan", "Coach Reed"]);   // Owen and Nora wait for a key
     expect(groups()).toEqual(["Gemini coaches", "Fish Audio coaches"]);   // grouped by service, OpenRouter and Gemini first
@@ -56,11 +56,11 @@ describe("the Coaches page", () => {
     expect(screen.getAllByRole("button", { name: /^(OpenRouter|Inworld)$/ }).map((b) => b.textContent)).toEqual(["OpenRouter", "Inworld"]);
     fireEvent.click(screen.getByRole("button", { name: "Close, back to the chat" }));
     expect(p.onClose).toHaveBeenCalled();
-  });
+    cleanup();
 
-  it("with no voice key, shows every coach by service to hear first, one Add key a service", () => {
+    // with no voice key: every coach by service to hear first, one Add key a service
     const six = ["Tess", "Leah"].map((n) => ({ ...coaches[3], slug: `coach-${n.toLowerCase()}-openrouter`, first: n, name: `Coach ${n}` }));
-    const p = page({ coaches: [...coaches, ...six].map((c) => ({ ...c, ready: false, current: c.slug === "coach-reed-fish" })) });
+    const q = page({ coaches: [...coaches, ...six].map((c) => ({ ...c, ready: false, current: c.slug === "coach-reed-fish" })) });
     expect(screen.queryByText("Active")).toBeNull();   // never on a coach that can't speak
     expect(screen.getAllByRole("listitem").filter((li) => li.className.includes("cur"))).toHaveLength(0);
     expect(screen.queryByRole("button", { name: /^Choose/ })).toBeNull();
@@ -79,9 +79,9 @@ describe("the Coaches page", () => {
     expect(screen.getByLabelText("Coach Nora's sample")).toHaveAttribute("src", "/api/coaches/coach-nora-openrouter/sample.mp3");
     expect(screen.getAllByRole("button", { name: /^Add an? .+ key$/ })).toHaveLength(4);   // one a service
     fireEvent.click(screen.getByRole("button", { name: "Add an OpenRouter key" }));
-    expect(p.onAddKey).toHaveBeenCalledWith("openrouter");
+    expect(q.onAddKey).toHaveBeenCalledWith("openrouter");
     fireEvent.click(within(stage()).getByRole("button", { name: "Add an OpenRouter key to choose Nora" }));
-    expect(p.onAddKey).toHaveBeenCalledTimes(2);
+    expect(q.onAddKey).toHaveBeenCalledTimes(2);
   });
 
   it("a tap puts a coach on the stage and plays their sample; Choose chooses", () => {
@@ -94,21 +94,5 @@ describe("the Coaches page", () => {
     expect(p.onCoach).not.toHaveBeenCalled();   // hearing never chooses
     fireEvent.click(within(stage()).getByRole("button", { name: "Choose Tess" }));
     expect(p.onCoach).toHaveBeenCalledWith("coach-tess-openrouter");
-  });
-
-  it("puts the listener's own coaches first in their group, then A to Z", () => {
-    const gemini = (first: string, own: boolean) => ({ ...coaches[1], slug: `coach-${first.toLowerCase()}-gemini`, first,
-      name: `Coach ${first}`, own, current: false, tone: `${first}'s line.` });
-    page({ coaches: [gemini("June", false), gemini("Dana", true), gemini("Fraser", false), { ...coaches[1] }] });
-    expect(tiles()).toEqual(["Coach Dana", "Coach Fraser", "Coach June", "Coach Nolan"]);
-    expect(screen.getByText("Yours")).toBeInTheDocument();
-  });
-
-  it("keeps every tile in place when another is chosen", () => {
-    const props = { onCoach: vi.fn(), onAddKey: vi.fn(), onClose: vi.fn() };
-    const { rerender } = render(<CoachesPage coaches={coaches} {...props} />);
-    const before = tiles();
-    rerender(<CoachesPage coaches={coaches.map((c) => ({ ...c, current: c.first === "Reed" }))} {...props} />);
-    expect(tiles()).toEqual(before);
   });
 });

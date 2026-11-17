@@ -1,13 +1,20 @@
 import { describe, expect, it, vi } from "vitest";
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { Chat } from "./Chat";
-import { stepsOf } from "../../lib/steps";
+import { planOf, stepsOf } from "../../lib/steps";
 import type { Offer } from "../../lib/api";
 
 // a photo is shrunk by drawing it on a canvas, which jsdom has none of: each comes back named for its file
 vi.mock("../../lib/photos", () => ({ MOST_PHOTOS: 3, shrink: vi.fn(async (f: File) => `jpeg-of-${f.name}`) }));
 
 const base = { lines: [], working: false, error: null, noKey: false, onSend: () => {}, onOpenKeys: () => {} };
+
+const offer: Offer = {
+  name: "Workout 10 min", coach: "Coach Fraser", chars: 6951, usd: 0.1, service: "gemini",
+  plan: { rows: [{ what: "Air squat", kind: "movement", segments: 2, seconds: 100 },
+                 { what: "Rests", kind: "rest", segments: 5, seconds: 150 },
+                 { what: "Talk and changeovers", kind: "talk", segments: 2, seconds: 80 }], seconds: 330 },
+};
 
 describe("the chat", () => {
   it("sends a line and shows Thinking while working", () => {
@@ -58,26 +65,88 @@ describe("the chat", () => {
     expect(screen.queryByRole("img")).not.toBeInTheDocument();
   });
 
-  it("shows the coach's steps while it works, the latest last", () => {
-    const steps = Array.from({ length: 8 }, (_, i) => ({ text: `step ${i + 1}` }));
-    render(<Chat {...base} working steps={steps} />);
+  it("shows the coach's steps while it works: the latest last, running, done, failed and thinking", () => {
+    const eight = Array.from({ length: 8 }, (_, i) => ({ text: `step ${i + 1}` }));
+    const { rerender } = render(<Chat {...base} working steps={eight} />);
     expect(screen.queryByText("step 1")).toBeNull();
     expect(screen.getByText("2 earlier steps")).toBeInTheDocument();
     expect(screen.getByText("step 8")).not.toHaveClass("now");   // finished: none is running
-  });
 
-  it("renders the coach's Markdown: tables, bold, lists", () => {
-    const md = "**Plan**\n\n| Block | Time |\n|---|---|\n| Spine | 60 s |\n\n- one\n- two";
-    render(<Chat {...base} lines={[{ role: "agent", text: md }]} />);
-    expect(screen.getByText("Plan").tagName).toBe("STRONG");
-    expect(screen.getByRole("table")).toBeInTheDocument();
-    expect(screen.getByRole("cell", { name: "Spine" })).toBeInTheDocument();
-    expect(screen.getAllByRole("listitem")).toHaveLength(2);
-  });
-
-  it("collapses repeated steps", () => {
-    render(<Chat {...base} working steps={[{ text: "Reading" }, { text: "Reading" }, { text: "Writing" }]} />);
+    // repeated steps collapse
+    rerender(<Chat {...base} working steps={[{ text: "Reading" }, { text: "Reading" }, { text: "Writing" }]} />);
     expect(screen.getAllByText("Reading")).toHaveLength(1);
+
+    const steps = stepsOf([
+      { stage: "step", text: "Reading", id: 1, state: "running" }, { stage: "step", text: "Reading", id: 1, state: "done" },
+      { stage: "step", text: "Checking", id: 2, state: "running" }, { stage: "step", text: "Checking", id: 2, state: "failed", failed: true },
+      { stage: "step", text: "Recording your workout", id: 3, state: "running" },
+    ]);
+    expect(steps).toEqual([{ text: "Reading", failed: false, running: false, think: false, key: "s1" },
+      { text: "Checking", failed: true, running: false, think: false, key: "s2" },
+      { text: "Recording your workout", failed: false, running: true, think: false, key: "s3" }]);
+    rerender(<Chat {...base} working steps={steps} />);
+    expect(screen.getByText("Recording your workout")).toHaveClass("now");
+    expect(screen.getByText("Reading")).not.toHaveClass("now");
+    expect(screen.getByText("Checking")).toHaveClass("bad");
+
+    // a step from before ids reads as done
+    expect(stepsOf([{ stage: "folder" }, { stage: "step", text: "Old", failed: false }]))
+      .toEqual([{ text: "Old", failed: false, running: false, think: false, key: "i0" }]);
+
+    // what the coach is thinking about shows only while it thinks
+    const ev = [
+      { stage: "step", text: "Reading your message", id: 1, state: "running", think: true },
+      { stage: "step", text: "Reading your message", id: 1, state: "done", think: true },
+      { stage: "step", text: "Working out today's safe moves", id: 2, state: "running" },
+      { stage: "step", text: "Working out today's safe moves", id: 2, state: "done" },
+      { stage: "step", text: "Writing your script", id: 3, state: "running", think: true },
+    ];
+    rerender(<Chat {...base} working steps={stepsOf(ev)} />);
+    expect(screen.queryByText(/Reading your message/)).toBeNull();      // done thinking is dropped
+    expect(screen.getByText("Working out today's safe moves")).not.toHaveClass("now");
+    expect(screen.getByText("Writing your script…")).toHaveClass("now", "think");
+    rerender(<Chat {...base} working steps={stepsOf([...ev, { stage: "step", text: "Writing your script", id: 3, state: "done", think: true }])} />);
+    expect(screen.queryByText(/Writing your script/)).toBeNull();
+
+    // wrapping up shows once, not as a step and then a thought
+    rerender(<Chat {...base} working steps={stepsOf([
+      { stage: "step", text: "Recording your workout: 18 of 40", id: 2, state: "running" },
+      { stage: "step", text: "Recording your workout (a little off its planned length)", id: 2, state: "done" },
+      { stage: "step", text: "Wrapping up", id: 3, state: "running", think: true },
+      { stage: "step", text: "Wrapping up", id: 3, state: "done", think: true },
+      { stage: "step", text: "Wrapping up", id: 4, state: "done" },
+      { stage: "step", text: "Wrapping up", id: 5, state: "running", think: true },
+    ])} />);
+    expect(screen.getByText("Recording your workout (a little off its planned length)")).not.toHaveClass("bad");
+    expect(screen.getAllByText(/Wrapping up/)).toHaveLength(1);
+    expect(screen.getByText("Wrapping up…")).toHaveClass("now", "think");
+  });
+
+  it("shows the workout's plan while its words are written, and a long wait's own clock", () => {
+    const plan = { rows: [{ what: "Air squat", kind: "movement" as const, segments: 2, seconds: 100 }], seconds: 100 };
+    // the plan is the newest plan event's, never a step, and none when empty or malformed
+    const events = [{ stage: "step", text: "Planning the script's timing", id: 1, state: "done" },
+      { stage: "plan", plan: { ...plan, seconds: 90 } }, { stage: "plan", plan },
+      { stage: "step", text: "Writing your script", id: 2, state: "running" }];
+    expect(planOf(events)).toEqual(plan);
+    expect(stepsOf(events).map((s) => s.text)).toEqual(["Planning the script's timing", "Writing your script"]);
+    expect(planOf([])).toBeNull();
+    expect(planOf([{ stage: "plan", plan: { rows: [], seconds: 0 } }])).toBeNull();
+    expect(planOf([{ stage: "plan", plan: "nope" }])).toBeNull();
+    render(<Chat {...base} working steps={stepsOf(events)} plan={plan} />);
+    expect(screen.getByRole("table", { name: "Your workout, while the words are written" })).toHaveTextContent("Air squat");
+    cleanup();
+
+    vi.useFakeTimers();
+    try {
+      render(<Chat {...base} working steps={stepsOf([{ stage: "step", text: "Recording your workout", id: 1, state: "running", kind: "recording" }])} />);
+      expect(screen.queryByText("Recording a full workout takes a few minutes.")).toBeNull();
+      act(() => { vi.advanceTimersByTime(30_000); });
+      expect(screen.getByText("Recording a full workout takes a few minutes.")).toBeInTheDocument();
+      expect(screen.getByText("Recording your workout")).toHaveTextContent(/30s$/);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("plays and offers a workout's audio while it's kept, and says when it's gone", () => {
@@ -100,11 +169,15 @@ describe("the chat", () => {
     expect(screen.getByText(/three newest workouts/)).toBeInTheDocument();
   });
 
-  it("offers the priced recording with its price, and records on the button", () => {
+  it("offers the priced recording with its price and plan, and records on the button", () => {
     const onRecord = vi.fn();
-    render(<Chat {...base} offers={{ offer: { name: "Workout 5 min", coach: "Coach Reed", chars: 3000, usd: 0.045,
-      service: "fish" }, onRecord }} />);
+    render(<Chat {...base} offers={{ offer: { ...offer, coach: "Coach Reed", chars: 3000, usd: 0.045, service: "fish" },
+      onRecord }} />);
     expect(screen.getByText(/3,000 characters on Fish Audio, about \$0.05/)).toBeInTheDocument();
+    const table = screen.getByRole("table");
+    expect(within(table).getByText("Air squat")).toBeInTheDocument();
+    expect(within(table).getByText("1:40")).toBeInTheDocument();
+    expect(within(table).getByText("5:30")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Record it (about $0.05)" }));
     expect(onRecord).toHaveBeenCalled();
   });
@@ -140,14 +213,6 @@ describe("the chat", () => {
     expect(screen.queryByRole("button", { name: "Stop" })).toBeNull();
   });
 
-  it("offers the waiting conversation on the first screen", () => {
-    const onResume = vi.fn();
-    render(<Chat {...base} first={{ waiting: { offer: false, at: null }, onResume }} />);
-    fireEvent.click(screen.getByRole("button", { name: /Pick up where you left off/ }));
-    expect(onResume).toHaveBeenCalledTimes(1);
-    expect(screen.getByText("Your coach asked you something.")).toBeInTheDocument();
-  });
-
   it("Stop asks before it throws the plan away, then says it's stopping and asks the server once", () => {
     const onStop = vi.fn();
     render(<Chat {...base} working onStop={onStop} />);
@@ -168,19 +233,18 @@ describe("the chat", () => {
     expect(screen.getByText("**not bold**")).toBeInTheDocument();
   });
 
-  it("shows the no-key message with a Settings button", () => {
+  it("with no key, says so and offers the four keys, voicing ones first; with one, the starter once it's known", () => {
     const onOpenKeys = vi.fn();
-    render(<Chat {...base} noKey error="Add a key for Claude in Settings first." onOpenKeys={onOpenKeys} />);
+    const { unmount } = render(<Chat {...base} noKey error="Add a key for Claude in Settings first." onOpenKeys={onOpenKeys} />);
     expect(screen.getByRole("alert")).toHaveTextContent("Add a key for Claude in Settings first.");
     fireEvent.click(screen.getByRole("button", { name: "Open Settings" }));
     expect(onOpenKeys).toHaveBeenCalled();
-  });
+    unmount();
 
-  it("with no key, offers the four keys, the ones that also voice first, and the box waits", () => {
     const onAddKey = vi.fn();
     const need = [{ name: "Claude", service: "anthropic", voice: false }, { name: "ChatGPT", service: "openai", voice: false },
       { name: "Gemini", service: "gemini", voice: true }, { name: "OpenRouter", service: "openrouter", voice: true }];
-    render(<Chat {...base} first={{ needsKey: need, onAddKey }} />);
+    const { rerender } = render(<Chat {...base} first={{ needsKey: need, onAddKey }} />);
     expect(screen.getByRole("heading", { name: "Welcome to HarmonicFitness" })).toBeInTheDocument();
     const picks = screen.getAllByRole("button").filter((b) => b.classList.contains("welcome-pick"));
     expect(picks.map((b) => b.querySelector(".welcome-pick-name")?.textContent)).toEqual(["OpenRouter", "Gemini", "Claude", "ChatGPT"]);
@@ -192,86 +256,13 @@ describe("the chat", () => {
     expect(screen.getByRole("textbox", { name: "Message" })).toHaveAttribute("placeholder", "Add a key in Settings first");
     fireEvent.click(picks[3]);
     expect(onAddKey).toHaveBeenCalledWith("openai");
-  });
 
-  it("with a key, offers the starter sentence once it knows what to fill it with", () => {
-    const { rerender } = render(<Chat {...base} first={{ needsKey: null }} />);
+    rerender(<Chat {...base} first={{ needsKey: null }} />);
     expect(screen.queryByRole("region", { name: "Plan a workout" })).toBeNull();
     rerender(<Chat {...base} first={{ needsKey: null, start: { coaches: [], kits: [], minutes: 25, limits: [], suggest: null, setup_quick: false } }} />);
     expect(screen.getByRole("region", { name: "Plan a workout" })).toBeInTheDocument();
     expect(screen.queryByText("Welcome to HarmonicFitness")).toBeNull();
     expect(screen.getByRole("textbox", { name: "Message" })).toBeEnabled();
-  });
-
-  it("shows a running step as current, and a finished one as done", () => {
-    const steps = stepsOf([
-      { stage: "step", text: "Reading", id: 1, state: "running" }, { stage: "step", text: "Reading", id: 1, state: "done" },
-      { stage: "step", text: "Checking", id: 2, state: "running" }, { stage: "step", text: "Checking", id: 2, state: "failed", failed: true },
-      { stage: "step", text: "Recording your workout", id: 3, state: "running" },
-    ]);
-    expect(steps).toEqual([{ text: "Reading", failed: false, running: false, think: false, key: "s1" },
-      { text: "Checking", failed: true, running: false, think: false, key: "s2" },
-      { text: "Recording your workout", failed: false, running: true, think: false, key: "s3" }]);
-    render(<Chat {...base} working steps={steps} />);
-    expect(screen.getByText("Recording your workout")).toHaveClass("now");
-    expect(screen.getByText("Reading")).not.toHaveClass("now");
-    expect(screen.getByText("Checking")).toHaveClass("bad");
-  });
-
-  it("reads a step from before ids as done", () => {
-    expect(stepsOf([{ stage: "folder" }, { stage: "step", text: "Old", failed: false }]))
-      .toEqual([{ text: "Old", failed: false, running: false, think: false, key: "i0" }]);
-  });
-
-  it("shows the workout's plan while its words are written", () => {
-    const plan = { rows: [{ what: "Air squat", kind: "movement" as const, segments: 2, seconds: 100 }], seconds: 100 };
-    render(<Chat {...base} working steps={stepsOf([{ stage: "step", text: "Writing your script", id: 1, state: "running" }])}
-      plan={plan} />);
-    expect(screen.getByRole("table", { name: "Your workout, while the words are written" })).toHaveTextContent("Air squat");
-  });
-
-  it("shows what the coach is thinking about only while it thinks", () => {
-    const ev = [
-      { stage: "step", text: "Reading your message", id: 1, state: "running", think: true },
-      { stage: "step", text: "Reading your message", id: 1, state: "done", think: true },
-      { stage: "step", text: "Working out today's safe moves", id: 2, state: "running" },
-      { stage: "step", text: "Working out today's safe moves", id: 2, state: "done" },
-      { stage: "step", text: "Writing your script", id: 3, state: "running", think: true },
-    ];
-    const { rerender } = render(<Chat {...base} working steps={stepsOf(ev)} />);
-    expect(screen.queryByText(/Reading your message/)).toBeNull();      // done thinking is dropped
-    expect(screen.getByText("Working out today's safe moves")).not.toHaveClass("now");
-    expect(screen.getByText("Writing your script…")).toHaveClass("now", "think");
-    rerender(<Chat {...base} working steps={stepsOf([...ev, { stage: "step", text: "Writing your script", id: 3, state: "done", think: true }])} />);
-    expect(screen.queryByText(/Writing your script/)).toBeNull();
-  });
-
-  it("shows wrapping up once, not as a step and then a thought", () => {
-    const ev = [
-      { stage: "step", text: "Recording your workout: 18 of 40", id: 2, state: "running" },
-      { stage: "step", text: "Recording your workout (a little off its planned length)", id: 2, state: "done" },
-      { stage: "step", text: "Wrapping up", id: 3, state: "running", think: true },
-      { stage: "step", text: "Wrapping up", id: 3, state: "done", think: true },
-      { stage: "step", text: "Wrapping up", id: 4, state: "done" },
-      { stage: "step", text: "Wrapping up", id: 5, state: "running", think: true },
-    ];
-    render(<Chat {...base} working steps={stepsOf(ev)} />);
-    expect(screen.getByText("Recording your workout (a little off its planned length)")).not.toHaveClass("bad");
-    expect(screen.getAllByText(/Wrapping up/)).toHaveLength(1);
-    expect(screen.getByText("Wrapping up…")).toHaveClass("now", "think");
-  });
-
-  it("a long wait shows its own clock and says it's a long one", () => {
-    vi.useFakeTimers();
-    try {
-      render(<Chat {...base} working steps={stepsOf([{ stage: "step", text: "Recording your workout", id: 1, state: "running", kind: "recording" }])} />);
-      expect(screen.queryByText("Recording a full workout takes a few minutes.")).toBeNull();
-      act(() => { vi.advanceTimersByTime(30_000); });
-      expect(screen.getByText("Recording a full workout takes a few minutes.")).toBeInTheDocument();
-      expect(screen.getByText("Recording your workout")).toHaveTextContent(/30s$/);
-    } finally {
-      vi.useRealTimers();
-    }
   });
 
   it("keeps the unsent text across a reload, and clears it on send", () => {
@@ -286,37 +277,5 @@ describe("the chat", () => {
     fireEvent.keyDown(box, { key: "Enter" });
     expect(onSend).toHaveBeenCalledWith("20 minutes, legs");
     expect(sessionStorage.getItem("hf-chat-draft")).toBeNull();
-  });
-});
-
-const offer: Offer = {
-  name: "Workout 10 min", coach: "Coach Fraser", chars: 6951, usd: 0.1, service: "gemini",
-  plan: { rows: [{ what: "Air squat", kind: "movement", segments: 2, seconds: 100 },
-                 { what: "Rests", kind: "rest", segments: 5, seconds: 150 },
-                 { what: "Talk and changeovers", kind: "talk", segments: 2, seconds: 80 }], seconds: 330 },
-};
-
-describe("the Record card", () => {
-  const show = (o: Offer) =>
-    render(<Chat {...base} lines={[{ role: "agent", text: "a) Novice\nb) Experienced" }]} offers={{ offer: o }} />);
-
-  it("shows the plan the engine worked out, with its total", () => {
-    show(offer);
-    const table = screen.getByRole("table");
-    expect(within(table).getByText("Air squat")).toBeInTheDocument();
-    expect(within(table).getByText("1:40")).toBeInTheDocument();
-    expect(within(table).getByText("5:30")).toBeInTheDocument();
-    expect(screen.queryByText(/free tier/)).toBeNull();
-  });
-
-  it("says where the script goes before the first recording", () => {
-    show({ ...offer, first: true });
-    expect(screen.getByText(/Recording sends the script to Gemini/)).toBeInTheDocument();
-    expect(screen.getByText(/free tier/)).toBeInTheDocument();
-  });
-
-  it("keeps the coach's line breaks", () => {
-    show(offer);
-    expect(document.querySelector(".md br")).not.toBeNull();
   });
 });

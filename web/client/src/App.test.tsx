@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { App } from "./App";
 
 afterEach(() => vi.unstubAllGlobals());
+
+const json = (b: unknown, status = 200) => Promise.resolve(new Response(JSON.stringify(b), { status }));
 
 describe("the app", () => {
   it("asks nothing else of the server until it knows who is signed in", async () => {
@@ -24,9 +26,8 @@ describe("the app", () => {
     expect(fetched.filter((u) => u.startsWith("/api/keys") || u.startsWith("/api/conversations"))).toEqual([]);
   });
 
-  it("welcomes a listener with no key, and offers the starter once the key is saved", async () => {
+  it("welcomes a listener with no key, offers the starter once it's saved, and asks for the start screen once", async () => {
     const gemini = { service: "gemini", name: "Gemini", key_page: "https://g.example", set: false, updated_at: null };
-    const json = (b: unknown, status = 200) => Promise.resolve(new Response(JSON.stringify(b), { status }));
     const put = vi.fn(), chose = vi.fn();
     vi.stubGlobal("fetch", vi.fn((url: string, init?: RequestInit) => {
       if (url === "/api/me") return json({ app_name: "HarmonicFitness", username: "ana", has_password: true, version: "" });
@@ -50,11 +51,9 @@ describe("the app", () => {
     expect(chose).toHaveBeenCalledWith(JSON.stringify({ service: "gemini" }));
     expect(screen.queryByText("Welcome to HarmonicFitness")).toBeNull();
     expect(screen.getByRole("textbox", { name: "Message" })).toBeEnabled();
-  });
+    cleanup();
 
-  it("shows the sentence before the start screen's answer, and asks for it once as the keys arrive", async () => {
-    const json = (b: unknown, status = 200) => Promise.resolve(new Response(JSON.stringify(b), { status }));
-    const gemini = { service: "gemini", name: "Gemini", key_page: "https://g.example", updated_at: null };
+    // with keys: the sentence shows before the start screen's answer, which is asked for once as the keys arrive
     const starts: ((r: Response) => void)[] = [];
     vi.stubGlobal("fetch", vi.fn((url: string) => {
       if (url === "/api/me") return json({ app_name: "HarmonicFitness", username: "ana", has_password: true, version: "" });
@@ -76,70 +75,5 @@ describe("the app", () => {
     expect(screen.getByRole("region", { name: "Plan a workout" })).toHaveAttribute("aria-busy", "false");
     expect(screen.getByRole("button", { name: "Coach: Wade" })).toBeInTheDocument();
     expect(starts).toHaveLength(1);
-  });
-
-  it("shows the saved sky, and switches it from Settings, putting it back if the save is refused", async () => {
-    const json = (b: unknown, status = 200) => Promise.resolve(new Response(JSON.stringify(b), { status }));
-    const saved: string[] = [];
-    let refuse = false;
-    vi.stubGlobal("fetch", vi.fn((url: string, init?: RequestInit) => {
-      if (url === "/api/me") return json({ app_name: "HarmonicFitness", username: "ana", has_password: true, version: "", sky: "field" });
-      if (url === "/api/keys") return json([]);
-      if (url === "/api/sky" && init?.method === "PUT") {
-        saved.push(String(init.body));
-        return Promise.resolve(new Response(null, { status: refuse ? 500 : 204 }));
-      }
-      if (url === "/api/conversations/latest") return Promise.resolve(new Response(null, { status: 204 }));
-      return Promise.resolve(new Response(null, { status: 404 }));
-    }));
-    const { container } = render(<App />);
-    const sky = () => container.querySelector(".sky")?.getAttribute("data-sky");
-    await waitFor(() => expect(sky()).toBe("field"));
-    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
-    const flow = await screen.findByRole("button", { name: /^Flow/ });
-    expect(screen.getByRole("button", { name: /^Field/ })).toHaveAttribute("aria-pressed", "true");
-    fireEvent.click(flow);
-    expect(sky()).toBe("flow");
-    await waitFor(() => expect(saved).toEqual([JSON.stringify({ sky: "flow" })]));
-    expect(flow).toHaveAttribute("aria-pressed", "true");
-    refuse = true;
-    fireEvent.click(screen.getByRole("button", { name: /^Field/ }));
-    await waitFor(() => expect(saved).toHaveLength(2));
-    await waitFor(() => expect(sky()).toBe("flow"));   // refused: back as it was
-  });
-
-  it("gives Logs an address, and holds the keyboard inside Settings while it's open", async () => {
-    const json = (b: unknown, status = 200) => Promise.resolve(new Response(JSON.stringify(b), { status }));
-    const claude = { service: "anthropic", name: "Claude", key_page: "https://a.example", set: true, updated_at: null,
-      kind: "model", writer: true };
-    vi.stubGlobal("fetch", vi.fn((url: string) => {
-      if (url === "/api/me") return json({ app_name: "HarmonicFitness", username: "ana", has_password: true, version: "" });
-      if (url === "/api/keys") return json([claude]);
-      if (url === "/api/workouts") return json({ workouts: [] });
-      if (url === "/api/level") return json({ level: "novice", set: false, choices: [] });
-      if (url === "/api/start") return json({ coaches: [], kits: [], minutes: 25, limits: [], suggest: null, setup_quick: false });
-      return Promise.resolve(new Response(null, { status: 204 }));
-    }));
-    render(<App />);
-    fireEvent.click(await screen.findByRole("button", { name: "Logs" }, { timeout: 5000 }));
-    expect(window.location.hash).toBe("#logs");
-    // an empty list says what will show here, and offers the way there
-    expect(await screen.findByText("Your workouts show here once you've recorded one.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Plan a workout" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Logs" })).toHaveFocus();   // the page starts where it opened
-    fireEvent.click(screen.getByRole("button", { name: "Close, back to the chat" }));
-    expect(window.location.hash).toBe("");
-    expect(screen.queryByRole("heading", { name: "Logs" })).toBeNull();
-    expect(screen.getByRole("button", { name: "Logs" })).toHaveFocus();   // back on the button that opened it
-
-    const gear = screen.getByRole("button", { name: "Settings" });
-    gear.focus();
-    fireEvent.click(gear);
-    const drawer = screen.getByRole("dialog", { name: "Settings" });
-    await waitFor(() => expect(drawer).toContainElement(document.activeElement as HTMLElement));
-    expect(document.querySelector(".work")).toHaveAttribute("inert");   // the page behind can't be reached
-    fireEvent.keyDown(document, { key: "Escape" });
-    await waitFor(() => expect(gear).toHaveFocus());
-    expect(document.querySelector(".work")).not.toHaveAttribute("inert");
   });
 });

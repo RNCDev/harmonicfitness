@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createRef } from "react";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { AudioPlayer, type AudioHandle } from "./Player";
 
 // jsdom's media elements neither play nor pause: these stand in, saying so the way a browser would.
@@ -21,7 +21,7 @@ afterEach(() => vi.restoreAllMocks());
 const button = (name: string) => screen.getByRole("button", { name });
 
 describe("the audio player", () => {
-  it("says so when the browser refuses to play, and forgets it on the next try", async () => {
+  it("says so when the browser refuses to play, forgets it on the next try, and says nothing for a play cut short", async () => {
     play.mockImplementationOnce(() => Promise.reject(new DOMException("no", "NotSupportedError")));
     render(<AudioPlayer src="/a.mp3" label="Nora's sample" />);
     await act(async () => { fireEvent.click(button("Play Nora's sample")); });
@@ -29,9 +29,8 @@ describe("the audio player", () => {
     expect(button("Play Nora's sample")).toBeInTheDocument();
     await act(async () => { fireEvent.click(button("Play Nora's sample")); });
     expect(screen.queryByRole("alert")).toBeNull();
-  });
+    cleanup();
 
-  it("says nothing when a play is cut short by a pause", async () => {
     play.mockImplementationOnce(() => Promise.reject(new DOMException("paused", "AbortError")));
     render(<AudioPlayer src="/a.mp3" label="Nora's sample" />);
     await act(async () => { fireEvent.click(button("Play Nora's sample")); });
@@ -53,8 +52,9 @@ describe("the audio player", () => {
     expect(button("Play Leah's sample")).toBeInTheDocument();
   });
 
-  it("lazy: fetches nothing until the first play, then sets the clip once", () => {
-    const { container } = render(<AudioPlayer src="/demo.mp3" label="Jo's workout" lazy />);
+  it("lazy: fetches nothing until the first play, sets the clip once, and a new clip stops the last and starts from nothing", () => {
+    const onPlaying = vi.fn();
+    const { container, rerender } = render(<AudioPlayer src="/demo.mp3" label="Jo's workout" lazy onPlaying={onPlaying} />);
     const audio = container.querySelector("audio")!;
     expect(audio).not.toHaveAttribute("src");
     expect(audio).toHaveAttribute("preload", "none");
@@ -64,13 +64,8 @@ describe("the audio player", () => {
     fireEvent.click(button("Play Jo's workout"));
     expect(audio.getAttribute("src")).toBe("/demo.mp3");
     expect(play.mock.contexts).toEqual([audio, audio]);
-  });
-
-  it("a new clip stops the last one and starts from nothing", () => {
-    const onPlaying = vi.fn();
-    const { container, rerender } = render(<AudioPlayer src="/one.mp3" label="Jo's workout" lazy onPlaying={onPlaying} />);
-    fireEvent.click(button("Play Jo's workout"));
     expect(onPlaying).toHaveBeenLastCalledWith(true);
+
     pause.mockClear();
     rerender(<AudioPlayer src="/two.mp3" label="Jo's workout" lazy onPlaying={onPlaying} />);
     expect(pause.mock.contexts).toEqual([container.querySelector("audio")]);
@@ -80,7 +75,7 @@ describe("the audio player", () => {
     expect(screen.getByRole("slider", { name: "Jo's workout, position" })).toBeDisabled();   // its length unknown again
   });
 
-  it("shows the time once the length is known, and seeks along it", () => {
+  it("shows the time once the length is known, seeks along it, and plays from a moment when asked", () => {
     const { container } = render(<AudioPlayer src="/a.mp3" label="Nora's sample" idle="45 s" />);
     expect(screen.getByText("45 s")).toBeInTheDocument();
     const audio = container.querySelector("audio")!;
@@ -91,17 +86,16 @@ describe("the audio player", () => {
     fireEvent.change(seek, { target: { value: "12" } });
     expect(audio.currentTime).toBe(12);
     expect(screen.getByText("0:12 / 0:45")).toBeInTheDocument();
-  });
+    cleanup();
 
-  it("plays from a moment when asked, once the clip's length is known", () => {
     const ref = createRef<AudioHandle>();
-    const { container } = render(<AudioPlayer ref={ref} src="/demo.mp3" label="Jo's workout" lazy />);
-    const audio = container.querySelector("audio")!;
+    const { container: lazy } = render(<AudioPlayer ref={ref} src="/demo.mp3" label="Jo's workout" lazy />);
+    const clip = lazy.querySelector("audio")!;
     act(() => ref.current!.play(56));
     expect(play).not.toHaveBeenCalled();   // waits for the clip's metadata
-    expect(audio.getAttribute("src")).toBe("/demo.mp3");
-    fireEvent(audio, new Event("loadedmetadata"));
-    expect(audio.currentTime).toBe(56);
+    expect(clip.getAttribute("src")).toBe("/demo.mp3");
+    fireEvent(clip, new Event("loadedmetadata"));
+    expect(clip.currentTime).toBe(56);
     expect(play).toHaveBeenCalledTimes(1);
   });
 });

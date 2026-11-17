@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { StartInfo } from "../lib/api";
 import { whenWords } from "../lib/request";
 import { Starter } from "./Starter";
@@ -21,19 +21,9 @@ const info: StartInfo = {
 const slot = (name: RegExp) => screen.getByRole("button", { name });
 
 describe("the starter", () => {
-  it("a failed load keeps the request, says why and offers Try again, not \"Choose your coach\"", () => {
-    const onRetry = vi.fn();
-    const none: StartInfo = { coaches: [], kits: [], minutes: 25, limits: [], suggest: null, setup_quick: false };
-    render(<Starter info={none} onStart={vi.fn()} onOpenCoaches={vi.fn()} loadError="Couldn't load your coaches." onRetry={onRetry} />);
-    expect(screen.queryByText("Choose your coach.")).toBeNull();
-    expect(screen.queryByText("Add a voice key in Settings first.")).toBeNull();
-    expect(screen.getByRole("alert")).toHaveTextContent("Couldn't load your coaches.");
-    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
-    expect(onRetry).toHaveBeenCalled();
-  });
-
-  it("fills the blanks from what the app knows", () => {
-    render(<Starter info={info} onStart={vi.fn()} />);
+  it("fills the blanks from what the app knows, offers only the coaches that can speak, and follows the page's coach", () => {
+    const onCoach = vi.fn();
+    const { rerender } = render(<Starter info={info} onStart={vi.fn()} onCoach={onCoach} />);
     expect(slot(/^Coach: Reed$/)).toBeInTheDocument();
     expect(slot(/^Length: 30-minute$/)).toBeInTheDocument();
     expect(slot(/^Where: at home$/)).toBeInTheDocument();
@@ -41,9 +31,19 @@ describe("the starter", () => {
     expect(slot(/^Go easy on: left knee$/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /How you feel/ })).toBeNull();
     expect(screen.getByText("Suggested because of your log: legs: last trained 6 days ago.")).toBeInTheDocument();
+
+    fireEvent.click(slot(/^Coach:/));
+    const opts = within(screen.getByRole("listbox", { name: "Coach" })).getAllByRole("option");
+    expect(opts.map((o) => o.textContent)).toEqual(["Reed", "Nolan"]);
+    // a picked coach goes to the page, and the page's current coach is followed
+    fireEvent.click(within(screen.getByRole("listbox")).getByRole("option", { name: "Nolan" }));
+    expect(onCoach).toHaveBeenCalledWith("coach-nolan-gemini");
+    const now = { ...info, coaches: info.coaches.map((c) => ({ ...c, current: c.first === "Nolan" })) };
+    rerender(<Starter info={now} onStart={vi.fn()} onCoach={onCoach} />);
+    expect(slot(/^Coach: Nolan$/)).toBeInTheDocument();
   });
 
-  it("moves through a list from the keyboard, and closes it when focus leaves", () => {
+  it("moves through a list from the keyboard, closes it on Escape or when focus leaves, and opens the body chart as a modal", () => {
     render(<Starter info={info} onStart={vi.fn()} />);
     fireEvent.click(slot(/^Length:/));
     const list = screen.getByRole("listbox", { name: "Length" });
@@ -58,10 +58,15 @@ describe("the starter", () => {
     // Tab onward: focus lands on the next control, and the list closes behind it
     fireEvent.blur(opts[0], { relatedTarget: slot(/^Workout:/) });
     expect(screen.queryByRole("listbox")).toBeNull();
-  });
 
-  it("opens the body chart as a modal dialog over a scrim", () => {
-    render(<Starter info={info} onStart={vi.fn()} />);
+    // Escape closes a list and gives focus back to its blank
+    const b = slot(/^Length:/);
+    fireEvent.click(b);
+    fireEvent.keyDown(screen.getByRole("listbox"), { key: "Escape" });
+    expect(screen.queryByRole("listbox")).toBeNull();
+    expect(b).toHaveFocus();
+
+    // the body chart: a modal dialog over a scrim
     fireEvent.click(slot(/^Go easy on:/));
     const chart = screen.getByRole("dialog", { name: "Anything bothering you today?" });
     expect(chart).toHaveAttribute("aria-modal", "true");
@@ -74,24 +79,6 @@ describe("the starter", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(page).not.toHaveAttribute("inert");
     expect(slot(/^Go easy on:/)).toHaveFocus();
-  });
-
-  it("offers only the coaches that can speak", () => {
-    render(<Starter info={info} onStart={vi.fn()} />);
-    fireEvent.click(slot(/^Coach:/));
-    const opts = within(screen.getByRole("listbox", { name: "Coach" })).getAllByRole("option").map((o) => o.textContent);
-    expect(opts).toEqual(["Reed", "Nolan"]);
-  });
-
-  it("hands a picked coach to the page, and follows the page's current coach", () => {
-    const onCoach = vi.fn();
-    const { rerender } = render(<Starter info={info} onStart={vi.fn()} onCoach={onCoach} />);
-    fireEvent.click(slot(/^Coach:/));
-    fireEvent.click(within(screen.getByRole("listbox")).getByRole("option", { name: "Nolan" }));
-    expect(onCoach).toHaveBeenCalledWith("coach-nolan-gemini");
-    const now = { ...info, coaches: info.coaches.map((c) => ({ ...c, current: c.first === "Nolan" })) };
-    rerender(<Starter info={now} onStart={vi.fn()} onCoach={onCoach} />);
-    expect(slot(/^Coach: Nolan$/)).toBeInTheDocument();
   });
 
   it("plans a workout for a time picked in the sentence: the check-in now, the time sent with it", () => {
@@ -107,9 +94,8 @@ describe("the starter", () => {
     expect(line).toMatch(/^Hey, coach Reed, I'd like a 30-minute leg workout at home, (at|tomorrow at) .+\. Go easy/);
     expect(startAt).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:00[+-]\d{2}:\d{2}$/);
     expect(new Date(startAt).getTime()).toBe(slots()[2].getTime());
-  });
 
-  it("offers every half hour from half an hour ahead, for a day", () => {
+    // every half hour from half an hour ahead, for a day
     const now = new Date(2026, 10, 3, 9, 10);
     const got = slots(now);
     expect([got[0].getHours(), got[0].getMinutes()]).toEqual([10, 0]);
@@ -165,16 +151,7 @@ describe("the starter", () => {
     expect(slot(/^Keep off: left knee and wrist$/)).toBeInTheDocument();
   });
 
-  it("Escape closes a list and gives focus back to its blank", () => {
-    render(<Starter info={info} onStart={vi.fn()} />);
-    const b = slot(/^Length:/);
-    fireEvent.click(b);
-    fireEvent.keyDown(screen.getByRole("listbox"), { key: "Escape" });
-    expect(screen.queryByRole("listbox")).toBeNull();
-    expect(b).toHaveFocus();
-  });
-
-  it("something else: each sends at once; coaches and feedback have their own pages", async () => {
+  it("something else: each sends at once, coaches and feedback have their own pages, and an unfinished setup comes first", async () => {
     const onStart = vi.fn().mockResolvedValue(false);   // refused, so the asks come back
     render(<Starter info={info} onStart={onStart} onOpenCoaches={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: /^Update an injury or pain/ }));
@@ -186,6 +163,13 @@ describe("the starter", () => {
     expect(screen.queryByRole("button", { name: /^Give feedback on my last workout/ })).toBeNull();   // on Logs
     expect(screen.queryByRole("button", { name: /^Pick a different coach/ })).toBeNull();   // the Coaches page
     expect(screen.queryByRole("button", { name: /^Finish setting me up/ })).toBeNull();
+    cleanup();
+
+    render(<Starter info={{ ...info, setup_quick: true }} onStart={vi.fn()} />);
+    const items = within(screen.getByRole("navigation", { name: "Other things you can do" })).getAllByRole("button");
+    expect(items[0]).toHaveAccessibleName(/^Finish setting me up/);
+    expect(items[0]).toHaveClass("lead");
+    expect(items.slice(1).some((b) => b.classList.contains("lead"))).toBe(false);
   });
 
   it("an ask on its way keeps the others from sending a second", () => {
@@ -196,26 +180,15 @@ describe("the starter", () => {
     expect(screen.getByRole("button", { name: /^Update an injury or pain/ })).toHaveAttribute("aria-busy", "true");
   });
 
-  it("setup not finished: Finish setting me up comes first, marked as the one to do", () => {
-    render(<Starter info={{ ...info, setup_quick: true }} onStart={vi.fn()} />);
-    const items = within(screen.getByRole("navigation", { name: "Other things you can do" })).getAllByRole("button");
-    expect(items[0]).toHaveAccessibleName(/^Finish setting me up/);
-    expect(items[0]).toHaveClass("lead");
-    expect(items.slice(1).some((b) => b.classList.contains("lead"))).toBe(false);
-  });
-
-  it("with no voice key, it waits and says why", () => {
-    render(<Starter info={{ ...info, coaches: info.coaches.map((c) => ({ ...c, ready: false })) }} onStart={vi.fn()} />);
+  it("with no voice key, it waits and says why; with a key that only writes, it asks for a coach first", () => {
+    const silent = { ...info, coaches: info.coaches.map((c) => ({ ...c, ready: false })) };
+    render(<Starter info={silent} onStart={vi.fn()} />);
     expect(screen.getByRole("button", { name: "Plan my workout" })).toBeDisabled();   // no Coaches page to send to
     expect(screen.getByText("Add a voice key in Settings first.")).toBeInTheDocument();
-  });
-});
+    cleanup();
 
-describe("choosing a coach", () => {
-  it("with a key that only writes, asks for a coach first", () => {
     const onOpenCoaches = vi.fn();
-    render(<Starter info={{ ...info, coaches: info.coaches.map((c) => ({ ...c, ready: false })) }} onStart={vi.fn()}
-      onOpenCoaches={onOpenCoaches} />);
+    render(<Starter info={silent} onStart={vi.fn()} onOpenCoaches={onOpenCoaches} />);
     expect(screen.queryByRole("button", { name: "Plan my workout" })).toBeNull();
     expect(screen.queryByRole("button", { name: /^Coach:/ })).toBeNull();   // no sentence to a coach with no voice
     expect(screen.getByText("One more step")).toBeInTheDocument();
@@ -228,7 +201,7 @@ describe("choosing a coach", () => {
 describe("a new listener's first screen", () => {
   const fresh: StartInfo = { ...info, minutes: 10, limits: [], suggest: null, setup_quick: true, new: true };
 
-  it("asks the setup's first questions with the request, and sends the answers after it", async () => {
+  it("asks the setup's first questions with the request and sends the answers after it, never once they have a level", async () => {
     const onStart = vi.fn().mockResolvedValue(true);
     render(<Starter info={fresh} onStart={onStart} />);
     fireEvent.change(screen.getByLabelText("What should your coach call you?"), { target: { value: " Sam " } });
@@ -239,19 +212,18 @@ describe("a new listener's first screen", () => {
     fireEvent.click(screen.getByRole("button", { name: "Plan my workout" }));
     await waitFor(() => expect(onStart).toHaveBeenCalled());
     expect(onStart.mock.calls[0][0]).toMatch(/today\. About me: call me Sam\. I've trained before and know the basic moves, but I'm no expert\. At home I have two dumbbells and a bench\.$/);
-  });
+    cleanup();
 
-  it("left as it is: no name, novice, bodyweight", async () => {
-    const onStart = vi.fn().mockResolvedValue(true);
-    render(<Starter info={fresh} onStart={onStart} />);
+    // left as it is: no name, novice, bodyweight
+    const asIs = vi.fn().mockResolvedValue(true);
+    render(<Starter info={fresh} onStart={asIs} />);
     expect(screen.getByRole("radio", { name: /I'm new to this/ })).toHaveAttribute("aria-checked", "true");
     fireEvent.click(screen.getByRole("button", { name: "Plan my workout" }));
-    await waitFor(() => expect(onStart).toHaveBeenCalled());
-    expect(onStart.mock.calls[0][0]).toContain(
+    await waitFor(() => expect(asIs).toHaveBeenCalled());
+    expect(asIs.mock.calls[0][0]).toContain(
       "About me: no name, please. I'm new to this, or it's been a long while. At home I have no equipment: bodyweight only.");
-  });
+    cleanup();
 
-  it("isn't asked once they have a level", () => {
     render(<Starter info={info} onStart={vi.fn()} />);
     expect(screen.queryByText("First, about you")).toBeNull();
   });

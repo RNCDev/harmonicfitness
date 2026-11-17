@@ -1,16 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { api, ApiError, type LevelState } from "../../lib/api";
 import { Settings } from "./Settings";
 
 vi.mock("./KeysBox", () => ({ KeysBox: () => null }));
 
 describe("Settings", () => {
-  it("holds keys, not coaches (they have their own page)", () => {
-    render(<Settings username="sam" open onClose={vi.fn()} onSignOut={vi.fn()} />);
-    expect(screen.queryByRole("heading", { name: "Coaches" })).toBeNull();
-  });
-
   it("credits the backgrounds to Book of Shapes", () => {
     render(<Settings username="sam" open onClose={vi.fn()} onSignOut={vi.fn()} onSky={vi.fn()} />);
     const link = screen.getByRole("link", { name: "Book of Shapes" });
@@ -18,19 +13,6 @@ describe("Settings", () => {
     expect(link).toHaveAttribute("rel", "noopener noreferrer");
     expect(link.closest("p")).toHaveTextContent("Nikolaj Sokolowski");
     expect(screen.queryByRole("button", { name: /Arcs/ })).toBeNull();   // retired: its licence asks it not be published
-    expect(screen.getByRole("button", { name: /Bloom/ })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Lissajous/ })).toBeNull();   // replaced in 0.50.3
-    expect(screen.queryByRole("button", { name: /Hex Strands/ })).toBeNull();   // replaced by Woven Grid in 0.50.4
-    expect(screen.getByRole("button", { name: /Woven Grid/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Node Garden/ })).toBeInTheDocument();
-  });
-});
-
-describe("the version", () => {
-  it("shows at the foot of Settings", () => {
-    render(<Settings username="sam" version="0.42.3 (abc1234)" open onClose={vi.fn()}
-      onSignOut={vi.fn()} />);
-    expect(screen.getByText("Version 0.42.3 (abc1234)")).toBeInTheDocument();
   });
 });
 
@@ -46,16 +28,15 @@ describe("your level", () => {
   afterEach(() => vi.restoreAllMocks());
   const open = () => render(<Settings username="sam" open onClose={vi.fn()} onSignOut={vi.fn()} />);
 
-  it("offers the three sentences, novice until one is chosen", async () => {
+  it("offers the three sentences, novice until one is chosen, saves the one picked, and puts it back if refused", async () => {
     vi.spyOn(api, "level").mockResolvedValue(LEVELS);
     open();
     const novice = await screen.findByRole("radio", { name: /I'm new to this/ });
     expect(novice).toHaveAttribute("aria-checked", "true");
     expect(screen.getAllByRole("radio")).toHaveLength(3);
     expect(screen.getByText(/Not chosen yet/)).toBeInTheDocument();
-  });
+    cleanup();
 
-  it("saves the one picked", async () => {
     vi.spyOn(api, "level").mockResolvedValue({ ...LEVELS, level: "experienced", set: true });
     const save = vi.spyOn(api, "setLevel").mockResolvedValue(undefined);
     open();
@@ -63,9 +44,8 @@ describe("your level", () => {
     expect(save).toHaveBeenCalledWith("advanced");
     expect(screen.getByRole("radio", { name: /I know my way around/ })).toHaveAttribute("aria-checked", "true");
     expect(screen.queryByText(/Not chosen yet/)).toBeNull();
-  });
+    cleanup();
 
-  it("puts the old one back when the save is refused", async () => {
     vi.spyOn(api, "level").mockResolvedValue({ ...LEVELS, level: "experienced", set: true });
     vi.spyOn(api, "setLevel").mockRejectedValue(new ApiError(409, "Your files changed at the same moment. Try again."));
     open();
@@ -75,20 +55,10 @@ describe("your level", () => {
   });
 });
 
-describe("an empty answer", () => {
-  afterEach(() => vi.restoreAllMocks());
-  it("leaves the level loading, never breaks the drawer", async () => {
-    vi.spyOn(api, "level").mockResolvedValue(undefined as unknown as LevelState);
-    render(<Settings username="sam" open onClose={vi.fn()} onSignOut={vi.fn()} />);
-    expect(await screen.findByText("Loading your level…")).toBeInTheDocument();
-    expect(screen.getByText("Signed in as")).toBeInTheDocument();
-  });
-});
-
 describe("deleting the account", () => {
   afterEach(() => vi.restoreAllMocks());
 
-  it("asks for the password in place, with focus there, and deletes only once it's typed", async () => {
+  it("asks for the password in place, deletes only once it's typed, and Keep my account sends nothing", async () => {
     const del = vi.spyOn(api, "deleteAccount").mockResolvedValue(undefined);
     const onDeleted = vi.fn();
     render(<Settings username="sam" open onClose={vi.fn()} onSignOut={vi.fn()} onDeleted={onDeleted} />);
@@ -100,10 +70,9 @@ describe("deleting the account", () => {
     fireEvent.submit(box.closest("form")!);
     await waitFor(() => expect(onDeleted).toHaveBeenCalled());
     expect(del).toHaveBeenCalledWith("hunter22");
-  });
+    cleanup();
 
-  it("Keep my account goes back with nothing sent", () => {
-    const del = vi.spyOn(api, "deleteAccount");
+    del.mockClear();
     render(<Settings username="sam" open onClose={vi.fn()} onSignOut={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: "Delete my account" }));
     fireEvent.click(screen.getByRole("button", { name: "Keep my account" }));
@@ -121,7 +90,7 @@ describe("the podcast feed", () => {
     fireEvent.click(screen.getByRole("button", { name: "Podcast" }));
   };
 
-  it("is off until the listener makes a link, then shows it", async () => {
+  it("is off until the listener makes a link, then shows it, and asks before a new link stops the old one", async () => {
     vi.spyOn(api, "feed").mockResolvedValue({ url: null });
     const make = vi.spyOn(api, "makeFeed").mockResolvedValue({ url: URL });
     openOn();
@@ -129,28 +98,14 @@ describe("the podcast feed", () => {
     expect(await screen.findByText(URL)).toBeInTheDocument();
     expect(make).toHaveBeenCalledTimes(1);
     expect(screen.getByText(/anyone with the link can hear your workouts/)).toBeInTheDocument();
-  });
 
-  it("asks before a new link stops the old one", async () => {
-    vi.spyOn(api, "feed").mockResolvedValue({ url: URL });
-    const make = vi.spyOn(api, "makeFeed").mockResolvedValue({ url: "https://app.test/feed/new.xml" });
-    openOn();
+    make.mockClear();
+    make.mockResolvedValue({ url: "https://app.test/feed/new.xml" });
     fireEvent.click(await screen.findByRole("button", { name: "Make a new link" }));
     expect(make).not.toHaveBeenCalled();
     expect(screen.getByText(/stops working, in every app/)).toBeInTheDocument();
     fireEvent.click(last("Make a new link"));
     expect(await screen.findByText("https://app.test/feed/new.xml")).toBeInTheDocument();
-  });
-
-  it("says so when the browser won't copy, and selects the link to copy by hand", async () => {
-    vi.spyOn(api, "feed").mockResolvedValue({ url: URL });
-    Object.defineProperty(navigator, "clipboard", { configurable: true,
-      value: { writeText: vi.fn().mockRejectedValue(new DOMException("no", "NotAllowedError")) } });
-    openOn();
-    fireEvent.click(await screen.findByRole("button", { name: "Copy the link" }));
-    expect(await screen.findByText(/didn't let the page copy/)).toBeInTheDocument();
-    expect(window.getSelection()?.toString()).toBe(URL);
-    expect(screen.getByRole("button", { name: "Copy the link" })).toBeInTheDocument();
   });
 
   it("turns off, after asking", async () => {

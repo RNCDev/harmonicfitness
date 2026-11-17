@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { Logs } from "./Logs";
 import { arrange } from "../../lib/arrange";
 import { api, ApiError, type Workout } from "../../lib/api";
@@ -31,19 +31,16 @@ const cards = () => screen.getAllByRole("listitem").filter((li) => li.classList.
 /** Open a workout's line to its details. */
 const open = (card: HTMLElement) => fireEvent.click(card.querySelector(".logs-toggle")!);
 
-describe("arrange", () => {
-  it("filters by words, rating, format and kit, and sorts", () => {
+describe("the Logs page", () => {
+  it("lists the workouts newest first, arranges and filters them, and offers an MP3 only while it's kept", async () => {
+    // arrange: by words, rating, format and kit, and sorted
     expect(arrange(LIST, "goblet", "all", "all", "all", "newest").map((w) => w.n)).toEqual([2]);
     expect(arrange(LIST, "", "unrated", "all", "all", "newest").map((w) => w.n)).toEqual([1]);
     expect(arrange(LIST, "", "all", "intervals", "home", "oldest").map((w) => w.n)).toEqual([3, 1]);
     expect(arrange(LIST, "", "all", "all", "all", "longest").map((w) => w.n)).toEqual([2, 1, 3]);
     expect(arrange(LIST, "", "all", "all", "all", "best").map((w) => w.n)).toEqual([2, 3, 1]);
     expect(arrange(LIST, "", "all", "all", "all", "worst").map((w) => w.n)).toEqual([3, 2, 1]);
-  });
-});
 
-describe("the Logs page", () => {
-  it("lists the workouts newest first and filters them", async () => {
     render(<Logs onClose={() => {}} />);
     await waitFor(() => expect(cards()).toHaveLength(3));
     expect(screen.getByText("3 workouts")).toBeInTheDocument();
@@ -55,9 +52,8 @@ describe("the Logs page", () => {
     fireEvent.change(screen.getByLabelText("Rating"), { target: { value: "all" } });
     fireEvent.change(screen.getByLabelText("Search"), { target: { value: "nothing like this" } });
     expect(screen.getByText(/No workouts match/)).toBeInTheDocument();
-  });
+    cleanup();
 
-  it("plays and offers a workout's MP3 while it's kept, and only then", async () => {
     m.workouts.mockResolvedValue([W({ audio: { id: "m-1", name: "Workout 2026-10-30", expires_at: new Date(Date.now() + 86400000).toISOString() } }),
       W({ n: 2, build_id: "bbb222" })]);
     render(<Logs onClose={() => {}} />);
@@ -69,7 +65,7 @@ describe("the Logs page", () => {
     expect(within(cards()[1]).queryByRole("link", { name: "Download the MP3" })).toBeNull();
   });
 
-  it("rates, and a second press clears the rating", async () => {
+  it("rates, a second press clears the rating, and a refused one is put back with why", async () => {
     render(<Logs onClose={() => {}} />);
     await waitFor(() => expect(cards()).toHaveLength(3));
     const first = cards()[0];
@@ -78,9 +74,8 @@ describe("the Logs page", () => {
     const second = cards()[1];
     fireEvent.click(within(second).getByRole("button", { name: "Positive" }));
     await waitFor(() => expect(m.rateWorkout).toHaveBeenCalledWith("bbb222", "none"));
-  });
+    cleanup();
 
-  it("puts a refused rating back and says why", async () => {
     m.rateWorkout.mockRejectedValue(new ApiError(409, "Your files changed at the same moment. Try again."));
     render(<Logs onClose={() => {}} />);
     await waitFor(() => expect(cards()).toHaveLength(3));

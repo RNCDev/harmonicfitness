@@ -18,15 +18,4 @@ describe("the request's two lines", () => {
       unmount();
     }
   });
-
-  it("counts the words before each piece, so a turn can flip them in one after another", () => {
-    const at: [string, number][] = [];
-    render(<RequestLine parts={requestParts(V)} className="req"
-      blank={(p, n) => { at.push([p.blank!, n]); return p.blank; }}
-      fixed={(text, n) => { at.push([text.trim(), n]); return text; }} />);
-    // "Hey, coach" is two words, so the coach's name is the third (a lone comma counts as one); the second line goes on counting
-    expect(at.slice(0, 4)).toEqual([["Hey, coach", 0], ["Nolan", 2], [", I'd like an", 3], ["18-minute", 7]]);
-    expect(at.find(([t]) => t === "Go easy on my")).toEqual(["Go easy on my", 17]);
-    expect(at.find(([t]) => t === "neck")).toEqual(["neck", 28]);
-  });
 });

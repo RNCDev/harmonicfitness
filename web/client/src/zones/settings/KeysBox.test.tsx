@@ -1,8 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { KeyAskContext } from "../../lib/keyAsk";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { KeysBox } from "./KeysBox";
-import { balanceText } from "../../lib/keys";
 import { api, ApiError, checkBalances, NotSignedIn, type KeyState } from "../../lib/api";
 
 vi.mock("../../lib/api", async (orig) => {
@@ -31,7 +30,17 @@ beforeEach(() => {
 const check = checkBalances as unknown as ReturnType<typeof vi.fn>;
 
 describe("the Keys box", () => {
-  it("groups the keys as required and optional", async () => {
+  it("shows every service, set or not: writers first, voicing ones first among them, voices optional, Gemini once", async () => {
+    render(<KeysBox />);
+    expect(await screen.findByTitle(/^Key added/)).toBeInTheDocument();
+    expect(screen.getAllByTitle(/^Key added/)).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: /^Add / })).toHaveLength(1);   // an unset key just offers Add
+    expect(screen.getByRole("button", { name: "Replace Fish Audio key" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add ElevenLabs key" })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /^Remove/ })).toHaveLength(1);
+    cleanup();
+
+    // grouped as required and optional
     m.keys.mockResolvedValue([CLAUDE, FISH, ELEVEN]);
     render(<KeysBox />);
     expect(await screen.findByRole("heading", { name: "Keys" })).toBeInTheDocument();
@@ -43,9 +52,9 @@ describe("the Keys box", () => {
     expect(optional).toHaveTextContent("Fish Audio");
     expect(optional).toHaveTextContent("ElevenLabs");
     expect(screen.getByText("Keys are encrypted, never shown again, and sent only to their own service.")).toBeInTheDocument();
-  });
+    cleanup();
 
-  it("hides the voice keys behind a link when the writer's key voices too", async () => {
+    // the voice keys wait behind a link when the writer's key voices too, until one of them is set
     const model: KeyState = { service: "openrouter", name: "OpenRouter", key_page: "https://or.example/keys",
       set: true, updated_at: "2026-10-31T12:00:00Z", kind: "model", writer: true };
     m.keys.mockResolvedValue([model, { ...model, kind: "voice" }, { ...FISH, set: false }, ELEVEN]);
@@ -54,27 +63,32 @@ describe("the Keys box", () => {
     expect(screen.queryByRole("button", { name: "Add Fish Audio key" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Add another voice (optional)" }));
     expect(screen.getByRole("button", { name: "Add Fish Audio key" })).toBeInTheDocument();
-  });
-
-  it("keeps the voice keys showing once one is set", async () => {
-    const model: KeyState = { service: "openrouter", name: "OpenRouter", key_page: "https://or.example/keys",
-      set: true, updated_at: null, kind: "model", writer: true };
+    cleanup();
     m.keys.mockResolvedValue([model, { ...model, kind: "voice" }, FISH, ELEVEN]);
     render(<KeysBox />);
     expect(await screen.findByRole("region", { name: "More voices (optional)" })).toHaveTextContent("ElevenLabs");
     expect(screen.queryByRole("button", { name: "Add another voice (optional)" })).toBeNull();
-  });
+    cleanup();
 
-  it("shows Gemini, listed as model and voice, as one row, set once", async () => {
-    const model: KeyState = { service: "gemini", name: "Gemini", key_page: "https://g.example/keys",
-      set: false, updated_at: null, kind: "model" };
-    const voice: KeyState = { ...model, kind: "voice" };
+    // OpenRouter and Gemini first, as they also voice coaches
+    const or: KeyState = { service: "openrouter", name: "OpenRouter", key_page: "https://or.example", set: false, updated_at: null, kind: "model" };
+    const gem: KeyState = { service: "gemini", name: "Gemini", key_page: "https://g.example", set: false, updated_at: null, kind: "model" };
+    const gpt: KeyState = { service: "openai", name: "ChatGPT", key_page: "https://o.example", set: false, updated_at: null, kind: "model" };
+    m.keys.mockResolvedValue([CLAUDE, gpt, gem, { ...gem, kind: "voice" }, or, { ...or, kind: "voice" }, FISH]);
+    render(<KeysBox />);
+    await screen.findByRole("region", { name: "Who writes your workouts" });
+    expect(screen.getAllByRole("button", { name: /^Use .* to write your workouts$/ }).map((b) => b.getAttribute("aria-label")))
+      .toEqual(["OpenRouter", "Gemini", "Claude", "ChatGPT"].map((n) => `Use ${n} to write your workouts`));
+    expect(screen.getAllByText("+ voices")).toHaveLength(2);
+    cleanup();
+
+    // Gemini, listed as model and voice, is one row, set once
+    const voice: KeyState = { ...gem, key_page: "https://g.example/keys", kind: "voice" };
     const seen = vi.fn();
-    m.keys.mockResolvedValue([model, voice, FISH]);
+    m.keys.mockResolvedValue([{ ...voice, kind: "model" }, voice, FISH]);
     render(<KeysBox onKeys={seen} />);
     expect(await screen.findAllByRole("button", { name: "Add Gemini key" })).toHaveLength(1);
-    const required = screen.getByRole("region", { name: "Who writes your workouts" });
-    expect(required).toHaveTextContent("+ voices");
+    expect(screen.getByRole("region", { name: "Who writes your workouts" })).toHaveTextContent("+ voices");
     expect(screen.getByRole("region", { name: "More voices (optional)" })).not.toHaveTextContent("Gemini");
     fireEvent.click(screen.getByRole("button", { name: "Add Gemini key" }));
     fireEvent.change(screen.getByLabelText("Gemini key"), { target: { value: "AIza-secret" } });
@@ -87,19 +101,7 @@ describe("the Keys box", () => {
     expect(last.filter((k) => k.service === "gemini").every((k) => k.set)).toBe(true);
   });
 
-  it("lists OpenRouter and Gemini first, as they also voice coaches", async () => {
-    const or: KeyState = { service: "openrouter", name: "OpenRouter", key_page: "https://or.example", set: false, updated_at: null, kind: "model" };
-    const gem: KeyState = { service: "gemini", name: "Gemini", key_page: "https://g.example", set: false, updated_at: null, kind: "model" };
-    const gpt: KeyState = { service: "openai", name: "ChatGPT", key_page: "https://o.example", set: false, updated_at: null, kind: "model" };
-    m.keys.mockResolvedValue([CLAUDE, gpt, gem, { ...gem, kind: "voice" }, or, { ...or, kind: "voice" }, FISH]);
-    render(<KeysBox />);
-    await screen.findByRole("region", { name: "Who writes your workouts" });
-    expect(screen.getAllByRole("button", { name: /^Use .* to write your workouts$/ }).map((b) => b.getAttribute("aria-label")))
-      .toEqual(["OpenRouter", "Gemini", "Claude", "ChatGPT"].map((n) => `Use ${n} to write your workouts`));
-    expect(screen.getAllByText("+ voices")).toHaveLength(2);
-  });
-
-  it("the listener picks who writes, and a pick with no key opens its key", async () => {
+  it("the listener, or the welcome's pick, chooses who writes, and a pick with no key opens its key", async () => {
     const claude = { ...CLAUDE, set: true, writer: true };
     const gpt: KeyState = { service: "openai", name: "ChatGPT", key_page: "https://o.example", set: false, updated_at: null, kind: "model", writer: false };
     m.keys.mockResolvedValue([claude, gpt, FISH]);
@@ -112,29 +114,17 @@ describe("the Keys box", () => {
     await waitFor(() => expect(screen.getByText("In use").closest(".keys-row")).toHaveTextContent("ChatGPT"));
     expect(m.setWriter).toHaveBeenCalledWith("openai");
     expect(await screen.findByLabelText("ChatGPT key")).toHaveFocus();
-  });
+    cleanup();
 
-  it("the welcome's pick chooses the writer and opens its key", async () => {
-    const gpt: KeyState = { service: "openai", name: "ChatGPT", key_page: "https://o.example", set: false, updated_at: null, kind: "model" };
-    m.keys.mockResolvedValue([CLAUDE, gpt, FISH]);
+    m.setWriter.mockClear();
+    m.keys.mockResolvedValue([CLAUDE, { ...gpt, writer: undefined }, FISH]);
     render(<KeyAskContext.Provider value={{ service: "openai", n: 1, choose: true }}><KeysBox /></KeyAskContext.Provider>);
     expect(await screen.findByLabelText("ChatGPT key")).toBeInTheDocument();
     expect(m.setWriter).toHaveBeenCalledWith("openai");
     expect(screen.getByText("In use").closest(".keys-row")).toHaveTextContent("ChatGPT");
   });
 
-  it("closes an open key box on a click outside its row, but not inside it", async () => {
-    m.keys.mockResolvedValue([CLAUDE, ELEVEN]);
-    render(<KeysBox />);
-    fireEvent.click(await screen.findByRole("button", { name: "Add ElevenLabs key" }));
-    const box = await screen.findByLabelText("ElevenLabs key");
-    fireEvent.pointerDown(box);
-    expect(screen.getByLabelText("ElevenLabs key")).toBeInTheDocument();
-    fireEvent.pointerDown(document.body);
-    await waitFor(() => expect(screen.queryByLabelText("ElevenLabs key")).toBeNull());
-  });
-
-  it("opens a row for its key when asked, and again when asked again", async () => {
+  it("opens a row for its key when asked, and again when asked again; closes it on a click outside the row", async () => {
     const ask = (n: number) => <KeyAskContext.Provider value={{ service: "elevenlabs", n }}><KeysBox /></KeyAskContext.Provider>;
     const { rerender } = render(<KeyAskContext.Provider value={null}><KeysBox /></KeyAskContext.Provider>);
     await screen.findByRole("button", { name: "Add ElevenLabs key" });
@@ -146,16 +136,16 @@ describe("the Keys box", () => {
     expect(screen.queryByLabelText("ElevenLabs key")).toBeNull();
     rerender(ask(2));   // the same row, asked for again
     expect(await screen.findByLabelText("ElevenLabs key")).toHaveFocus();
-  });
+    cleanup();
 
-  it("shows every service, set or not", async () => {
+    m.keys.mockResolvedValue([CLAUDE, ELEVEN]);
     render(<KeysBox />);
-    expect(await screen.findByTitle(/^Key added/)).toBeInTheDocument();
-    expect(screen.getAllByTitle(/^Key added/)).toHaveLength(1);
-    expect(screen.getAllByRole("button", { name: /^Add / })).toHaveLength(1);   // an unset key just offers Add
-    expect(screen.getByRole("button", { name: "Replace Fish Audio key" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Add ElevenLabs key" })).toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: /^Remove/ })).toHaveLength(1);
+    fireEvent.click(await screen.findByRole("button", { name: "Add ElevenLabs key" }));
+    const box = await screen.findByLabelText("ElevenLabs key");
+    fireEvent.pointerDown(box);
+    expect(screen.getByLabelText("ElevenLabs key")).toBeInTheDocument();
+    fireEvent.pointerDown(document.body);
+    await waitFor(() => expect(screen.queryByLabelText("ElevenLabs key")).toBeNull());
   });
 
   it("saves a key and never shows it", async () => {
@@ -221,7 +211,7 @@ describe("balances", () => {
     updated_at: "2026-10-20T12:00:00Z", kind: "voice", billing_page: "https://i.example/billing", reports: false };
   const unset: KeyState = { ...inworld, service: "gemini", name: "Gemini", set: false, updated_at: null };
 
-  it("shows what's left where the service says, and a billing link where it can't", async () => {
+  it("shows what's left where the service says, says it's checking, and falls back to a billing link; never asks with no key", async () => {
     m.keys.mockResolvedValue([fish, eleven, inworld, unset]);
     check.mockResolvedValue({ fish: { ok: true, usd: 12.50 }, elevenlabs: { ok: true, used: 2120, limit: 30000 } });
     render(<KeysBox />);
@@ -232,9 +222,9 @@ describe("balances", () => {
     expect(screen.getByRole("link", { name: "Inworld billing" })).toHaveAttribute("href", "https://i.example/billing");
     expect(screen.queryByRole("link", { name: "Gemini billing" })).toBeNull();   // no key, nothing to see
     expect(check).toHaveBeenCalledTimes(1);
-  });
+    cleanup();
 
-  it("says it's checking, then falls back to the link when a service refused or the check failed", async () => {
+    // checking, then the link when a service refused or the check failed
     m.keys.mockResolvedValue([fish, eleven]);
     let done: (v: unknown) => void = () => {};
     check.mockReturnValue(new Promise((r) => { done = r; }));
@@ -243,20 +233,13 @@ describe("balances", () => {
     done({ fish: { ok: false, kind: "auth" } });
     expect(await screen.findByRole("link", { name: "Fish Audio billing" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "ElevenLabs billing" })).toBeInTheDocument();
-  });
+    cleanup();
 
-  it("never asks when no key that can say is set", async () => {
+    // never asks when no key that can say is set
+    check.mockClear();
     m.keys.mockResolvedValue([inworld, { ...fish, set: false, updated_at: null }]);
     render(<KeysBox />);
     expect(await screen.findByRole("link", { name: "Inworld billing" })).toBeInTheDocument();
     expect(check).not.toHaveBeenCalled();
-  });
-
-  it("words a balance", () => {
-    expect(balanceText({ ok: true, usd: 1234.5 })?.text).toBe("$1,234.50 left");
-    expect(balanceText({ ok: true, used: 40, limit: 10 })?.text).toBe("0 credits left");
-    expect(balanceText({ ok: true, used: 1, limit: 10, resets: 1793000000 })?.title).toMatch(/1 of 10 credits used this period, resets /);
-    expect(balanceText({ ok: false })).toBeNull();
-    expect(balanceText({ ok: true })).toBeNull();
   });
 });

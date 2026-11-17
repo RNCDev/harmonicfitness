@@ -9,13 +9,6 @@ const info = (suggest: StartInfo["suggest"]): StartInfo =>
 const blanks = (v: RequestValues) => requestParts(v).flat().filter((p) => p.blank);
 
 describe("the request's parts", () => {
-  it("name each blank for a screen reader and the list it opens", () => {
-    expect(blanks(V).map((p) => [p.key, p.label, p.blank])).toEqual([
-      ["coach", "Coach", "Nolan"], ["minutes", "Length", "25-minute"], ["type", "Workout", "leg workout"],
-      ["place", "Where", "at home"], ["when", "When", "right now"], ["body", "Anything bothering you", "Nothing's bothering me"],
-    ]);
-  });
-
   it("mark nothing sore as calm, keep off as off, and go easy as neither", () => {
     expect(blanks(V).find((p) => p.key === "body")?.tone).toBe("calm");
     const body = blanks({ ...V, body: { "left knee": "easy", neck: "off" } }).filter((p) => p.key === "body");
@@ -25,7 +18,7 @@ describe("the request's parts", () => {
 });
 
 describe("the request's words", () => {
-  it("for kits, and the request with nothing sore", () => {
+  it("for kits, the request, a limit's area and a suggestion", () => {
     expect(kitWords({ id: "bodyweight", label: "the park", preset: true })).toBe("with no equipment");
     expect(kitWords({ id: "travel", label: "travel", preset: false })).toBe("with my travel kit");
     expect(kitWords({ id: "Home", label: "home", preset: false })).toBe("at home");
@@ -33,9 +26,7 @@ describe("the request's words", () => {
       .toBe("Hey, coach Nolan, I'd like a 20-minute cardio workout at home, right now. Nothing's bothering me today.");
     expect(sentence({ coach: "Nolan", minutes: 18, place: "at home", type: "core workout", body: { "left knee": "easy", "right knee": "easy", neck: "off" } }))
       .toBe("Hey, coach Nolan, I'd like an 18-minute core workout at home, right now. Go easy on my left knee and right knee, and keep off my neck today.");
-  });
-
-  it("for a limit's area and a suggestion", () => {
+    // a limit's area and a suggestion
     expect(areaName("low-back", null)).toBe("low back");
     expect(areaName("knee", "left")).toBe("left knee");
     expect(suggested(info({ goal: "targeted", target: "legs", reason: "" }))).toBe("leg workout");

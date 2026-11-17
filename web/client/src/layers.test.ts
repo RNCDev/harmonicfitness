@@ -52,7 +52,7 @@ describe("the client's layers", () => {
     expect(bad).toEqual([]);
   });
 
-  it("draws every button outside ui/ through Button, so pressed, busy and disabled work the same", () => {
+  it("draws every button outside ui/ through Button, and keeps the shared looks (a button's, a shared piece's) in ui/", () => {
     // the custom widgets, each with a look of its own: a request's blank, a picker's option, the body chart's dots.
     // This list only shrinks.
     const CUSTOM = /^(slot|opt|bdot)$/;
@@ -61,14 +61,11 @@ describe("the client's layers", () => {
         .filter((tag) => !CUSTOM.test(tag.match(/className=(?:"|\{`)([\w-]+)/)?.[1] ?? ""))
         .map((tag) => `${p}: ${tag.slice(0, 60)}`));
     expect(bad).toEqual([]);
-  });
 
-  it("keeps the shared looks in ui/: no element outside it takes a button's look, or a shared piece's", () => {
-    // a button's looks (Button), and the pieces ui/ draws: a settings section, a page's header, the level cards,
-    // a failed load. A link or a file picker drawn as a button is ui/ActionLink.tsx's.
+    // no element outside ui/ takes a button's look (Button's), or a shared piece's: a settings section, a page's
+    // header, the level cards, a failed load. A link or a file picker drawn as a button is ui/ActionLink.tsx's.
     const LOOKS = /<(?!Button\b)\w+\b[^>]*className=(?:"|\{`)[^"`]*(?<![\w-])(go|quiet|act|icon-btn|top-btn|tile|cx-sec|page-top|level-card|failed)(?![\w-])/;
-    const bad = Object.entries(SOURCES).filter(([p, src]) => !p.startsWith("./ui/") && LOOKS.test(src)).map(([p]) => p);
-    expect(bad).toEqual([]);
+    expect(Object.entries(SOURCES).filter(([p, src]) => !p.startsWith("./ui/") && LOOKS.test(src)).map(([p]) => p)).toEqual([]);
   });
 
   it("says a failure's fallback words in lib/messages.ts alone", () => {

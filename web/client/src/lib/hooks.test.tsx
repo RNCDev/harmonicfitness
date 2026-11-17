@@ -10,7 +10,7 @@ import { usePage } from "./usePage";
 import { useResource } from "./useResource";
 
 describe("useAction", () => {
-  it("is busy while it runs and true when it went through", async () => {
+  it("is busy while it runs, true when it went through, and says why when it didn't", async () => {
     let finish!: () => void;
     const { result } = renderHook(() => useAction(() => new Promise<void>((r) => { finish = r; })));
     let ran!: Promise<boolean>;
@@ -19,22 +19,20 @@ describe("useAction", () => {
     await act(async () => { finish(); });
     expect(await ran).toBe(true);
     expect(result.current.busy).toBe(false);
-  });
 
-  it("says the server's words for a refusal, and its own when there are none", async () => {
-    const { result, rerender } = renderHook(({ e }) => useAction(() => Promise.reject(e), { fallback: "Couldn't save." }),
+    // a refusal says the server's words, and its own when there are none
+    const { result: refused, rerender } = renderHook(({ e }) => useAction(() => Promise.reject(e), { fallback: "Couldn't save." }),
       { initialProps: { e: new ApiError(409, "Someone else changed it.") as unknown } });
-    await act(async () => { await result.current.run(); });
-    expect(result.current.error).toBe("Someone else changed it.");
+    await act(async () => { await refused.current.run(); });
+    expect(refused.current.error).toBe("Someone else changed it.");
     rerender({ e: new TypeError("Failed to fetch") });
-    await act(async () => { await result.current.run(); });
-    expect(result.current.error).toBe("Couldn't save.");
-  });
+    await act(async () => { await refused.current.run(); });
+    expect(refused.current.error).toBe("Couldn't save.");
 
-  it("says nothing for a lost session: the page has gone to sign-in", async () => {
-    const { result } = renderHook(() => useAction(() => Promise.reject(new NotSignedIn())));
-    await act(async () => { expect(await result.current.run()).toBe(false); });
-    expect(result.current.error).toBeNull();
+    // a lost session says nothing: the page has gone to sign-in
+    const { result: lost } = renderHook(() => useAction(() => Promise.reject(new NotSignedIn())));
+    await act(async () => { expect(await lost.current.run()).toBe(false); });
+    expect(lost.current.error).toBeNull();
   });
 });
 

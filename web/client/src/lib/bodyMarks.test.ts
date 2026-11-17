@@ -3,7 +3,7 @@ import { markIn, tap } from "./bodyMarks";
 import type { Level } from "./request";
 
 describe("the body chart's marks", () => {
-  it("move one along with each tap: OK, go easy, keep off, and round again", () => {
+  it("move one along with each tap: OK, go easy, keep off, and round again; a sideless limit splits", () => {
     let marks: Record<string, Level> = {};
     marks = tap(marks, {}, "left knee");
     expect(marks).toEqual({ "left knee": "easy" });
@@ -11,6 +11,10 @@ describe("the body chart's marks", () => {
     expect(marks).toEqual({ "left knee": "off" });
     marks = tap(marks, {}, "left knee");
     expect(marks).toEqual({});
+    // a sideless limit splits into its two sides once one side changes
+    const floor = { hip: "easy" as const };
+    expect(markIn(floor, "right hip")).toBe("easy");
+    expect(tap({ ...floor }, floor, "left hip")).toEqual({ "left hip": "off", "right hip": "easy" });
   });
 
   it("never go below the health notes' floor", () => {
@@ -22,11 +26,5 @@ describe("the body chart's marks", () => {
     expect(marks).toEqual({ "left knee": "easy" });   // back to the floor, never to OK
     const kept = { "neck": "off" as const };
     expect(tap(kept, kept, "neck")).toEqual({ neck: "off" });   // a side kept off stays off
-  });
-
-  it("split a sideless limit into its two sides once one side changes", () => {
-    const floor = { hip: "easy" as const };
-    expect(markIn(floor, "right hip")).toBe("easy");
-    expect(tap({ ...floor }, floor, "left hip")).toEqual({ "left hip": "off", "right hip": "easy" });
   });
 });
