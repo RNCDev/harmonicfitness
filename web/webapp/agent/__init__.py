@@ -18,7 +18,7 @@ from typing import Callable
 from pydantic_ai import Agent, CancellationToken, ModelMessagesTypeAdapter, RunContext, UsageLimits, WebSearchTool
 from pydantic_ai.exceptions import RunCancelled
 from pydantic_ai.capabilities import NativeTool
-from pydantic_ai.messages import (ModelRequest, ModelResponse, NativeToolCallPart, TextPart, ToolCallPart, ToolReturnPart,
+from pydantic_ai.messages import (BinaryContent, ModelRequest, ModelResponse, NativeToolCallPart, TextPart, ToolCallPart, ToolReturnPart,
                                  UserPromptPart)
 from pydantic_ai.models.wrapper import WrapperModel
 
@@ -98,6 +98,18 @@ def skeleton_rules(text: str) -> str:
 
 
 @functools.lru_cache(maxsize=8)
+def kits_from_photos(engine_root: str) -> str:
+    """The setup skill's Kits from photos, as the web gives it: every turn may carry photos (0.83.0), and the setup
+    skill comes only while a listener is set up, so its photo rules come on their own the rest of the time."""
+    with open(os.path.join(engine_root, SETUP[0]), encoding="utf-8") as f:
+        text = web_copy(f.read())
+    m = re.search(r"^\*\*Kits from photos\.\*\*.*?(?=\n\n)", text, re.MULTILINE | re.DOTALL)
+    if not m:   # a renamed section would drop the photo rules from the web unnoticed
+        raise ValueError("no Kits from photos section in the setup skill")
+    return m.group(0)
+
+
+@functools.lru_cache(maxsize=8)
 def skill_text(engine_root: str, setup: bool = False, coach: bool = False, writers: str = "one",
                topics: bool = False) -> str:
     """The workout skill as the engine ships it (and the setup skill, for a listener not set up yet, and the
@@ -114,6 +126,8 @@ def skill_text(engine_root: str, setup: bool = False, coach: bool = False, write
         if writers == "three" and rel == "knowledge/tts-rules.md":
             text = skeleton_rules(text)
         parts.append(f"<file path=\"{rel}\">\n{text}\n</file>")
+    if not setup:   # the setup skill's photo rules, which its whole text carries when it comes
+        parts.append(f"<file path=\"{SETUP[0]}\" section=\"Kits from photos\">\n{kits_from_photos(engine_root)}\n</file>")
     return "\n\n".join(parts)
 
 
@@ -1062,6 +1076,35 @@ def compact(messages: list, earlier: int) -> list:
     return [shorter(m) for m in out[:earlier]] + out[earlier:]
 
 
+# what the saved history holds in place of the listener's kit photos (0.83.0): looked at, never kept
+PHOTOS_LEFT_OUT = "[{n} photo{s} of their kit, looked at in that turn and not kept]"
+
+
+def without_photos(messages: list) -> list:
+    """The messages with every image the listener sent replaced by a line saying it was there: the history is
+    saved, exported (`pull`) and sent again with each later turn, and a photo is never kept."""
+    def plain(part):
+        if not (isinstance(part, UserPromptPart) and not isinstance(part.content, str)):
+            return part
+        images = [c for c in part.content if isinstance(c, BinaryContent)]
+        if not images:
+            return part
+        kept = [c for c in part.content if not isinstance(c, BinaryContent)]
+        n = len(images)
+        return replace(part, content=kept + [PHOTOS_LEFT_OUT.format(n=n, s="" if n == 1 else "s")])
+    return [replace(m, parts=[plain(p) for p in m.parts]) if isinstance(m, ModelRequest) else m for m in messages]
+
+
+def with_photos(prompt: str, kit) -> str | list:
+    """The listener's line as the model reads it: with their kit photos after it, when it carried any."""
+    if not kit:
+        return prompt
+    n = len(kit)
+    lead = (f"\n\n(The listener added {n} photo{'' if n == 1 else 's'} of where they train: read the kit from "
+            "them as the setup skill's Kits from photos says.)")
+    return [prompt + lead] + [BinaryContent(data=body, media_type="image/jpeg") for body in kit]
+
+
 def native_tools(model) -> list:
     """The writer's web search, where its model supports it; none for a model that doesn't (a test's own)."""
     try:
@@ -1125,8 +1168,9 @@ def _run_loop(coro):
 
 
 def run_turn(model, deps: Deps, history_json: str | None, prompt: str | None,
-             answer: tuple[str, dict] | None = None, context: str | None = None) -> TurnOutcome:
-    """One run of the agent on the user's line, after `context` (prefetch's text) when given.
+             answer: tuple[str, dict] | None = None, context: str | None = None, kit=()) -> TurnOutcome:
+    """One run of the agent on the user's line, after `context` (prefetch's text) when given, with `kit`, the
+    photos it carried (JPEG bytes), which the saved history never holds.
     UsageLimitExceeded and provider errors propagate; the caller decides what they mean."""
     if answer is not None or not prompt:
         raise TurnError("this coach asks its questions in the chat; send a message", NOT_OPEN)
@@ -1162,7 +1206,7 @@ def run_turn(model, deps: Deps, history_json: str | None, prompt: str | None,
     threading.Thread(target=watch, daemon=True).start()
 
     async def go():   # the run, node by node: before each model request, a turn with nothing left closes in code
-        async with AGENT.iter(prompt, model=Narrated(model, deps), deps=deps, message_history=history,
+        async with AGENT.iter(with_photos(prompt, kit), model=Narrated(model, deps), deps=deps, message_history=history,
                               usage_limits=LIMITS, cancellation_token=token,
                               capabilities=[] if deps.topics else [NativeTool(t) for t in native_tools(model)]) as run:
             node = run.next_node
@@ -1192,6 +1236,6 @@ def run_turn(model, deps: Deps, history_json: str | None, prompt: str | None,
     searches = sum(isinstance(p, NativeToolCallPart) for m in new for p in m.parts) + deps.room_searches
     usage = {"requests": u.requests, "tool_calls": u.tool_calls, "input_tokens": u.input_tokens,
              "output_tokens": u.output_tokens, "searches": searches}
-    kept = compact(messages, len(history or ()))
+    kept = compact(without_photos(messages), len(history or ()))
     return TurnOutcome(history_json=ModelMessagesTypeAdapter.dump_json(kept).decode("utf-8"), reply=reply,
                        usage=usage)

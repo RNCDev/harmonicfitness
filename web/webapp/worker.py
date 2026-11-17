@@ -26,7 +26,7 @@ from typing import Any, Callable
 
 import psycopg
 
-from . import clipcache, codes, config, conversations, db, engine, enginelib, folder, jobs, keystore, log, media, \
+from . import clipcache, codes, config, conversations, db, engine, enginelib, folder, jobs, keystore, log, media, photos, \
     providers, retention, spend, store, turns
 
 HEARTBEAT_EVERY = 15      # seconds; jobs.reap fails a job silent for 120
@@ -604,6 +604,8 @@ def _turn(ctx: Ctx, conv: conversations.Conversation, kept: list[dict] | None = 
     from pydantic_ai.exceptions import UsageLimitExceeded   # pydantic-ai only in the jobs that use it
     from . import agent   # agent imports this module
     line, answer, today, now = _turn_request(ctx.args)
+    # the kit photos the line carried, deleted as they're read: from here they live only in this turn's memory
+    kit = photos.take(ctx.conn, ctx.uk, ctx.job_id)
     stored = keystore.open_all(ctx.conn, ctx.uk)
     chosen = keystore.writer(ctx.conn, ctx.uk)
     picked = keystore.coach(ctx.conn, ctx.uk)
@@ -735,6 +737,10 @@ def _turn(ctx: Ctx, conv: conversations.Conversation, kept: list[dict] | None = 
                 context = agent.prefetch(deps, line)
             except Exception as e:  # noqa: BLE001 - without it the model reads step 1 itself
                 log.failure(f"job {ctx.job_id} prefetch failed", e)
+        if ctx.args.get("photos") and not kit:   # sent, but swept before the turn began (an hour in the queue)
+            note = ("The listener sent photos of their kit with this message, but they weren't kept long enough to "
+                    "reach you. Say so in a line and ask them to add them again, or to list the kit.")
+            context = f"{context}\n\n{note}" if context else note
         if deps.later and not deps.scheduled_run and first:   # the page's picked time, said plainly for the check-in
             note = (f"This workout is for later: {turns.said_when(deps.later.get('local', ''))}, the listener's time. Do the "
                     "check-in now; once nothing's left to ask, call schedule_workout and end your turn with the plan "
@@ -744,7 +750,7 @@ def _turn(ctx: Ctx, conv: conversations.Conversation, kept: list[dict] | None = 
         if conv.history is None and deps.topics and agent.BARE_TOPICS.search(line or ""):
             outcome = agent.opener_turn(line)   # "What's on your mind?": no model request to ask it
         else:
-            outcome = agent.run_turn(model, deps, conv.history, line, answer, context=context)
+            outcome = agent.run_turn(model, deps, conv.history, line, answer, context=context, kit=kit)
         u = outcome.usage
         print(f"worker: job {ctx.job_id} turn {time.monotonic() - began:.1f}s, {u.get('requests')} model requests, "
               f"{u.get('input_tokens')} tokens in, {u.get('output_tokens')} out, {u.get('searches', 0)} web searches",

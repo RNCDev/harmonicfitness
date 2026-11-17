@@ -4,6 +4,9 @@ import { Chat } from "./Chat";
 import { stepsOf } from "../../lib/steps";
 import type { Offer } from "../../lib/api";
 
+// a photo is shrunk by drawing it on a canvas, which jsdom has none of: each comes back named for its file
+vi.mock("../../lib/photos", () => ({ MOST_PHOTOS: 3, shrink: vi.fn(async (f: File) => `jpeg-of-${f.name}`) }));
+
 const base = { lines: [], working: false, error: null, noKey: false, onSend: () => {}, onOpenKeys: () => {} };
 
 describe("the chat", () => {
@@ -23,6 +26,36 @@ describe("the chat", () => {
     expect(screen.getByText(/Your coach is working…/)).toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: "Message" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
+  });
+
+  it("sends kit photos with the line, shrunk, and keeps them when the line is refused", async () => {
+    let n = 0;
+    Object.assign(URL, { createObjectURL: () => `blob:photo-${(n += 1)}`, revokeObjectURL: () => {} });
+    const onSend = vi.fn().mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+    const { container } = render(<Chat {...base} onSend={onSend} />);
+    const picker = container.querySelector('input[type="file"]') as HTMLInputElement;
+    const file = (name: string) => new File(["x"], name, { type: "image/jpeg" });
+    await act(async () => {
+      fireEvent.change(picker, { target: { files: [file("a.jpg"), file("b.jpg"), file("c.jpg"), file("d.jpg")] } });
+    });
+    expect(within(screen.getByRole("list", { name: "Photos to send" })).getAllByRole("img")).toHaveLength(3);
+    expect(screen.getByText("Up to 3 photos in one message.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add photos of your kit" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Remove photo 3" }));
+    expect(screen.getAllByRole("img")).toHaveLength(2);
+    // a line of photos alone still sends, in words of its own
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Send" })); });
+    expect(onSend).toHaveBeenLastCalledWith("Here are photos of my kit.", undefined, ["jpeg-of-a.jpg", "jpeg-of-b.jpg"]);
+    expect(screen.getAllByRole("img")).toHaveLength(2);   // refused: they wait to be sent again
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Send" })); });
+    expect(screen.queryByRole("list", { name: "Photos to send" })).not.toBeInTheDocument();
+  });
+
+  it("says how many photos a line carried, never showing them", () => {
+    render(<Chat {...base} lines={[{ role: "user", text: "My garage", photos: 2 }, { role: "user", text: "One more", photos: 1 }]} />);
+    expect(screen.getByText("2 photos")).toBeInTheDocument();
+    expect(screen.getByText("1 photo")).toBeInTheDocument();
+    expect(screen.queryByRole("img")).not.toBeInTheDocument();
   });
 
   it("shows the coach's steps while it works, the latest last", () => {

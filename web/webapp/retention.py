@@ -1,7 +1,10 @@
 """What the site stops keeping once nobody can use it (0.76.0): finished jobs a while after they end (their events
-go with them), sessions and sign-in links past their time, and the daily allowance's old days. Conversations stay:
+go with them), sessions and sign-in links past their time, the daily allowance's old days, and kit photos no turn
+took within the hour (photos.sweep, 0.83.0). Conversations stay:
 `./harmonicfitness pull` can fetch any of them. Run by the worker's main lane at most once a SWEEP_EVERY, beside
 media.sweep and clipcache.prune."""
+from . import photos
+
 JOB_DAYS = 14        # a finished job (and its events and sealed result) is kept this long for its stream and logs
 LINK_DAYS = 1        # a used or expired sign-in link, kept a day past its time
 SPEND_DAYS = 30      # the allowance reads only today's row
@@ -19,6 +22,7 @@ def sweep(conn) -> dict[str, int]:
         "sign_in_links": conn.execute("delete from sign_in_links where expires_at < now() - make_interval(days => %s)",
                                       (LINK_DAYS,)).rowcount,
         "spend": conn.execute("delete from spend where day < current_date - %s", (SPEND_DAYS,)).rowcount,
+        "turn_photos": photos.sweep(conn),
     }
     conn.commit()
     return out

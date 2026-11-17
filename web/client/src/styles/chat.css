@@ -92,6 +92,27 @@
 .chat-form textarea::placeholder { color: var(--text-muted) }
 .chat-form textarea:disabled { color: var(--text-muted); cursor: not-allowed }
 .chat-form .go { padding: var(--s-3) var(--s-4h); font-size: var(--fs-lg) }
+/* kit photos (0.83.0): the camera beside the box, the waiting photos above it, a count on the line that carried them */
+.photo-add {
+  display: inline-grid; place-items: center; width: var(--control); height: var(--control); padding: 0; flex: none;
+  background: transparent; color: var(--text-2); border: 0; cursor: pointer;
+}
+.photo-add:hover:not(:disabled) { color: var(--text) }
+.photo-add:disabled { color: var(--text-muted); cursor: not-allowed }
+.chat-photos { display: flex; flex-direction: column; gap: var(--s-2); padding: 0 0 var(--s-2) }
+.chat-photos ul { display: flex; gap: var(--s-2); list-style: none; margin: 0; padding: 0 }
+.chat-photos li { position: relative }
+.chat-photos img {
+  display: block; width: calc(var(--control) * 1.75); height: calc(var(--control) * 1.75); object-fit: cover;
+  border-radius: var(--radius-sheet); box-shadow: var(--ring) var(--border);
+}
+.photo-drop {
+  position: absolute; top: var(--s-1); right: var(--s-1); display: inline-grid; place-items: center;
+  width: var(--s-4h); height: var(--s-4h); padding: 0; border: 0; border-radius: var(--radius-pill);
+  background: var(--panel); color: var(--text); box-shadow: var(--ring) var(--border-strong); cursor: pointer;
+}
+.chat-photos small { color: var(--text-muted); font-size: var(--fs-sm) }
+.m-photos { display: flex; align-items: center; gap: var(--s-1h); color: var(--text-2); font-size: var(--fs-sm); margin-bottom: var(--s-1) }
 .chat-form .go.stop { background: transparent; color: var(--danger); box-shadow: var(--ring) var(--danger) }
 .chat-form .go.stop:hover:not(:disabled) { background: var(--danger); color: var(--on-action) }
 /* a quiet line above the request, never a card: the request stays the one thing on the screen */

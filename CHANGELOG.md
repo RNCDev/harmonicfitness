@@ -2,6 +2,29 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.83.0] - 2026-11-17
+
+Kit photos on the web app. The camera button beside the message box adds up to three photos of where the listener trains, and the coach reads the kit and its weights from them, reads it back, and writes nothing until the listener says it's right, as on a computer since 0.66.0. The photos are looked at, never kept.
+
+### Added
+- **The camera button** in the chat's message box (`zones/chat/Chat.tsx`, `lib/photos.ts`). Previews can be removed before sending, and a note says the photos go to the listener's AI provider to be read and aren't kept. Photos alone send as "Here are photos of my kit." The chat line shows how many photos it carried, never the photos.
+- **Photos are shrunk in the browser** to 1600 pixels on the longer side and re-saved as a plain JPEG before they leave the phone, so the original's metadata (where it was taken among it) never does.
+- **The server re-saves each photo again** (`webapp/photos.py`, with Pillow 13.0.0, a new web dependency): upright, a plain JPEG with nothing carried over. Anything but a JPEG, PNG or WebP is refused, as is a photo over 3 MB or over 40 million pixels, and more than three in one message.
+- **`turn_photos`** (migration 024) holds them, sealed with the user's key and tied to the turn's job, never in the job's args (kept fourteen days): the args hold only how many. The worker reads and deletes them in one statement as the turn begins, and the retention sweep deletes any no turn took within the hour.
+- **The model sees them with the line** (`agent.with_photos`), and **the saved history keeps a line in their place** (`agent.without_photos`), so neither the conversation, `pull` nor a later turn holds them. A turn whose photos were swept before it began says so and asks for them again.
+
+### Changed
+- **The setup skill's Kits from photos is no longer computer-only.** Its web passage says how photos arrive there; only the computer's way of getting them stays marked `web: skip`. Every web turn now carries the section (`agent.kits_from_photos`), since the setup skill comes only while a listener is set up. The quick start's Kit question and the workout skill's check-in mention photos on the web too, and the web's "change my equipment" job reads them.
+- **The message routes' body limit** grows to fit three photos (`api._BodyLimit.PATTERNS`), for those two paths only.
+- **A workout for later takes no photos:** its turn runs after they'd be swept.
+
+### For forks
+- Run the web app's migrations (`024_turn_photos.sql`) and install the web extra again (`uv sync --extra web`: Pillow).
+- A turn job's args may carry `photos` (1 to 3); `turns.request` refuses any other value, and a `photos` with no line.
+- `agent.run_turn` takes `kit` (JPEG bytes); `conversations.create` and `begin_turn` take a photo count. `routes.conversations.queue_turn` takes the photos to keep beside the job.
+- A chat line may carry `photos` (a count). A client that renders lines should allow it.
+- Run `./harmonicfitness harness sync` after merging: the setup and workout skills changed.
+
 ## [0.82.0] - 2026-11-16
 
 More stories, less instruction. The listener asked for half of each session to be stories. Their last three sessions measured 28 to 30 percent: most of the work was counted sets, which carry cues only, and later rounds repeated the first round's set-ups. The content plan now sets a balance, the build reports it, and a skeleton made almost entirely of counted sets is named before any words are written. Every cue the listener must catch and every safety line stays.

@@ -145,13 +145,13 @@ describe("useConversation", () => {
     const { result } = renderHook(() => useConversation());
     await waitFor(() => expect(m.latest).toHaveBeenCalled());
     await act(async () => { expect(await result.current.send("A 20-minute workout")).toBe(true); });
-    expect(m.start).toHaveBeenCalledWith("A 20-minute workout", expect.anything(), undefined);
+    expect(m.start).toHaveBeenCalledWith("A 20-minute workout", expect.anything(), undefined, undefined);
     expect(result.current.conv?.id).toBe(8);
     m.conversation.mockResolvedValue(conv({ id: 8 }));
     act(() => m.endJob!("done"));
     await waitFor(() => expect(result.current.working).toBe(false));
     await act(async () => { expect(await result.current.send("and shorter")).toBe(true); });
-    expect(m.send).toHaveBeenCalledWith(8, "and shorter", expect.anything());
+    expect(m.send).toHaveBeenCalledWith(8, "and shorter", expect.anything(), undefined);
     m.conversation.mockResolvedValue(conv({ id: 8 }));
     act(() => m.endJob!("done"));
     await waitFor(() => expect(result.current.working).toBe(false));

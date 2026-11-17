@@ -23,6 +23,7 @@ when the stream ends or the client goes away.
 import collections
 import json
 import os
+import re
 import threading
 import time
 from contextlib import asynccontextmanager, contextmanager
@@ -38,6 +39,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from . import APP_NAME, config, db, engine, enginelib, log, streams
 from .folder import IMPORT_MAX_TOTAL, IMPORT_MAX_ZIP
+from .photos import MOST as PHOTOS_MOST, RAW_MOST as PHOTO_RAW_MOST
 
 CLIENT_DIST = Path(__file__).resolve().parent.parent / "client" / "dist"
 HSTS = (b"strict-transport-security", b"max-age=31536000")
@@ -186,6 +188,18 @@ class _BodyLimit:
                             f"Over {IMPORT_MAX_TOTAL // 1_000_000} MB in one sync; send it in parts."),
         "/api/sync/read": (512_000, TOO_LARGE),   # up to 500 paths of 400 characters
     }
+    # a message, which may carry kit photos (0.83.0): base64 of photos.MOST at photos.RAW_MOST, with the JSON around
+    # them; the route checks each photo's own size once decoded
+    PHOTOS = (PHOTOS_MOST * PHOTO_RAW_MOST * 4 // 3 + DEFAULT,
+              f"Up to {PHOTOS_MOST} photos of {PHOTO_RAW_MOST // 1_000_000} MB each in one message.")
+    PATTERNS = ((re.compile(r"/api/conversations(?:/\d+/messages)?"), PHOTOS),)
+
+    @classmethod
+    def limit_for(cls, path: str) -> tuple[int, str]:
+        """(bytes, the refusal's words) for a request to `path`."""
+        if path in cls.LIMITS:
+            return cls.LIMITS[path]
+        return next((lim for pattern, lim in cls.PATTERNS if pattern.fullmatch(path)), (cls.DEFAULT, cls.TOO_LARGE))
 
     def __init__(self, app):
         self.app = app
@@ -200,7 +214,7 @@ class _BodyLimit:
     async def __call__(self, scope, receive, send):
         if scope["type"] != "http" or scope.get("method") in ("GET", "HEAD", "OPTIONS"):
             return await self.app(scope, receive, send)
-        limit, words = self.LIMITS.get(scope.get("path", ""), (self.DEFAULT, self.TOO_LARGE))
+        limit, words = self.limit_for(scope.get("path", ""))
         declared = dict(scope.get("headers") or []).get(b"content-length")
         try:
             if declared is not None and int(declared) > limit:

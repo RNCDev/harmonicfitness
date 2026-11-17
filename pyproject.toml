@@ -1,6 +1,6 @@
 [project]
 name = "harmonicfitness"
-version = "0.82.0"
+version = "0.83.0"
 description = "Narrated workout podcasts, written by Claude Code and voiced on your own computer or by a cloud voice."
 readme = "README.md"
 license = "MIT"
@@ -43,6 +43,7 @@ web = [
     "httpx==0.28.1",
     "pydantic-ai-slim[anthropic,openai,google]==2.56.0",
     "anthropic>=1.12,<2",
+    "pillow==13.0.0",   # kit photos: each re-saved, its metadata (location among it) left behind
 ]
 
 [tool.uv]

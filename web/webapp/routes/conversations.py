@@ -7,9 +7,9 @@ from typing import Annotated
 
 from fastapi import APIRouter, Body, HTTPException
 from fastapi.responses import JSONResponse, Response
-from pydantic import BaseModel, ConfigDict, StrictStr, StringConstraints
+from pydantic import BaseModel, ConfigDict, Field, StrictStr, StringConstraints
 
-from .. import codes, conversations, jobs, keystore, media, providers, spend, store, turns
+from .. import codes, conversations, jobs, keystore, media, photos, providers, spend, store, turns
 from ..api import error_body
 from .state import JOB_ID, MAX_QUEUED, POST, AppState, Day, St, User, read, tx
 
@@ -19,6 +19,10 @@ Now = Annotated[StrictStr, StringConstraints(max_length=40)]   # turns.check say
 
 
 Line = Annotated[StrictStr, StringConstraints(min_length=1, max_length=2000)]
+# a kit photo as the page sends it: base64, its size checked again once decoded (photos.decode)
+Photo = Annotated[StrictStr, StringConstraints(min_length=1, max_length=photos.RAW_MOST * 4 // 3 + 64)]
+# up to photos.MOST in one message; a list of them is its own type, since TurnLine's field shares the module's name
+Photos = Annotated[list[Photo], Field(max_length=photos.MOST)]
 
 
 class TurnWhen(BaseModel):
@@ -38,6 +42,8 @@ class TurnLine(BaseModel):
     # a workout for later (0.60.0): the time the listener picked, with their offset ("2026-11-04T07:00:00-05:00");
     # read only when a conversation starts
     start_at: Annotated[StrictStr, StringConstraints(max_length=40)] | None = None
+    # photos of their kit (0.83.0), up to photos.MOST: re-saved, kept only until the turn reads them
+    photos: Photos | None = None
 
 
 LEAD = datetime.timedelta(minutes=15)    # a scheduled workout's turn starts this long before its time
@@ -72,10 +78,12 @@ STILL_WORKING = "Still working on the last message."
 
 
 def turn_args(cid: int, line: str | None, answer: dict | None, today: str, now: str,
-              record: bool = False) -> dict:
+              record: bool = False, shown: int = 0) -> dict:
     args = {"conversation_id": cid, "line": line, "answer": answer, "today": today, "now": now}
     if record:
         args["record"] = True
+    if shown:
+        args["photos"] = shown
     problem = turns.check(args)
     if problem is not None:
         raise HTTPException(422, problem)
@@ -95,10 +103,20 @@ def turn_transaction(st: AppState, uk: store.UserKey):
         yield conn
 
 
-def queue_turn(conn, uk: store.UserKey, args: dict) -> int:
+def queue_turn(conn, uk: store.UserKey, args: dict, kit: list[bytes] = ()) -> int:
+    """The turn's job, with its photos kept beside it (never in its args) in the same transaction."""
     job_id = jobs.add(conn, uk, "turn", args)
+    photos.add(conn, uk, job_id, list(kit))
     conversations.set_job(conn, uk, args["conversation_id"], job_id)
     return job_id
+
+
+def kit_photos(body: TurnLine) -> list[bytes]:
+    """The message's photos, re-saved (photos.clean); 422 with the reason for one that can't be used."""
+    try:
+        return photos.prepared(body.photos)
+    except photos.Refused as e:
+        raise HTTPException(422, e.message) from None
 
 
 def shown(conn, uk: store.UserKey, c: conversations.Conversation) -> dict:
@@ -135,9 +153,12 @@ def start_conversation(st: St, uk: User, body: Annotated[TurnLine, Body()]):
         name = providers.PROVIDERS[chosen if chosen in st.settings.providers else st.settings.providers[0]].name
         return JSONResponse(error_body(409, f"Add a key for {name} in Settings first.", code=codes.NO_KEY_CODE), 409)
     later = later_from(body.start_at)
+    if later and body.photos:   # the turn that would read them runs at the picked time, after they're swept
+        raise HTTPException(422, "Photos go with a workout for now, not one for later.")
+    kit = kit_photos(body)
     with turn_transaction(st, uk) as conn:
-        cid = conversations.create(conn, uk, body.line, later)
-        job_id = queue_turn(conn, uk, turn_args(cid, body.line, None, body.today, body.now))
+        cid = conversations.create(conn, uk, body.line, later, len(kit))
+        job_id = queue_turn(conn, uk, turn_args(cid, body.line, None, body.today, body.now, shown=len(kit)), kit)
     return {"id": cid, "job_id": job_id}
 
 
@@ -262,10 +283,11 @@ def stop_turn(st: St, uk: User, cid: Annotated[int, JOB_ID]):
 
 @router.post("/api/conversations/{cid}/messages", status_code=202, **POST)
 def post_message(st: St, uk: User, cid: Annotated[int, JOB_ID], body: Annotated[TurnLine, Body()]):
-    args = turn_args(cid, body.line, None, body.today, body.now)
+    kit = kit_photos(body)
+    args = turn_args(cid, body.line, None, body.today, body.now, shown=len(kit))
     with turn_transaction(st, uk) as conn:
         healed(conn, uk, cid)
-        if not conversations.begin_turn(conn, uk, cid, body.line, None):
+        if not conversations.begin_turn(conn, uk, cid, body.line, None, len(kit)):
             raise HTTPException(409, STILL_WORKING)
-        job_id = queue_turn(conn, uk, args)
+        job_id = queue_turn(conn, uk, args, kit)
     return {"job_id": job_id}

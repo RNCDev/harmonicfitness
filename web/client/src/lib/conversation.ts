@@ -1,6 +1,6 @@
 // The conversation with the agent: load the latest, start a new one or continue it, follow each turn's job.
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, ApiError, NotSignedIn, plainError, useJob, type Conversation, type ErrorCode } from "./api";
+import { api, ApiError, NotSignedIn, plainError, useJob, type ChatLine, type Conversation, type ErrorCode } from "./api";
 import { localDate, localNow } from "./when";
 
 /** Waits before each new try at reading the conversation after a turn (about ten seconds in all). */
@@ -35,6 +35,10 @@ export function resumable(c: Conversation, today: Date = new Date()): boolean {
 
 /** A refusal Settings answers: no language-model key, or one its service refused. */
 const needsKeys = (code: ErrorCode | null | undefined) => code === "no_model_key" || code === "key_refused";
+
+/** The listener's line as the chat shows it at once: with how many photos it carried, as the server keeps it. */
+const said = (text: string, photos?: string[]): ChatLine =>
+  photos?.length ? { role: "user", text, photos: photos.length } : { role: "user", text };
 
 export function useConversation() {
   const [conv, setConv] = useState<Conversation | null>(null);
@@ -149,14 +153,14 @@ export function useConversation() {
   const working = posting || conv?.state === "working" || (!!conv && (job?.state === "queued" || job?.state === "running"));
 
   /** A new conversation, whatever is open; `startAt`, for a workout at a time the listener picked. */
-  const start = useCallback(async (line: string, startAt?: string) => {
+  const start = useCallback(async (line: string, startAt?: string, photos?: string[]) => {
     setError(null);
     setNoKey(false);
     setPosting(true);
     try {
-      const { id: cid, job_id } = await api.startConversation(line, when(), startAt);
+      const { id: cid, job_id } = await api.startConversation(line, when(), startAt, photos);
       setWaiting(null);
-      setConv({ id: cid, state: "working", job_id, lines: [{ role: "user", text: line }],
+      setConv({ id: cid, state: "working", job_id, lines: [said(line, photos)],
         updated_at: new Date().toISOString() });
       follow(job_id);
       return true;
@@ -171,10 +175,10 @@ export function useConversation() {
   const history = isHistory(conv);
 
   /** The chat's text box: the open conversation goes on; with none, or one from an earlier day, a new one. */
-  const send = useCallback(async (line: string, startAt?: string) => {
-    if (!conv || history) return start(line, startAt);
-    return turn(() => api.sendMessage(conv.id, line, when()), (c) => ({
-      ...c, state: "working", lines: [...c.lines, { role: "user", text: line }],
+  const send = useCallback(async (line: string, startAt?: string, photos?: string[]) => {
+    if (!conv || history) return start(line, startAt, photos);
+    return turn(() => api.sendMessage(conv.id, line, when(), photos), (c) => ({
+      ...c, state: "working", lines: [...c.lines, said(line, photos)],
       updated_at: new Date().toISOString(),
     }));
   }, [conv, history, start, turn]);

@@ -55,15 +55,20 @@ def _open(uk: UserKey, cid: int, state: str, version: int, job_id, sealed, updat
                         later=body.get("later") if isinstance(body.get("later"), dict) else None)
 
 
-def create(conn, uk: UserKey, first_line: str, later: dict | None = None) -> int:
-    """A new working conversation holding the user's first line (and, for a workout at a time they picked,
-    `later`). The sealed body's AAD names the row's id, so the row is inserted with an empty body and sealed in
+def _said(text: str, photos: int) -> dict:
+    """The listener's line as the chat shows it: with how many photos it carried (0.83.0), never the photos."""
+    return {"role": "user", "text": text, **({"photos": photos} if photos else {})}
+
+
+def create(conn, uk: UserKey, first_line: str, later: dict | None = None, photos: int = 0) -> int:
+    """A new working conversation holding the user's first line, with how many photos it carried (and, for a
+    workout at a time they picked, `later`). The sealed body's AAD names the row's id, so the row is inserted with an empty body and sealed in
     the same transaction."""
     cid = conn.execute(
         "insert into conversations (user_id, state, body) values (%s, 'working', %s) "
         "returning id", (uk.user_id, b"")).fetchone()[0]
     c = Conversation(id=cid, state="working", version=1,
-                     lines=[{"role": "user", "text": first_line}], later=later)
+                     lines=[_said(first_line, photos)], later=later)
     conn.execute("update conversations set body = %s where id = %s and user_id = %s",
                  (_seal(uk, c), cid, uk.user_id))
     return cid
@@ -134,8 +139,9 @@ def answer_line(question: dict, answer: dict) -> str:
     return " · ".join(parts)
 
 
-def begin_turn(conn, uk: UserKey, cid: int, line: str | None, answer: dict | None) -> bool:
-    """Start a turn from waiting, idle or failed: add the user's line (or the answer's line),
+def begin_turn(conn, uk: UserKey, cid: int, line: str | None, answer: dict | None, photos: int = 0) -> bool:
+    """Start a turn from waiting, idle or failed: add the user's line, with how many photos it carried (or the
+    answer's line),
     clear the question, go working. False when missing, not the user's, or already working."""
     try:
         c = load(conn, uk, cid)
@@ -145,7 +151,7 @@ def begin_turn(conn, uk: UserKey, cid: int, line: str | None, answer: dict | Non
         return False
     text = answer_line(c.question or {}, answer) if answer is not None else line
     if text:
-        c.lines.append({"role": "user", "text": text})
+        c.lines.append(_said(text, photos if answer is None else 0))
     c.question = None
     c.state = "working"
     return save(conn, uk, c, c.version)

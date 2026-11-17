@@ -5,6 +5,7 @@ import re
 TURN_ARGS = {"conversation_id", "line", "answer", "today", "now"}
 TURN_NOW = re.compile(r"\d{4}-\d{2}-\d{2} \w+ \d{2}:\d{2}", re.ASCII)
 MAX_LINE = 4000
+PHOTOS_MOST = 3   # photos.MOST, said again: the worker's check never imports what reads the photos
 
 
 class Invalid(Exception):
@@ -29,8 +30,12 @@ def day(value: object) -> str:
 
 def request(args: dict) -> tuple[str | None, tuple[str, dict] | None, str, str]:
     """(line, answer, today, now), checked; exactly one of line or answer. A scheduled turn (0.60.0) also carries
-    `scheduled` and the listener's `offset` from UTC in minutes; its today and now are when it was due."""
-    if (set(args) - {"record", "scheduled", "offset"} != TURN_ARGS or args.get("record", False) not in (True, False)
+    `scheduled` and the listener's `offset` from UTC in minutes; its today and now are when it was due. A line may
+    carry `photos`, how many kit photos wait for it in turn_photos (0.83.0): the count only, never a photo."""
+    if (set(args) - {"record", "scheduled", "offset", "photos"} != TURN_ARGS
+            or args.get("record", False) not in (True, False)
+            or not (type(args.get("photos", 1)) is int and 1 <= args.get("photos", 1) <= PHOTOS_MOST)
+            or ("photos" in args and args.get("line") is None)
             or args.get("scheduled", False) not in (True, False)
             or ("scheduled" in args) != ("offset" in args)
             or ("offset" in args and not (type(args["offset"]) is int and abs(args["offset"]) <= 14 * 60))):

@@ -53,7 +53,8 @@ type JobView = {
 /** An MP3 the site keeps: a workout's has no expiry (`expires_at` null; three newer ones replace it), and `gone`
  *  marks one a conversation still names that's no longer kept. */
 export type Audio = { id: string; name: string; expires_at: string | null; gone?: boolean };
-export type ChatLine = { role: "user" | "agent"; text: string; audio?: Audio };
+/** `photos`: how many kit photos the listener's line carried; the photos themselves are never kept. */
+export type ChatLine = { role: "user" | "agent"; text: string; audio?: Audio; photos?: number };
 /** The plan the engine worked out from the draft's own segments (`get plan`), so its times add up. */
 type PlanRow = { what: string; kind: "movement" | "rest" | "talk"; segments: number; seconds: number };
 export type Plan = { rows: PlanRow[]; seconds: number };
@@ -171,12 +172,14 @@ export const api = {
   deleteKey: (service: string) =>
     call<void>("DELETE", `/api/keys/${encodeURIComponent(service)}`),
   /** `startAt` (from `withOffset`) asks for the workout at that time: the check-in now, the writing before it. */
-  startConversation: (line: string, w: When, startAt?: string) =>
-    call<{ id: number; job_id: number }>("POST", "/api/conversations", { line, ...w, ...(startAt ? { start_at: startAt } : {}) }),
+  startConversation: (line: string, w: When, startAt?: string, photos?: string[]) =>
+    call<{ id: number; job_id: number }>("POST", "/api/conversations", { line, ...w, ...(startAt ? { start_at: startAt } : {}),
+      ...(photos?.length ? { photos } : {}) }),
   latestConversation: () => call<Conversation | undefined>("GET", "/api/conversations/latest"),
   conversation: (id: number) => call<Conversation>("GET", `/api/conversations/${id}`),
-  sendMessage: (id: number, line: string, w: When) =>
-    call<{ job_id: number }>("POST", `/api/conversations/${id}/messages`, { line, ...w }),
+  /** `photos`: the kit photos the line carries, each a shrunk JPEG in base64 (lib/photos.ts). */
+  sendMessage: (id: number, line: string, w: When, photos?: string[]) =>
+    call<{ job_id: number }>("POST", `/api/conversations/${id}/messages`, { line, ...w, ...(photos?.length ? { photos } : {}) }),
   record: (id: number, w: When) => call<{ job_id: number }>("POST", `/api/conversations/${id}/record`, w),
   stop: (id: number) => call<{ stopping: boolean }>("POST", `/api/conversations/${id}/stop`),
   /** Schedule it: the one approval for a workout for later, up to its ceiling. */

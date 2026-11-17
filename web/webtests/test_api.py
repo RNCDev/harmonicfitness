@@ -795,6 +795,44 @@ class Conversations(ApiCase):
         return [r[0] for r in self.conn.execute(
             "select id from jobs where user_id = %s and kind = 'turn' order by id", (user_id,))]
 
+    def test_a_message_with_kit_photos(self):
+        """0.83.0: re-saved and kept beside the job until its turn, the count in its args and on the chat line."""
+        import base64
+        import io
+        from PIL import Image
+        from webapp import photos
+        from webtests.test_photos import GPS, jpeg
+
+        def b64(raw):
+            return base64.b64encode(raw).decode()
+        _, uk = self.keyed()
+        sent = [b64(jpeg(2400, 1800)), b64(jpeg(800, 600, gps=False))]
+        r = self.client.post("/api/conversations", json=self.turn(line="Here's my garage.", photos=sent),
+                             headers=self.origin())
+        self.assertEqual(r.status_code, 202, r.text)
+        job_id, cid = r.json()["job_id"], r.json()["id"]
+        args = jobs.args(self.conn, uk, job_id)
+        self.assertEqual(args["photos"], 2)
+        self.assertNotIn(sent[1][:40], json.dumps(args))
+        self.assertIsNone(turns.check(args))
+        kept = photos.take(self.conn, uk, job_id)
+        self.conn.rollback()
+        self.assertEqual(len(kept), 2)
+        with Image.open(io.BytesIO(kept[0])) as im:
+            self.assertEqual(max(im.size), photos.EDGE)
+            self.assertNotIn(GPS, im.getexif())
+        self.assertEqual(self.client.get(f"/api/conversations/{cid}").json()["lines"][0],
+                         {"role": "user", "text": "Here's my garage.", "photos": 2})
+        self.settle(uk, cid)
+        r = self.client.post(f"/api/conversations/{cid}/messages", json=self.turn(line="And the rack.", photos=[sent[1]]),
+                             headers=self.origin())
+        self.assertEqual(r.status_code, 202, r.text)
+        self.assertEqual(len(photos.take(self.conn, uk, r.json()["job_id"])), 1)
+        self.conn.rollback()
+        for bad in ([b64(b"not a photo")], [sent[1]] * (photos.MOST + 1)):
+            r = self.client.post("/api/conversations", json=self.turn(line="x", photos=bad), headers=self.origin())
+            self.assertEqual(r.status_code, 422, r.text)
+
     def offered(self, chars=2000):
         user_id, uk = self.keyed()
         cid = self.start()["id"]
