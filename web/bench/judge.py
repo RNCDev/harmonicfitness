@@ -1,6 +1,12 @@
 """A blind read of two arms' scripts, pair by pair, by Claude Opus through the CLI: for the maintainer's bench only.
 
   .venv/bin/python web/bench/judge.py <baseline-label> <candidate-label> [--runs 1,2,3] [--model <id>] [--salt <text>]
+  .venv/bin/python web/bench/judge.py <baseline-label> <candidate-label> --prepare     (then, once judged: --tally)
+
+--prepare writes each judgment's reading as a folder (.bench/judge/<a hash>/<run>-<a or b>/: task.md,
+listener.md, request.txt, first.txt, second.txt) for a judge the CLI can't reach (a Claude Code subagent on Opus,
+say: "read task.md there and do what it says"), which writes verdict.json beside them; --tally reads those. The
+folder names tell the judge nothing of the arms (<run>-a has the baseline first).
 
 Each pair is run <n> of both labels (.bench/out/<label>/<n>), the same request and listener. The judge reads the
 listener's files and both scripts, named only "first" and "second", and each pair is judged twice, once in each
@@ -90,31 +96,86 @@ async def judge(model, cache: str, salt: str, who: str, line: str, first: str, s
     return got["structured_output"]
 
 
-async def main_async(a) -> None:
-    cache = os.path.join(REPO, ".bench", "claude-cache")
-    model = claude_cli.ClaudeCLI(a.model, cache=cache)
-    gate = asyncio.Semaphore(4)
+def pairs(a) -> list:
+    """Each judgment to make: (run, order, the listener's files, the request, the first script, the second)."""
     runs = a.runs.split(",") if a.runs else sorted(
         n for n in os.listdir(os.path.join(OUT, a.candidate)) if n.isdigit())
-    jobs = []
+    out = []
     for n in runs:
         base, cand = run_of(a.baseline, a.baseline_runs.split(",")[runs.index(n)] if a.baseline_runs else n), run_of(a.candidate, n)
         if not (base and cand):
             print(f"run {n}: no script in one arm, skipped")
             continue
+        if base["draft"].strip() == cand["draft"].strip():
+            print(f"run {n}: the two scripts are the same, not judged")
+            continue
         who, line = listener(a.candidate, n), cand.get("line") or base.get("line") or ""
         for order in ("base-first", "cand-first"):
             first, second = (base, cand) if order == "base-first" else (cand, base)
+            out.append((n, order, who, line, first["draft"], second["draft"]))
+    return out
 
-            async def one(n=n, order=order, first=first, second=second, who=who, line=line):
-                async with gate:
-                    return n, order, await judge(model, cache, a.salt, who, line, first["draft"], second["draft"])
-            jobs.append(one())
-    rows = await asyncio.gather(*jobs)
+
+TASK = """
+
+# What to do
+
+Beside this file are listener.md (the listener's files), request.txt (their request), first.txt and second.txt (the two scripts). Read all four whole; read nothing else. Then write verdict.json in this folder, one JSON object and nothing else:
+
+{"scores": {"safety": {"first": 1-5, "second": 1-5, "note": "..."}, "coaching": {...}, "voice": {...}, "stories": {...}, "personal": {...}},
+ "defects_first": [{"segment": <number>, "quote": "<the words, exactly>", "problem": "...", "severity": "safety" | "ear" | "minor"}],
+ "defects_second": [the same],
+ "overall": "first" | "second" | "tie", "why": "..."}
+
+Reply with one line: the overall verdict."""
+
+
+def folder(a) -> str:
+    """The comparison's folder, named by a hash so its path tells the judge nothing of the arms."""
+    name = hashlib.sha256(f"{a.candidate} vs {a.baseline} {a.salt}".encode()).hexdigest()[:10]
+    return os.path.join(REPO, ".bench", "judge", name)
+
+
+def prepare(a) -> None:
+    root = folder(a)
+    for n, order, who, line, first, second in pairs(a):
+        d = os.path.join(root, f"{n}-{'a' if order == 'base-first' else 'b'}")   # the folder's name tells the judge nothing
+        os.makedirs(d, exist_ok=True)
+        for name, text in (("task.md", SYSTEM + TASK), ("listener.md", who), ("request.txt", line),
+                           ("first.txt", first), ("second.txt", second)):
+            with open(os.path.join(d, name), "w", encoding="utf-8") as f:
+                f.write(text.strip() + "\n")
+        print(d)
+
+
+def read_verdicts(a) -> list:
+    rows = []
+    for n, order, *_ in pairs(a):
+        path = os.path.join(folder(a), f"{n}-{'a' if order == 'base-first' else 'b'}", "verdict.json")
+        try:
+            with open(path, encoding="utf-8") as f:
+                rows.append((n, order, json.load(f)))
+        except (OSError, ValueError) as e:
+            print(f"run {n} ({order}): no verdict read ({e})")
+    return rows
+
+
+async def ask_all(a) -> list:
+    cache = os.path.join(REPO, ".bench", "claude-cache")
+    model = claude_cli.ClaudeCLI(a.model, cache=cache)
+    gate = asyncio.Semaphore(4)
+
+    async def one(n, order, who, line, first, second):
+        async with gate:
+            return n, order, await judge(model, cache, a.salt, who, line, first, second)
+    return await asyncio.gather(*(one(*p) for p in pairs(a)))
+
+
+def report(a, rows: list) -> None:
     tally = {"win": 0, "tie": 0, "loss": 0}
     diffs: dict[str, list] = {c: [] for c in CRITERIA}
     kept = []
-    for n, order, v in sorted(rows):
+    for n, order, v in sorted(rows, key=lambda r: (r[0], r[1])):
         cand_is = "second" if order == "base-first" else "first"
         base_is = "first" if cand_is == "second" else "second"
         outcome = "tie" if v["overall"] == "tie" else ("win" if v["overall"] == cand_is else "loss")
@@ -125,10 +186,11 @@ async def main_async(a) -> None:
         print(f"\nrun {n} ({order}): candidate {outcome}. " + "  ".join(f"{c} {b}>{k}" for c, (b, k) in scores.items()))
         print(f"  why: {v['why']}")
         for arm, key in (("baseline", f"defects_{base_is}"), ("candidate", f"defects_{cand_is}")):
-            for d in v[key]:
+            for d in v.get(key) or []:
                 print(f"  {arm} #{d['segment']} [{d['severity']}] \"{d['quote'][:140]}\": {d['problem'][:200]}")
         kept.append({"run": n, "order": order, "outcome": outcome, "scores": scores, "why": v["why"],
-                     "defects_baseline": v[f"defects_{base_is}"], "defects_candidate": v[f"defects_{cand_is}"]})
+                     "defects_baseline": v.get(f"defects_{base_is}") or [],
+                     "defects_candidate": v.get(f"defects_{cand_is}") or []})
     print(f"\n{a.candidate} against {a.baseline}: {tally['win']} wins, {tally['tie']} ties, {tally['loss']} losses "
           f"in {len(rows)} judgments")
     print("mean score, candidate less baseline: " + "  ".join(
@@ -151,7 +213,13 @@ def main() -> None:
     p.add_argument("--baseline-runs", help="the baseline's run for each, when the numbers differ")
     p.add_argument("--model", default="claude-opus-5-5")
     p.add_argument("--salt", default="")
-    asyncio.run(main_async(p.parse_args()))
+    p.add_argument("--prepare", action="store_true", help="write each judgment's reading as a folder, and stop")
+    p.add_argument("--tally", action="store_true", help="read the verdicts written into those folders")
+    a = p.parse_args()
+    if a.prepare:
+        prepare(a)
+    else:
+        report(a, read_verdicts(a) if a.tally else asyncio.run(ask_all(a)))
 
 
 if __name__ == "__main__":

@@ -66,6 +66,7 @@ def main() -> None:
     p.add_argument("--salt", default="")
     p.add_argument("--set", action="append", default=[])
     p.add_argument("--skeleton", help="a skeleton to fill in place of the fixture's own")
+    p.add_argument("--aim", type=float, default=0.77, help="the share of a segment's words the host is asked for")
     p.add_argument("--no-cache", action="store_true")
     p.add_argument("--cache", default=os.environ.get("HARMONICFITNESS_BENCH_CACHE") or os.path.join(REPO, ".bench", "claude-cache"),
                    help="where the CLI model's answers are kept (shared by the arms of a comparison, so by its worktrees)")
@@ -83,6 +84,9 @@ def main() -> None:
 
     import claude_cli  # noqa: PLC0415
     import run_one  # noqa: PLC0415
+    # Sonnet writes about a tenth over the words it's asked for at the site's 0.85 for a model that isn't Gemini,
+    # and the review can't cut that much: the rig asks it for less, so its scripts reach the check near their length
+    writers.AIMS["other"] = a.aim
     run_one.apply(writers, a.set)
 
     with open(os.path.join(fixture, "result.json"), encoding="utf-8") as f:
