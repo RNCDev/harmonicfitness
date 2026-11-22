@@ -800,7 +800,12 @@ async def write(deps, model, usage, path: str, search=(), name: str | None = Non
     history = None
     check = await _lint(deps, plain, path, full, name, coach, draft)
     for attempt in range(REVIEWS):
-        if attempt and (check.startswith("clean") or check == "not checked"):
+        # a script the build's check passes needs no review: the check holds the opening's rules, the
+        # sides and the menu in code, and a review of a clean script cost a request to restyle it. A story taken
+        # out leaves a hole only the review fills, so that script is still read; so is one nobody could check.
+        if check.startswith("clean") and (attempt or not unasked):
+            break
+        if attempt and check == "not checked":
             break
         draft = _read(full) if name and coach else draft
         prompt = (f"Now: {deps.now}.\n\n{_section(brief, 'The listener')}\n\n{limits}\n\n"
@@ -824,8 +829,10 @@ async def write(deps, model, usage, path: str, search=(), name: str | None = Non
         " | ".join(f.replace("|", "/") for f in (s.topic, s.format, s.title, s.source)) + " | | "
         + " ".join(story_keys(s.title, s.text)) for _, s in sorted(placed.items())]}
     note = (f"The writers' room wrote the words: the host told {len(placed)} stories in {len(rests)} places and wrote "
-            f"{len(spoken)} of {len(segs)} segments from the trainer's notes, and the trainer's review changed "
-            f"{len(changed)}. " + ("The site logs the stories told itself once the recording is made: no "
+            f"{len(spoken)} of {len(segs)} segments from the trainer's notes, and "
+            + (f"the trainer's review changed {len(changed)}. " if history is not None else
+               "the build's check passed it as written, so it went without a review. ")
+            + ("The site logs the stories told itself once the recording is made: no "
                                    "`content log` for them." if placed else ""))
     return draft, note
 

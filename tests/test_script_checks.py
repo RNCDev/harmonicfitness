@@ -132,7 +132,10 @@ class TheOpeningNamesTheSide(unittest.TestCase):
     def test_the_opening_says_its_made_by_ai(self):
         two = "@@ 60 | Welcome\n{}\n@@ 60 | Set\nTen reps.\n"
         self.assertTrue(menu.ai_problems(segs(two.format("Twenty minutes, let's go."))))
-        for said in ("This was put together by AI, so you have the final say.", "Written by artificial intelligence."):
+        self.assertTrue(menu.ai_problems(segs(two.format("Plan A is the push-up. I like it. PAIN means stop."))))
+        for said in ("This was put together by AI, so you have the final say.", "Written by artificial intelligence.",
+                     "This workout was put together by an A I, not a trainer.", "Made by A.I., as always.",
+                     "An A. I. wrote this one."):   # spelled out for the voice, as a host writes it
             self.assertEqual(menu.ai_problems(segs(two.format(said))), [], said)
         self.assertEqual(menu.ai_problems(segs(two.format("[pause 2s]"))), [])          # a skeleton's empty welcome
         self.assertEqual(menu.ai_problems(segs("@@ 60 | Work\nTen reps.\n")), [])       # a fragment has no opening

@@ -627,7 +627,8 @@ CARE = re.compile(r"\b(?:light|easy|gentle|careful|sore|delicate|tender|injured|
 
 
 # the made-by-AI line, said in every opening: the reason the rest can trust the listener
-AI_LINE = re.compile(r"\b(?:AI|A\.I\.|artificial intelligence)\b")
+# ("A I" and "A. I." too: a writer spells it out for the voice, and the build refused the line it had asked for)
+AI_LINE = re.compile(r"(?<![A-Za-z])(?:AI|A\.? ?I\b\.?|artificial intelligence)(?![A-Za-z])")
 
 
 def ai_problems(segments) -> List[str]:
