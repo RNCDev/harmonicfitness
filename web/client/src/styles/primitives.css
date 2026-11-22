@@ -75,7 +75,7 @@ select.input { padding-right: var(--s-2) }
   background: transparent; color: var(--text-2);
   font: var(--w-medium) var(--fs-md)/var(--lh-solid) var(--font); letter-spacing: var(--track-btn); padding: var(--s-4) var(--s-5);
 }
-.go.alt:hover:not(:disabled) { background: transparent }
+.go.alt:hover:not(:disabled) { background: transparent; color: var(--text-strong) }   /* not .go's dark words: they'd vanish on the sky */
 .go.danger { background: var(--danger); color: var(--on-action) }
 .go.danger:hover:not(:disabled) { background: var(--danger-hover) }
 

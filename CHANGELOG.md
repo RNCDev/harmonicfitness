@@ -2,6 +2,14 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.85.6] - 2026-11-21
+
+### Fixed
+- **An outlined button's words stay readable under the pointer** (`styles/primitives.css`). They took the cream button's dark hover colour on a see-through background and vanished, on the sign-in page's way to the demos and every other outlined button; they now brighten instead.
+
+### For forks
+- Nothing to migrate.
+
 ## [0.85.5] - 2026-11-21
 
 The sign-in page says what HarmonicFitness is, beside the form, with a clear way to the demos.
