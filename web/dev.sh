@@ -7,7 +7,9 @@
 #   web/dev.sh reset    delete the local database and key: the next run starts with no accounts
 #
 # The database is harmonicfitness_dev (HARMONICFITNESS_DEV_DB changes it); the master key is made once and kept
-# in .cache/webdev/ (git-ignored). Your shell's HARMONICFITNESS_PROVIDERS, if set, passes through.
+# in .cache/webdev/ (git-ignored). Your shell's HARMONICFITNESS_PROVIDERS, if set, passes through. The site's own
+# keys (Clerk for sign-in, Stripe for minute packs, OpenRouter and HARMONICFITNESS_HOSTED for a site run on
+# minutes) are read from the repo's .env when it's there (git-ignored); what your shell sets wins.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -53,6 +55,18 @@ up() {
     (umask 077; "$PY" -c 'import base64, os; print(base64.b64encode(os.urandom(32)).decode())' > "$STATE/master_key")
   fi
 
+  # the site's own keys, by name, from the repo's .env: never printed, and no other line of it is read
+  if [ -f "$ROOT/.env" ]; then
+    local name value
+    while IFS='=' read -r name value || [ -n "$name" ]; do
+      case "$name" in
+        CLERK_PUBLISHABLE_KEY|NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY|CLERK_SECRET_KEY|STRIPE_SECRET_KEY|\
+        STRIPE_API_SECRET_KEY|STRIPE_WEBHOOK_SECRET|OPENROUTER_API_KEY|HARMONICFITNESS_HOSTED)
+          value="${value%$'\r'}"; value="${value%\"}"; value="${value#\"}"
+          [ -n "${!name:-}" ] || export "$name=$value" ;;
+      esac
+    done < "$ROOT/.env"
+  fi
   export DATABASE_URL="postgresql://localhost/$DB"
   export HARMONICFITNESS_BASE_URL="http://localhost:$PORT"
   export HARMONICFITNESS_MASTER_KEY="$(cat "$STATE/master_key")"

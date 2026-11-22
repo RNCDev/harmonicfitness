@@ -8,6 +8,7 @@ import { useEffect, useRef, useState, type ReactNode, type Ref } from "react";
 import type { StartCoach } from "../lib/api";
 import { isNarrow } from "../lib/breakpoints";
 import { an, dollars } from "../lib/format";
+import { useSite } from "../lib/site";
 import { Button } from "../ui/Button";
 import { Empty, Loadable, Notice } from "../ui/Notice";
 import { PageHeader } from "../ui/PageHeader";
@@ -72,6 +73,7 @@ function heading(group: StartCoach[]): string {
 
 function CoachGallery({ coaches, onCoach, onAddKey, onOpenSettings }: { coaches: StartCoach[];
   onCoach?: (slug: string) => void; onAddKey?: (service: string) => void; onOpenSettings?: () => void }) {
+  const { hosted } = useSite();
   // yours first, then alphabetical, so a tile never moves: choosing one only marks it
   const byName = (a: StartCoach, b: StartCoach) => Number(b.own) - Number(a.own) || a.first.localeCompare(b.first);
   const ready = coaches.filter((c) => c.ready).sort(byName);
@@ -107,6 +109,7 @@ function CoachGallery({ coaches, onCoach, onAddKey, onOpenSettings }: { coaches:
     if (isNarrow()) side.current?.scrollIntoView?.({ block: "nearest" });
   };
 
+  if (coaches.length === 0 && hosted) return <Empty>No coach can speak here just now. Try again in a little while.</Empty>;
   if (coaches.length === 0) {
     return <Empty action={onOpenSettings && <Button onClick={onOpenSettings}>Open Settings</Button>}>
       Coaches show here once a key is added.</Empty>;
@@ -158,7 +161,8 @@ export function CoachesPage({ coaches, onCoach, onAddKey, onOpenSettings, onClos
   loadError?: string | null; onRetry?: () => void;
   /** Why the last coach chosen didn't hold. */
   error?: string | null }) {
-  const any = coaches?.some((c) => c.ready);
+  const { hosted } = useSite();
+  const any = hosted || coaches?.some((c) => c.ready);
   return (
     <section className="page wide" aria-labelledby="coaches-title">
       <PageHeader id="coaches-title" title="Coaches" onClose={onClose}>

@@ -1,5 +1,7 @@
-// The app: the sign-in page, or once signed in the sky, the chat, and the Settings drawer.
-import { useCallback, useEffect, useRef, useState } from "react";
+// The app: the sign-in page, or once signed in the sky, the chat, and the Settings drawer. The server says what
+// kind of site this is (GET /api/me): one where sign-in goes through Clerk, and one that sells minutes in place of
+// the listener's own keys ("hosted"); the pages read that from lib/site.ts.
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { api, APP_NAME, NotSignedIn, setAuthLost, type KeyState, type Me } from "./lib/api";
 import { ChoosePassword, SignIn } from "./zones/SignIn";
 import { Mark } from "./ui/Mark";
@@ -7,11 +9,14 @@ import { Sky, type SkyKind } from "./ui/Sky";
 import { useConversation } from "./lib/conversation";
 import { KeyAskContext, type KeyAsk } from "./lib/keyAsk";
 import { hasModelKey, keyRows } from "./lib/keys";
+import { SiteContext } from "./lib/site";
 import { planOf, stepsOf } from "./lib/steps";
 import { useSaved } from "./lib/useAction";
+import { checkoutReturn, useMinutes } from "./lib/useMinutes";
 import { usePage } from "./lib/usePage";
 import { useStartInfo } from "./lib/useStartInfo";
 import { SAID } from "./lib/messages";
+import { leave } from "./lib/visits";
 import { Boundary } from "./ui/Boundary";
 import { Button } from "./ui/Button";
 import { Icon } from "./ui/icons";
@@ -29,6 +34,9 @@ function keyNeeded(keys: KeyState[] | null): KeyNeeded | null {
     .map((r) => ({ name: r.name, service: r.service, voice: r.voice }));
   return options.length ? options : null;
 }
+
+/** Where minutes are sold no key is the listener's: none to list, and none to ask for. */
+const NO_KEYS: KeyState[] = [];
 
 type Auth = "loading" | "in" | "out" | "error";
 
@@ -88,10 +96,16 @@ export function App() {
   if (auth === "loading") return <Loading />;
   if (auth === "out") return <SignIn onSignedIn={load} />;
   if (auth === "error" || !me) return <Unreachable onRetry={load} />;
-  if (!me.has_password) {
+  // an account with no password chooses one, except where Clerk signs people in: there is none to choose
+  if (!me.has_password && !me.clerk) {
     return <ChoosePassword username={me.username} onDone={() => setMe({ ...me, has_password: true })} />;
   }
-  return <SignedIn me={me} onSignedOut={signedOut} />;
+  return <Site me={me}><SignedIn me={me} onSignedOut={signedOut} /></Site>;
+}
+
+function Site({ me, children }: { me: Me; children: ReactNode }) {
+  const site = useMemo(() => ({ hosted: !!me.hosted, clerk: !!me.clerk }), [me.hosted, me.clerk]);
+  return <SiteContext.Provider value={site}>{children}</SiteContext.Provider>;
 }
 
 /** The signed-in page. Mounted only once the server says who is signed in; unmounting it closes the job's stream. */
@@ -108,10 +122,12 @@ function SignedIn({ me, onSignedOut }: { me: Me; onSignedOut: () => void }) {
     lastPage.current = page;
     if (page === "chat" && was !== "chat") pageButtons[was].current?.focus();
   }, [page]); // eslint-disable-line react-hooks/exhaustive-deps
-  const [keys, setKeys] = useState<KeyState[] | null>(null);
+  const hosted = !!me.hosted;
+  const [ownKeys, setKeys] = useState<KeyState[] | null>(null);
+  const keys = hosted ? NO_KEYS : ownKeys;
   const [openRow, setOpenRow] = useState<KeyAsk | null>(null);
   const needsKey = keyNeeded(keys);
-  const { conv, working, error, noKey, send, record, schedule, cancel, halt, reset, job, waiting, resume } = useConversation();
+  const { conv, working, error, noKey, noMinutes, send, record, schedule, cancel, halt, reset, job, waiting, resume } = useConversation();
   const steps = stepsOf(job?.stages ?? []);
   const plan = planOf(job?.stages ?? []);
   const { start, error: startError, reload: reloadStart, coaches, coachBar, chooseCoach, coachError } = useStartInfo(keys);
@@ -122,7 +138,24 @@ function SignedIn({ me, onSignedOut }: { me: Me; onSignedOut: () => void }) {
   const [autoRecord, chooseAutoRecord, autoRecordError] = useSaved(me.auto_record ?? false, api.setAutoRecord,
     SAID.notSaved);
 
-  const closeDrawer = useCallback(() => setDrawer(false), []);
+  // the minutes, where they're sold: what's left sits in the header and opens their section of Settings, as
+  // "Get minutes" does, and as coming back from the checkout page does (with how it went, said once)
+  const minutes = useMinutes(hosted, working);
+  const left = minutes.state?.minutes ?? me.minutes ?? null;
+  const [goTo, setGoTo] = useState<{ section: string; n: number } | null>(null);
+  const openMinutes = useCallback(() => {
+    setGoTo((g) => ({ section: "cx-minutes", n: (g?.n ?? 0) + 1 }));
+    setDrawer(true);
+  }, []);
+  const [back, setBack] = useState(() => (hosted ? checkoutReturn() : null));
+  const { settle } = minutes;
+  useEffect(() => {
+    if (!back) return;
+    openMinutes();
+    if (back === "bought") settle();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const closeDrawer = useCallback(() => { setDrawer(false); setBack(null); }, []);
 
   // A key's row in Settings. From the welcome card the key is also chosen to write; from a coach that needs it,
   // the row only opens, so a voice key never changes who writes (OpenRouter's and Gemini's can do both).
@@ -133,7 +166,14 @@ function SignedIn({ me, onSignedOut }: { me: Me; onSignedOut: () => void }) {
   const addKey = useCallback((service: string) => openKey(service, true), [openKey]);
   const addVoiceKey = useCallback((service: string) => openKey(service, false), [openKey]);
 
+  // where Clerk signs people in, the sign-in page ends Clerk's session too (lib/visits.ts): signed out is signed out
+  const clerk = !!me.clerk;
+  const gone = useCallback(() => {
+    if (clerk) leave();
+    onSignedOut();
+  }, [clerk, onSignedOut]);
   const signOut = useCallback(async () => {
+    if (clerk) leave();
     try {
       await api.signOut();
     } catch {
@@ -165,6 +205,12 @@ function SignedIn({ me, onSignedOut }: { me: Me; onSignedOut: () => void }) {
             <Icon name="logs" size={16} />
             <span className="top-label">Logs</span>
           </Button>
+          {hosted && left !== null && (
+            <Button variant="header" className="minutes-chip" title="Your minutes: add more, and see what was used"
+              aria-label={`${left} ${left === 1 ? "minute" : "minutes"} left`} onClick={openMinutes}>
+              {left} min
+            </Button>
+          )}
           <Button ref={gear} variant="header" className="icon" aria-label="Settings" title="Settings"
             aria-expanded={drawer} aria-controls="ctx" onClick={() => setDrawer((d) => !d)}>
             <Icon name="gear" size={18} weight={1.7} />
@@ -178,6 +224,7 @@ function SignedIn({ me, onSignedOut }: { me: Me; onSignedOut: () => void }) {
         </Boundary>}
         {/* an earlier day's conversation shows as history; the next message starts a new one */}
         <Boundary what="The chat"><Chat lines={conv?.lines ?? []} working={working} steps={steps} plan={plan} error={error} noKey={noKey}
+          noMinutes={noMinutes} onGetMinutes={openMinutes}
           onSend={send} onStop={halt} onOpenKeys={() => setDrawer(true)} coachBar={coachBar}
           first={{
             needsKey, onAddKey: addKey, start, starting: start === null && keys !== null,
@@ -193,7 +240,8 @@ function SignedIn({ me, onSignedOut }: { me: Me; onSignedOut: () => void }) {
       </div>
       <KeyAskContext.Provider value={openRow}>
         <Settings username={me.username} version={me.version} open={drawer} onClose={closeDrawer}
-          onSignOut={signOut} onDeleted={onSignedOut} onKeys={setKeys} returnFocus={gear}
+          onSignOut={signOut} onDeleted={gone} onKeys={setKeys} returnFocus={gear}
+          minutes={hosted ? minutes : undefined} back={back} goTo={goTo} clerkLinked={!!me.clerk_linked}
           sky={sky} onSky={(s) => void chooseSky(s)} skyError={skyError}
           autoRecord={autoRecord} onAutoRecord={(on) => void chooseAutoRecord(on)} autoRecordError={autoRecordError} />
       </KeyAskContext.Provider>

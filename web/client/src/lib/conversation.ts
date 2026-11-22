@@ -35,6 +35,8 @@ export function resumable(c: Conversation, today: Date = new Date()): boolean {
 
 /** A refusal Settings answers: no language-model key, or one its service refused. */
 const needsKeys = (code: ErrorCode | null | undefined) => code === "no_model_key" || code === "key_refused";
+/** A refusal more minutes answer, on a site that sells them. */
+const needsMinutes = (code: ErrorCode | null | undefined) => code === "no_minutes";
 
 /** The listener's line as the chat shows it at once: with how many photos it carried, as the server keeps it. */
 const said = (text: string, photos?: string[]): ChatLine =>
@@ -46,6 +48,7 @@ export function useConversation() {
   const [waiting, setWaiting] = useState<Conversation | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [noKey, setNoKey] = useState(false);
+  const [noMinutes, setNoMinutes] = useState(false);
   const [posting, setPosting] = useState(false);
   const { job, watch, stop } = useJob();
   const watched = useRef(0);
@@ -58,6 +61,7 @@ export function useConversation() {
   const fail = useCallback((e: unknown) => {
     if (e instanceof NotSignedIn) return;   // api.ts has sent the page to sign-in
     setNoKey(e instanceof ApiError && needsKeys(e.code));
+    setNoMinutes(e instanceof ApiError && needsMinutes(e.code));
     setError(plainError(e));
   }, []);
 
@@ -91,6 +95,7 @@ export function useConversation() {
     if (job.state === "failed" && job.error) {
       setError(plainError(new ApiError(0, job.error)));
       setNoKey(needsKeys(job.code));
+      setNoMinutes(needsMinutes(job.code));
     }
     if (job.state !== "done" && job.state !== "failed") return;
     let live = true;
@@ -135,6 +140,7 @@ export function useConversation() {
   const turn = useCallback(async (run: () => Promise<{ job_id: number }>, show: (c: Conversation) => Conversation) => {
     setError(null);
     setNoKey(false);
+    setNoMinutes(false);
     setPosting(true);
     try {
       const { job_id } = await run();
@@ -156,6 +162,7 @@ export function useConversation() {
   const start = useCallback(async (line: string, startAt?: string, photos?: string[]) => {
     setError(null);
     setNoKey(false);
+    setNoMinutes(false);
     setPosting(true);
     try {
       const { id: cid, job_id } = await api.startConversation(line, when(), startAt, photos);
@@ -198,6 +205,7 @@ export function useConversation() {
     setError(null);
     setPosting(true);
     try {
+      setNoMinutes(false);
       await api.schedule(conv.id, when());
       setConv(await api.conversation(conv.id));
       return true;
@@ -239,6 +247,7 @@ export function useConversation() {
     setPosting(false);
     setError(null);
     setNoKey(false);
+    setNoMinutes(false);
   }, [conv, fail, stop]);
 
   /** "New chat": clear the page; the next message starts a new conversation. */
@@ -248,7 +257,8 @@ export function useConversation() {
     setConv(null);
     setError(null);
     setNoKey(false);
+    setNoMinutes(false);
   }, [working, stop]);
 
-  return { conv, history, working, error, noKey, send, record, schedule, cancel, halt, reset, job, stop, waiting, resume };
+  return { conv, history, working, error, noKey, noMinutes, send, record, schedule, cancel, halt, reset, job, stop, waiting, resume };
 }

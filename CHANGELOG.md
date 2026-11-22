@@ -2,6 +2,36 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.85.0] - 2026-11-21
+
+The web app can be a site people sign up for and pay by the minute, with no keys of their own. Sign-in goes through Clerk, minutes are sold in packs through Stripe, and the site's own OpenRouter key writes each workout with Gemini and speaks it with six new coaches on Microsoft's MAI-Voice. Each part is switched on by its own settings; without them the web app runs on a listener's own keys as before, and nothing changes on a computer.
+
+### Added
+- **Sign-in through Clerk** (`CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`; `webapp/clerk.py`, `ui/ClerkGate.tsx`). The page shows Clerk's form and trades Clerk's session token for the site's own session (`POST /api/session`), checked here against the instance's public keys, so a signed-in request never calls Clerk. The username and password routes are then off (404). The site stores no email address.
+  - An account from before Clerk is linked at its first sign-in when its Clerk user carries the account's id as `external_id`.
+  - Deleting an account asks for a fresh Clerk token in place of the password and deletes the Clerk user too.
+- **Minutes** (`webapp/minutes.py`, migration 025): a balance and a ledger in which each thing happens once.
+  - A recording costs its planned length, rounded up. The minutes are held at Record, kept when the MP3 is stored and handed back when the recording fails.
+  - The first time a script is recorded again costs nothing.
+  - Twenty minutes to start with, once a person, at the first sign-in with a verified email address.
+  - `python -m webapp.admin grant <username> <minutes>` adds minutes by hand.
+- **Minute packs through Stripe Checkout** (`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`; `webapp/billing.py`, `routes/billing.py`): 60 minutes for $5, 140 for $10, 320 for $20. The listener pays on Stripe's page; only Stripe's signed webhook credits the minutes, once per payment, and a full refund takes back what's left of them. `python -m webapp.stripe_setup` makes the products, prices and webhook endpoint, and is safe to run again.
+- **The hosted site** (`HARMONICFITNESS_HOSTED=1`, `OPENROUTER_API_KEY`; `webapp/hosted.py`): the site's key writes (`google/gemini-3.8-flash`) and speaks (`microsoft/mai-voice-2.1`), and no listener's key is opened. Settings shows Minutes in place of Keys, the header shows the minutes left, the Record card says what a recording takes in minutes, and a recording refused for too few (402, `no_minutes`) offers the packs. A listener may start forty turns in 24 hours.
+- **Six more ready-made coaches on OpenRouter,** each one of Microsoft's MAI-Voice voices: Hugh, Ivy, Luke, Nell, Seth and Skye. At $22 per million characters they cost about half what ElevenLabs' voices do there (about $0.44 a thirty-minute workout on a listener's own key), and they are the coaches that speak on the hosted site. Eighteen ready-made web coaches now ship, thirty-one stock coaches in all.
+
+### Changed
+- **`coaches list --json` names each web coach's `model`,** which is how the hosted site knows which coaches it can afford to speak with.
+- **`web/dev.sh` reads the site's own keys by name** from the repo's `.env` (git-ignored), never printing them; what the shell sets wins.
+- **The sign-in page waits for `GET /api/auth`** before it shows a form, since that says which form to show.
+
+### For forks
+- Run the web app's migrations (`025_minutes_and_clerk.sql`) and `npm ci` in `web/client` (`@clerk/clerk-react`, a new dependency of the browser client). The server needs no new package.
+- A site that sets none of the new variables behaves as before. Half a pair is refused at start: both Clerk keys or neither, and `HARMONICFITNESS_HOSTED` only with `OPENROUTER_API_KEY` and `openrouter` among `HARMONICFITNESS_PROVIDERS`.
+- `GET /api/auth` gains `clerk` (the publishable key, or null) and `hosted`; `GET /api/me` gains `clerk`, `clerk_linked`, `hosted` and `minutes`. A Record offer may carry `minutes` and `charge`, and a workout for later `minutes`.
+- `api.create_app` takes `clerk_send` and `stripe_send` (the tests' fakes); `start.gather` takes `paid`.
+- OpenRouter's stand-in for a listener with only its key is still Coach Graham: the six new coaches' names sort after his.
+- Run `./harmonicfitness harness sync` after merging: the setup and coach skills changed.
+
 ## [0.84.0] - 2026-11-17
 
 A simpler test suite and a faster CI. About 2,000 tests become about 720, and a push is green in about a minute and a half instead of four (or fifteen, the day a Mac runner never came). Support for context folders from before 0.12.0 is removed.

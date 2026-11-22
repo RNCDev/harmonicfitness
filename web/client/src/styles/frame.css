@@ -22,6 +22,8 @@
 }
 .top-btn.new { display: inline-flex; align-items: center; gap: var(--s-2); padding-left: var(--s-3) }
 .top-btn.icon { width: var(--control); height: var(--control); padding: 0; display: grid; place-items: center; letter-spacing: 0 }
+/* the minutes left, where the site sells them: a number to read, so brighter than a button's words and never uppercase */
+.top-btn.minutes-chip { color: var(--text); text-transform: none; letter-spacing: 0; font-variant-numeric: tabular-nums }
 .top-btn[aria-pressed="true"] { color: var(--text-strong); box-shadow: var(--ring) var(--text) }
 
 .chat { flex: 1; min-height: 0; width: min(100%, 1480px + 2 * var(--gut)); display: flex; flex-direction: column; padding: 0 var(--gut) var(--s-5) }

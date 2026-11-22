@@ -85,7 +85,8 @@ class SignIn(ApiCase):
                                  401, path)
         with self.subTest("the sign-in page's facts need none"):
             self.assertEqual(self.client.get("/api/auth").json(),
-                             {"app_name": "HarmonicFitness", "registration": True, "version": VERSION})
+                             {"app_name": "HarmonicFitness", "registration": True, "version": VERSION,
+                              "clerk": None, "hosted": False})
 
     def register(self, name="newbie", pw="long enough", client=None, **headers):
         client = client or self.client
@@ -101,7 +102,8 @@ class SignIn(ApiCase):
             self.assertIn(flag, cookie)
         self.assertEqual(self.client.get("/api/me").json(),
                          {"app_name": "HarmonicFitness", "username": "fresh.one",
-                          "has_password": True, "version": VERSION, "sky": "flow", "auto_record": False})
+                          "has_password": True, "version": VERSION, "sky": "flow", "auto_record": False,
+                          "clerk": False, "clerk_linked": False, "hosted": False, "minutes": None})
         self.assertIn("profile.md", [f["path"] for f in self.client.get("/api/sync").json()["files"]])
         r = self.register("FRESH.ONE", client=self.other_client())
         self.assertEqual(r.status_code, 409)

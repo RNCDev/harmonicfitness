@@ -1,8 +1,10 @@
 // The cards that wait on the listener's approval in the chat: a priced recording (Record it), a workout for later
-// (Schedule it), and one scheduled (Cancel).
+// (Schedule it), and one scheduled (Cancel). On a site that sells minutes the price is said in minutes, never in
+// dollars or characters: the listener's own key pays for nothing there.
 import type { Later, Offer, Plan } from "../../lib/api";
 import { count, dollars, mss, timeOfDay } from "../../lib/format";
 import { privacyNote, serviceName } from "../../lib/keys";
+import { minutesSaid, useSite } from "../../lib/site";
 import { Quiet, useAction } from "../../lib/useAction";
 import { ahead } from "../../lib/when";
 import { useState } from "react";
@@ -32,7 +34,25 @@ export function PlanTable({ plan, caption }: { plan: Plan; caption?: string }) {
 
 export function RecordOffer({ offer, onRecord }: { offer: Offer; onRecord?: () => Promise<boolean> | void }) {
   const rec = useApproval(onRecord);
+  const { hosted } = useSite();
   const price = offer.usd < 0.01 ? dollars(offer.usd) : `about ${dollars(offer.usd)}`;
+  if (hosted) {
+    // what it takes from the balance: nothing for a second take of a script already paid for
+    const charge = offer.charge ?? offer.minutes ?? 0;
+    return (
+      <div className="m a offer">
+        <p><strong>{offer.name}</strong> is ready to record with {offer.coach}.</p>
+        {offer.plan && offer.plan.rows.length > 0 && <PlanTable plan={offer.plan} />}
+        <p className="cx-s">{charge > 0
+          ? `Recording it takes ${minutesSaid(charge)} from your balance. They come back if the recording fails.`
+          : "This take is free: the script's minutes were already taken."}</p>
+        {offer.first && <p className="cx-s privacy">{privacyNote(offer.service, true)}</p>}
+        <Button variant="primary" busy={rec.busy} busyLabel="Starting…" onClick={() => void rec.run()}>
+          {charge > 0 ? `Record it (${minutesSaid(charge)})` : "Record it (free)"}
+        </Button>
+      </div>
+    );
+  }
   return (
     <div className="m a offer">
       <p><strong>{offer.name}</strong> is ready to record with {offer.coach}.</p>
@@ -50,8 +70,22 @@ export function RecordOffer({ offer, onRecord }: { offer: Offer; onRecord?: () =
 /** The check-in is done for a workout at a later time: what it costs, the most it may, and Schedule it. */
 export function LaterOffer({ later, onSchedule }: { later: Later; onSchedule?: () => Promise<boolean> | void }) {
   const go = useApproval(onSchedule);
+  const { hosted } = useSite();
   const at = new Date(later.at);
   const cap = dollars(later.ceiling_usd ?? 0);
+  if (hosted) {
+    const takes = later.minutes ? minutesSaid(later.minutes) : null;
+    return (
+      <div className="m a offer">
+        <p>Your {later.minutes}-minute workout with {later.coach} is planned for <strong>{ahead(at)}</strong>.</p>
+        <p className="cx-s">{takes ? `It takes ${takes} from your balance when it's recorded. ` : ""}
+          {later.coach ?? "Your coach"} writes and records it fifteen minutes before, with that hour's news and weather, so it's ready when you are.</p>
+        <Button variant="primary" busy={go.busy} busyLabel="Scheduling…" onClick={() => void go.run()}>
+          {takes ? `Schedule it (${takes})` : "Schedule it"}
+        </Button>
+      </div>
+    );
+  }
   return (
     <div className="m a offer">
       <p>Your {later.minutes}-minute workout with {later.coach} is planned for <strong>{ahead(at)}</strong>.</p>

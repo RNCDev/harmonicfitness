@@ -1,4 +1,4 @@
-# The shipped coaches: how the ten local ones and the twelve ready-made web ones ([[web_coach]]) were made, so any can be remade
+# The shipped coaches: how the ten local ones and the eighteen ready-made web ones ([[web_coach]]) were made, so any can be remade
 # (tools/coachmaker/, maintainer only). Every coach reads the same clip script.
 #
 # who, sound, energy: the persona's [voice] table. description: the line the designer heard.
@@ -288,7 +288,7 @@ device = "Apple GPU (MLX)"
 runtime = "mlx-audio 0.5.0"
 description = "A woman in her late twenties, a distance runner and coach. A warm, full voice in the lower mid-range, with a general American accent and a little breath in it. Bright and encouraging but unhurried, speaking at an easy, steady pace. An adult woman's voice, low to medium in pitch, never girlish or childlike. Speaks at a steady, natural pace, close to the microphone, in a quiet studio with no background noise or music."
 
-# The ready-made web coaches (0.46.2): six on OpenRouter and six on Gemini, each one of that service's own voices,
+# The ready-made web coaches (0.46.2): twelve on OpenRouter and six on Gemini, each one of that service's own voices,
 # which belong to no account, so unlike every other web coach they ship made, with their sample and a pace estimate
 # (tools/coachmaker/web_coaches.py, maintainer only; it speaks through the service with the maintainer's key).
 # service: openrouter unless named. voice: OpenRouter's voice name (tools/services/openrouter.py), or a Gemini voice
@@ -352,6 +352,69 @@ sound = "Bright, upbeat American voice"
 energy = "Energetic and driving, never frantic"
 tone = "Bright and energetic, a class instructor with one listener; keeps things moving."
 encouragement = "Calls out effort in the moment and names the next small target."
+
+# Six more on OpenRouter (0.85.0), each one of Microsoft's MAI-Voice voices, which cost about half what ElevenLabs'
+# do there: the coaches that speak on a site that sells minutes (web/webapp/hosted.py), and on anyone's own key.
+# Named to sort after Coach Graham, who stays the stand-in for a listener with only an OpenRouter key.
+[[web_coach]]
+slug = "luke"
+name = "Coach Luke"
+voice = "en-US-Grant:MAI-Voice-2.1"
+who = "An American man in his forties, a strength coach who trains people in their garages"
+sound = "Clear, even American voice"
+energy = "Steady and unhurried, plain-spoken"
+tone = "Plain-spoken and steady, a garage-gym strength coach; says the one thing that matters in each movement."
+encouragement = "Brief and concrete (\"that rep was the best one\"); counts showing up over intensity."
+
+[[web_coach]]
+slug = "hugh"
+name = "Coach Hugh"
+voice = "en-GB-Harry:MAI-Voice-2.1"
+who = "A British man in his forties, a rowing coach turned personal trainer"
+sound = "Clear, measured British voice"
+energy = "Composed and rhythmic, quietly driving"
+tone = "Measured and rhythmic, a rowing coach who thinks in tempo; understated humor, never loud."
+encouragement = "Understated (\"good rhythm, hold it there\"); praises pacing and patience."
+
+[[web_coach]]
+slug = "seth"
+name = "Coach Seth"
+voice = "en-US-Ethan:MAI-Voice-2.1"
+who = "An American man in his thirties, a running and conditioning coach"
+sound = "Friendly, clear American voice"
+energy = "Light and upbeat, easy to follow"
+tone = "Friendly and curious, a conditioning coach who likes a good story between efforts; conversational."
+encouragement = "Cheerful and specific; points at what just got easier."
+
+[[web_coach]]
+slug = "ivy"
+name = "Coach Ivy"
+voice = "en-US-Harper:MAI-Voice-2.1"
+who = "An American woman in her thirties, a strength and mobility coach"
+sound = "Clear, warm American voice"
+energy = "Calm and assured"
+tone = "Calm and assured, a strength and mobility coach who cues one thing at a time; gentle wit."
+encouragement = "Names what went well in a word or two, and moves on."
+
+[[web_coach]]
+slug = "nell"
+name = "Coach Nell"
+voice = "en-GB-Emily:MAI-Voice-2.1"
+who = "A British woman in her forties, a pilates teacher who leads a running club"
+sound = "Clear, friendly British voice"
+energy = "Bright and orderly, kind but brisk"
+tone = "Friendly and orderly, a club leader who keeps everyone moving; plain words and a ready laugh."
+encouragement = "Warm and matter-of-fact (\"lovely, that's the shape\"); values tidy movement."
+
+[[web_coach]]
+slug = "skye"
+name = "Coach Skye"
+voice = "en-AU-Isla:MAI-Voice-2.1"
+who = "An Australian woman in her thirties, a surf-club trainer"
+sound = "Relaxed, clear Australian voice"
+energy = "Sunny and easygoing, steady under effort"
+tone = "Easygoing and direct, a surf-club trainer; keeps it light and says things once."
+encouragement = "Relaxed and genuine (\"nice one, that's solid\"); makes effort feel ordinary."
 
 [[web_coach]]
 slug = "miles"

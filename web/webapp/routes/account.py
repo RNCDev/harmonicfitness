@@ -11,7 +11,7 @@ from fastapi import APIRouter, Body, HTTPException, Request
 from fastapi.responses import FileResponse, RedirectResponse, Response
 from pydantic import BaseModel, ConfigDict, StrictStr, StringConstraints
 
-from .. import APP_NAME, auth, keystore, level, providers, start, store, workouts
+from .. import APP_NAME, auth, clerk, keystore, level, providers, start, store, workouts
 from .logs import workout_call
 from .state import COOKIE, POST, St, User, confirming, read, tx
 
@@ -20,8 +20,11 @@ late = APIRouter()   # included after the Logs routes, where these always were
 
 
 class Confirm(BaseModel):
+    """What proves it's them: the password, or, for an account that signs in through Clerk, a fresh Clerk session
+    token from this browser."""
     model_config = ConfigDict(extra="forbid")
-    password: Annotated[StrictStr, StringConstraints(min_length=1, max_length=1024)]
+    password: Annotated[StrictStr, StringConstraints(min_length=1, max_length=1024)] | None = None
+    token: Annotated[StrictStr, StringConstraints(min_length=1, max_length=clerk.TOKEN_MAX)] | None = None
 
 
 class LevelBody(BaseModel):
@@ -45,12 +48,16 @@ def stock_sample_url(engine_root: str, slug: str) -> str | None:
 @router.get("/api/me")
 def me(st: St, uk: User):
     with read(st) as conn:
-        name, pw = conn.execute("select username, password_hash is not null from users "
-                                "where id = %s", (uk.user_id,)).fetchone()
+        name, pw, linked, have = conn.execute(
+            "select username, password_hash is not null, clerk_id is not null, minutes from users "
+            "where id = %s", (uk.user_id,)).fetchone()
         sky = keystore.sky(conn, uk)
         auto = keystore.auto_record(conn, uk)
+    # clerk: sign-in goes through Clerk here (no password to set or ask for); hosted: the site's own key writes and
+    # speaks, paid for in minutes (no keys to add), and `minutes` is the balance
     return {"app_name": APP_NAME, "username": name, "has_password": pw, "version": st.version, "sky": sky,
-            "auto_record": auto}
+            "auto_record": auto, "clerk": st.clerk is not None, "clerk_linked": linked,
+            "hosted": st.settings.hosted, "minutes": have if st.settings.hosted else None}
 
 
 coach_slug = re.compile(r"coach-[a-z0-9-]{1,60}")
@@ -100,12 +107,13 @@ async def start_screen(st: St, uk: User):
             # as in GET /api/keys: a model key stored under a provider's own id voices its shared service too
             keyed = {s for s in st.services
                      if s in have or any(p in have for p, t in providers.SHARED_KEY.items() if t == s)}
-            made_from = (mark, frozenset(keyed), chosen, datetime.date.today().isoformat())
+            paid = st.settings.hosted   # the site's own coaches, whatever keys were stored before
+            made_from = (mark, frozenset(keyed), chosen, datetime.date.today().isoformat(), paid)
             kept = start.cached(uk.user_id, made_from)
             if kept is not None:
                 return kept
             files = {p: body for p, (_, body) in store.read_all(conn, uk).items()}
-        answer = start.gather(st.settings.engine_root, files, keyed, chosen)
+        answer = start.gather(st.settings.engine_root, files, keyed, chosen, paid)
         start.remember(uk.user_id, made_from, answer)
         return answer
     return await anyio.to_thread.run_sync(work)
@@ -130,16 +138,32 @@ async def put_level(st: St, uk: User, body: Annotated[LevelBody, Body()]):
 
 @late.post("/api/account/delete", status_code=204, **POST)
 def delete_account(st: St, uk: User, body: Annotated[Confirm, Body()]):
-    """Delete the account and everything it holds: files, keys, chats, audio, kept clips, jobs. Needs the
-    password; nothing can bring it back."""
+    """Delete the account and everything it holds: files, keys, chats, audio, kept clips, jobs, and any minutes
+    left. Needs the password, or, where sign-in goes through Clerk, a fresh Clerk session token for this account
+    (its Clerk user is deleted too); nothing can bring it back."""
     key = confirming(st, uk)
     with tx(st) as conn:
-        row = conn.execute("select password_hash from users where id = %s for update",
+        row = conn.execute("select password_hash, clerk_id from users where id = %s for update",
                            (uk.user_id,)).fetchone()
-        if row is None or not auth.verify_password(body.password, row[0]):
+        if row is not None and st.clerk is not None and row[1]:
+            try:
+                proven = body.token is not None and st.clerk.verify(body.token) == row[1]
+            except clerk.Refused:
+                proven = False
+            except clerk.Unavailable:
+                raise HTTPException(503, "Sign-in isn't answering just now. Try again in a minute.") from None
+            if not proven:
+                st.throttles["confirms"].hit(key)
+                raise HTTPException(400, "That didn't confirm it's you. Sign in again, then try once more.")
+        elif row is None or not auth.verify_password(body.password or "", row[0]):
             st.throttles["confirms"].hit(key)
             raise HTTPException(400, "That password isn't right.")
         conn.execute("delete from users where id = %s", (uk.user_id,))
+        if st.clerk is not None and row[1]:
+            try:    # before the commit: if Clerk can't, nothing here is deleted either, and they can try again
+                st.clerk.delete(row[1])
+            except clerk.Unavailable:
+                raise HTTPException(503, "The account couldn't be deleted just now. Try again in a minute.") from None
     start.forget(uk.user_id)
     workouts.forget(uk.user_id)
     r = Response(status_code=204)

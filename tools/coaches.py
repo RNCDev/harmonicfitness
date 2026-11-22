@@ -95,7 +95,8 @@ def default_coach():
 
 
 def listing(last=None, facts=None):
-    """Every coach as a dict, in the list's order: name, slug, kind, service, service_name, default, placeholder,
+    """Every coach as a dict, in the list's order: name, slug, kind, service, service_name, model (the one a web
+    coach speaks with), default, placeholder,
     pending, shipped, speaks_here, description, tone (how the coach talks), sample (a web coach's own sample.mp3,
     or a stock coach's on the media bucket, coaches/samples.json), usd_per_workout (a web coach's, about), powered_by (who makes the voices of a
     go-between service: OpenRouter's "ElevenLabs") (what --json prints for each), and notes (the list's remarks on it,
@@ -123,6 +124,7 @@ def listing(last=None, facts=None):
         out.append({"name": p.name, "slug": p.slug, "kind": "web" if web else "local",
                     "service": p.service if web else None,
                     "service_name": cloud.service_name(p.service) if web else None,
+                    "model": _model(p) if web and p.service in cloud.SERVICES else None,
                     "default": bool(last and p.slug == last.slug), "placeholder": bool(p.placeholder),
                     "pending": bool(web and p.pending), "shipped": bool(p.shipped), "speaks_here": bool(speaks),
                     "description": p.description, "tone": p.table("character").get("tone") or None,
@@ -169,7 +171,7 @@ def main(argv=None):
     sub = ap.add_subparsers(dest="cmd")
     ls = sub.add_parser("list", help="every coach (the default)")
     ls.add_argument("--json", action="store_true",
-                    help="the list as one JSON object: coaches [{name, slug, kind, service, service_name, "
+                    help="the list as one JSON object: coaches [{name, slug, kind, service, service_name, model, "
                          "default, placeholder, pending, shipped, speaks_here, description, tone, sample, usd_per_workout, "
                          "powered_by}], "
                          "default (a name or null), "

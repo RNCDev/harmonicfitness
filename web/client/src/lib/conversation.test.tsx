@@ -1,13 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { useCallback, useState } from "react";
-import { ApiError, type Conversation } from "./api";
+import { ApiError, type Conversation, type ErrorCode } from "./api";
 
 const stop = () => {};
 
 const m = vi.hoisted(() => ({
   latest: vi.fn(), conversation: vi.fn(), start: vi.fn(), send: vi.fn(), watch: vi.fn(), halt: vi.fn(),
-  endJob: null as null | ((state: "done" | "failed", error?: string, code?: "no_model_key" | "key_refused") => void),
+  endJob: null as null | ((state: "done" | "failed", error?: string, code?: ErrorCode) => void),
 }));
 
 vi.mock("./api", async (orig) => {
@@ -243,5 +243,20 @@ describe("useConversation", () => {
     act(() => m.endJob!("failed", "Something in Settings went wrong; try again"));
     await waitFor(() => expect(result.current.error).toBeTruthy());
     expect(result.current.noKey).toBe(false);
+  });
+
+  it("sets noMinutes, offering more, when a recording finds too few minutes, and clears it on the next turn", async () => {
+    m.latest.mockResolvedValue(conv({ state: "working", job_id: 42 }));
+    m.conversation.mockResolvedValue(conv({ state: "failed" }));
+    const { result } = renderHook(() => useConversation());
+    await waitFor(() => expect(m.watch).toHaveBeenCalledWith(42));
+    act(() => m.endJob!("failed", "This workout takes 30 minutes, and you have 12.", "no_minutes"));
+    await waitFor(() => expect(result.current.noMinutes).toBe(true));
+    expect(result.current.noKey).toBe(false);
+    expect(result.current.error).toBe("This workout takes 30 minutes, and you have 12.");
+
+    m.send.mockResolvedValue({ job_id: 43 });
+    await act(async () => { await result.current.send("make it ten minutes"); });
+    expect(result.current.noMinutes).toBe(false);
   });
 });

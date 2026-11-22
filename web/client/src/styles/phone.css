@@ -4,6 +4,7 @@
   .work-top { padding: var(--s-3h) var(--s-4) 0; min-height: calc(var(--control) + var(--s-4)); gap: var(--s-2) }
   .mark .ver { display: none }
   .top-btn.new { font-size: var(--fs-sm); padding: var(--s-2) var(--s-2h); letter-spacing: var(--track-wide) }
+  .top-btn.minutes-chip { font-size: var(--fs-sm); padding: var(--s-2) var(--s-2h) }
   .chat { padding: 0 var(--s-4) var(--s-3) }
   .chat-log { padding: var(--s-4h) 0 var(--s-2h) }
   .eyebrow { margin-bottom: var(--s-3h); font-size: var(--fs-sm); letter-spacing: var(--track-wide) }

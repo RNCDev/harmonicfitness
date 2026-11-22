@@ -48,7 +48,7 @@ Setup asks four questions (your name, experience, equipment, injuries), lets you
 | ChatGPT's Codex on your own computer: Codex in the ChatGPT desktop app, the Codex CLI or an editor | Yes (tried end to end with the Codex the ChatGPT app ships, on the Free plan's model; the app's own prompts not yet tried by hand) |
 | Google's Antigravity on your own computer: the app or the `agy` CLI | Should, not yet tried: it reads `AGENTS.md` and `.agents/skills/`, as Codex does. Its command permissions are your own settings, not the project's, so it asks before each command until you allow `./harmonicfitness`, and nothing but the instructions keeps it out of `me/.env` |
 | Claude Code on the web (claude.ai/code) | Not for setting up. A listener already set up, with their private profile repo attached, can keep using web coaches there |
-| The HarmonicFitness web app, in a browser | Yes, with web coaches only: it's its own app ([web/README.md](web/README.md)) |
+| The HarmonicFitness web app, in a browser | Yes, with web coaches only: it's its own app ([web/README.md](web/README.md)). At [harmonicfitness.fly.dev](https://harmonicfitness.fly.dev) there are no keys to get: you sign up, start with 20 free minutes, and buy more in packs (60 minutes for $5, 140 for $10, 320 for $20). A workout takes its length in minutes when it's recorded |
 | A plain Claude or ChatGPT chat, or Codex cloud tasks | No: they can't run HarmonicFitness's commands on your computer |
 
 ## For Claude (or ChatGPT's Codex, or Antigravity): setting someone up from this link
@@ -102,7 +102,7 @@ cd me && git init && git add -A && git commit -m "My harmonicfitness" && gh repo
 
 ## Coaches and voices
 
-A coach is a person's name, how they talk and how they sound. Twenty-five stock coaches ship with it, so you can start at once: **ten local coaches** for a voice on your computer and **twelve ready-made web coaches** (six on OpenRouter, six on Gemini), each with a 45-second sample to choose by ear, and **one stock web coach each** for Fish Audio, ElevenLabs and Inworld, designed in your account the first time it's used. `./harmonicfitness coaches list` names them all. A coach of your own is a web coach, kept in `me/coaches/`; keep several if you like.
+A coach is a person's name, how they talk and how they sound. Thirty-one stock coaches ship with it, so you can start at once: **ten local coaches** for a voice on your computer and **eighteen ready-made web coaches** (twelve on OpenRouter, six on Gemini), each with a 45-second sample to choose by ear, and **one stock web coach each** for Fish Audio, ElevenLabs and Inworld, designed in your account the first time it's used. `./harmonicfitness coaches list` names them all. A coach of your own is a web coach, kept in `me/coaches/`; keep several if you like.
 - **A web coach** is an original voice a service designs from your description and saves in your account. You hear candidates from every service you have a key for, pick by ear, and name the ones you keep.
 - **A local coach** is one of the ten: a voice designed once for HarmonicFitness, with its counts and cues recorded and checked by ear, spoken on your computer by Pocket TTS. It sounds the same in every workout.
 

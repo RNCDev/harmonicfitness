@@ -8,7 +8,7 @@ export const APP_NAME = "HarmonicFitness";
 export class NotSignedIn extends Error {}
 /** What the page offers for a refusal or a failed job, named by the server beside its words (0.71.0): the page reads
  * the code, never the wording. */
-export type ErrorCode = "no_model_key" | "key_refused";
+export type ErrorCode = "no_model_key" | "key_refused" | "no_minutes";
 /** A refusal, in the server's words; `field` names the form's box it's about, and `code` what the page can offer for
  * it, when the server says. */
 export class ApiError extends Error {
@@ -21,11 +21,23 @@ export type Me = { app_name: string; username: string; has_password: boolean; ve
   /** The animated background chosen in Settings; absent from a server older than 0.33.0. */
   sky?: "flow" | "field" | "waves" | "bloom" | "woven" | "garden";
   /** Record without asking (Settings); absent from a server older than 0.48.0. */
-  auto_record?: boolean };
+  auto_record?: boolean;
+  /** Sign-in goes through Clerk here (no password to choose or change), and whether this account is one of
+   * Clerk's; absent from a server older than 0.85.0, as the two below are. */
+  clerk?: boolean; clerk_linked?: boolean;
+  /** The site's own key writes and speaks, paid for in minutes: no keys to add, and `minutes` is the balance. */
+  hosted?: boolean; minutes?: number | null };
 /** The listener's level (novice when none is set), and the three to choose from as a listener would say each. */
 export type LevelState = { level: Level; set: boolean; choices: { level: Level; said: string }[] };
 export type Level = "novice" | "experienced" | "advanced";
-type AuthInfo = { app_name: string; registration: boolean; version: string };
+/** What the sign-in page offers. `clerk`: the Clerk instance's publishable key where sign-in goes through Clerk,
+ * else null (or absent) and the page shows its own username and password form. */
+type AuthInfo = { app_name: string; registration: boolean; version: string; clerk?: string | null; hosted?: boolean };
+/** A pack of minutes for sale, and a line of what happened to the balance (bought, used, given back). */
+export type Pack = { id: string; minutes: number; cents: number };
+type MinutesLine = { at: string; kind: string; minutes: number; what: string };
+/** `paid`: whether this site charges minutes at all; `can_buy`: whether packs are sold here. */
+export type MinutesState = { paid: boolean; minutes: number; can_buy: boolean; packs: Pack[]; history: MinutesLine[] };
 export type DeviceLink = { url: string; expires_at: string };
 export type KeyState = {
   service: string; name: string; key_page: string; set: boolean; updated_at: string | null;
@@ -58,9 +70,11 @@ export type ChatLine = { role: "user" | "agent"; text: string; audio?: Audio; ph
 /** The plan the engine worked out from the draft's own segments (`get plan`), so its times add up. */
 type PlanRow = { what: string; kind: "movement" | "rest" | "talk"; segments: number; seconds: number };
 export type Plan = { rows: PlanRow[]; seconds: number };
-/** `first`: no script has gone to a voice service yet, so the card says where it goes. */
+/** `first`: no script has gone to a voice service yet, so the card says where it goes. `minutes` is the workout's
+ * length and `charge` what recording it takes from the balance where the site charges minutes (0 for the free
+ * second take). */
 export type Offer = { name: string; coach: string; chars: number; usd: number; service: string; design?: boolean;
-  plan?: Plan | null; first?: boolean };
+  plan?: Plan | null; first?: boolean; minutes?: number; charge?: number };
 /** A workout for later: its time (UTC and the listener's), and once the check-in is done, its cost and ceiling;
  * `due` once it's scheduled (when the writing starts). */
 export type Later = { at: string; local: string; due?: string; done?: boolean; minutes?: number; coach?: string;
@@ -154,6 +168,12 @@ export const api = {
     call<void>("POST", "/api/register", { username, password }),
   setPassword: (current: string | null, next: string) =>
     call<void>("POST", "/api/password", current === null ? { new: next } : { current, new: next }),
+  /** Trade a Clerk session token for this site's session (where sign-in goes through Clerk). */
+  session: (token: string) => call<void>("POST", "/api/session", { token }),
+  /** The balance of minutes, the packs for sale and what happened lately. */
+  minutes: () => call<MinutesState>("GET", "/api/minutes"),
+  /** Where to pay for a pack: its checkout page's address. Nothing is credited until the payment is. */
+  checkout: (pack: string) => call<{ url: string }>("POST", "/api/minutes/checkout", { pack }),
   deviceLink: () => call<DeviceLink>("POST", "/api/device-link"),
   /** The private podcast feed's link (null while it's off); making one replaces the old link. */
   feed: () => call<{ url: string | null }>("GET", "/api/feed"),
@@ -198,6 +218,8 @@ export const api = {
   deleteWorkout: (ref: string) => call<void>("DELETE", `/api/workouts/${encodeURIComponent(ref)}`),
   signOut: () => call<void>("POST", "/api/sign-out"),
   deleteAccount: (password: string) => call<void>("POST", "/api/account/delete", { password }),
+  /** The same for an account that signs in through Clerk: a fresh Clerk session token proves it's them. */
+  deleteAccountAs: (token: string) => call<void>("POST", "/api/account/delete", { token }),
   importFolder: async (zip: Blob): Promise<{ imported: number; left_out: number }> => {
     const r = await checked(await fetch("/api/import", {
       method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/zip" }, body: zip,

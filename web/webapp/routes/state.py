@@ -16,6 +16,8 @@ from ..api import _origin
 if TYPE_CHECKING:
     from .. import streams
     from ..api import Throttle
+    from ..billing import Client as Stripe
+    from ..clerk import Client as Clerk
 
 COOKIE = "wt_session"
 MAX_QUEUED = 3            # queued jobs a user may have at once (a guard against a stuck button)
@@ -34,6 +36,8 @@ class AppState:
     origin: str
     throttles: "dict[str, Throttle]"      # login_name, login_addr, reg_addr, reg_all, confirms
     hub: "streams.Hub"                    # the one job events listener every progress stream shares
+    clerk: "Clerk | None" = None      # sign-in through Clerk, where it's set up (else usernames and passwords)
+    billing: "Stripe | None" = None   # minute packs through Stripe, where it's set up
 
 
 def state(request: Request) -> AppState:

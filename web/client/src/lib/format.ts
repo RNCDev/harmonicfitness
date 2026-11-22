@@ -32,6 +32,11 @@ export function dollars(usd: number): string {
   return usd < 0.01 ? "under 1¢" : `$${(Math.ceil(usd * 100 - 1e-9) / 100).toFixed(2)}`;
 }
 
+/** A set price, from its cents: "$5", or "$4.50" when it isn't whole dollars. */
+export function price(cents: number): string {
+  return cents % 100 === 0 ? `$${cents / 100}` : `$${(cents / 100).toFixed(2)}`;
+}
+
 /** Money already on an account (a balance): to the cent, in the browser's way of grouping digits. */
 export function balance(usd: number): string {
   return `$${usd.toLocaleString([], { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;

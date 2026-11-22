@@ -1,5 +1,8 @@
 """Sign-in: what the sign-in page offers, registering, signing in, a new password, a device's link and signing out.
-Failed sign-ins and registrations are throttled in memory (one web process), by username and by client address."""
+Failed sign-ins and registrations are throttled in memory (one web process), by username and by client address.
+
+Where Clerk is set up (0.85.0) the page signs in with Clerk and trades its session token for this site's own
+session here (POST /api/session); the username and password routes are then off (404), so there is one way in."""
 import html
 import json
 from typing import Annotated
@@ -10,7 +13,7 @@ from fastapi import APIRouter, Body, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from pydantic import BaseModel, ConfigDict, StrictStr, StringConstraints
 
-from .. import APP_NAME, auth, start, workouts
+from .. import APP_NAME, auth, clerk, minutes, start, workouts
 from ..api import _address, _secure, error_body
 from .state import COOKIE, POST, AppState, St, User, confirming, tx
 
@@ -29,6 +32,11 @@ class Credentials(BaseModel):
     model_config = ConfigDict(extra="forbid")
     username: Annotated[StrictStr, StringConstraints(max_length=200)]
     password: Annotated[StrictStr, StringConstraints(max_length=auth.PASSWORD_MAX)]
+
+
+class ClerkToken(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    token: Annotated[StrictStr, StringConstraints(min_length=1, max_length=clerk.TOKEN_MAX)]
 
 
 class NewPassword(BaseModel):
@@ -71,12 +79,51 @@ def signed_in(st: AppState, token: str, status: int = 204) -> Response:
 
 @router.get("/api/auth")
 def auth_info(st: St):
-    """What the sign-in page offers."""
-    return {"app_name": APP_NAME, "registration": st.settings.registration, "version": st.version}
+    """What the sign-in page offers: `clerk` is the instance's publishable key (public by design) when sign-in
+    goes through Clerk, else null and the page shows its own username and password form."""
+    return {"app_name": APP_NAME, "registration": st.settings.registration, "version": st.version,
+            "clerk": st.settings.clerk_publishable_key if st.clerk is not None else None,
+            "hosted": st.settings.hosted}
+
+
+def _passwords(st: AppState) -> None:
+    """The username and password routes are off where sign-in goes through Clerk."""
+    if st.clerk is not None:
+        raise HTTPException(404, "not found")
+
+
+@router.post("/api/session", status_code=204, **POST)
+def clerk_session(st: St, request: Request, body: Annotated[ClerkToken, Body()]):
+    """Trade a Clerk session token for this site's session. A Clerk user new here gets an account (unless new
+    accounts are closed), and the minutes one starts with once their email address is verified."""
+    if st.clerk is None:
+        raise HTTPException(404, "not found")
+    addr = _address(request)
+    if st.throttles["login_addr"].full(addr):
+        raise HTTPException(429, "Too many tries. Wait 15 minutes and try again.")
+    try:
+        clerk_id = st.clerk.verify(body.token)
+        with tx(st) as conn:
+            known = conn.execute("select id from users where clerk_id = %s", (clerk_id,)).fetchone()
+        # Clerk is asked who this is only the first time (never inside a transaction): later sign-ins need no call
+        person = clerk.Person(clerk_id, None, None) if known else st.clerk.person(clerk_id)
+        with tx(st) as conn:
+            user_id, token = auth.for_clerk(conn, st.settings, person, open_to_new=st.settings.registration)
+            if person.email:
+                minutes.welcome(conn, user_id, minutes.who(st.settings.master_key, person.email))
+    except clerk.Refused:
+        st.throttles["login_addr"].hit(addr)
+        raise HTTPException(401, "That sign-in didn't work. Try again.") from None
+    except clerk.Unavailable:
+        raise HTTPException(503, "Sign-in isn't answering just now. Try again in a minute.") from None
+    except auth.Closed:
+        raise HTTPException(403, "New accounts are closed for now.") from None
+    return signed_in(st, token)
 
 
 @router.post("/api/register", status_code=201, **POST)
 def register(st: St, request: Request, body: Annotated[Credentials, Body()]):
+    _passwords(st)
     if not st.settings.registration:
         raise HTTPException(403, "New accounts are closed for now.")
     addr = _address(request)
@@ -96,6 +143,7 @@ def register(st: St, request: Request, body: Annotated[Credentials, Body()]):
 
 @router.post("/api/sign-in", status_code=204, **POST)
 def sign_in(st: St, request: Request, body: Annotated[Credentials, Body()]):
+    _passwords(st)
     name, addr = body.username.strip().lower(), _address(request)
     if st.throttles["login_name"].full(name) or st.throttles["login_addr"].full(addr):
         raise HTTPException(429, "Too many tries. Wait 15 minutes and try again.")
@@ -111,6 +159,7 @@ def sign_in(st: St, request: Request, body: Annotated[Credentials, Body()]):
 
 @router.post("/api/password", status_code=204, **POST)
 def password(st: St, request: Request, uk: User, body: Annotated[NewPassword, Body()]):
+    _passwords(st)
     key = confirming(st, uk)
     try:
         with tx(st) as conn:

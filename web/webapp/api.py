@@ -5,12 +5,13 @@
 The routes are in routes/, a router per area, included by create_app in the order they're matched; this module
 holds the app itself: its middleware, its one shape of error, and its connections.
 
-Every route under /api but sign-in, registration and a link's redeem needs the session cookie
-`wt_session` (else 401). Failed sign-ins and registrations are throttled in memory (one web
+Every route under /api but sign-in, registration, a link's redeem and Stripe's webhook (which carries Stripe's
+signature instead) needs the session cookie `wt_session` (else 401). Failed sign-ins and registrations are throttled in memory (one web
 process), by username and by client address.
 The private podcast feed (/feed/<token>.xml and its MP3s) needs no session: a podcast app can't sign in, so
 its unguessable token is the key, and Settings can replace or turn it off.
-Every POST needs an Origin (or, without one, a Referer) of HARMONICFITNESS_BASE_URL's origin (else 403).
+Every POST but Stripe's webhook needs an Origin (or, without one, a Referer) of HARMONICFITNESS_BASE_URL's origin
+(else 403).
 A job or file of another user is 404, the same as one that doesn't exist. Nothing here logs a
 token, a job's arguments, its events or its result.
 
@@ -122,7 +123,8 @@ class _Headers:
 # Every refusal's body (0.76.0): `detail` as before (the words, or a validation error's list), and `error` beside it,
 # the same shape on every route: a code the page can branch on, the words, and the form's box it's about. The page
 # reads `code` and `field` at the top too, as it always has.
-ERROR_CODES = {400: "invalid", 401: "not_signed_in", 403: "forbidden", 404: "not_found", 405: "not_allowed",
+ERROR_CODES = {400: "invalid", 401: "not_signed_in", 402: "no_minutes", 403: "forbidden", 404: "not_found",
+               405: "not_allowed",
                409: "conflict", 410: "gone", 413: "too_large", 416: "bad_range", 422: "invalid", 429: "too_many",
                500: "internal"}
 INTERNAL = "Something went wrong on the site's side. Try again in a minute."
@@ -259,9 +261,10 @@ def build_version(engine_root: str, env=os.environ) -> str:
 
 
 def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connection] | None = None,
-               client_dist: str | os.PathLike | None = None) -> FastAPI:
+               client_dist: str | os.PathLike | None = None, clerk_send=None, stripe_send=None) -> FastAPI:
     """The app. `connect` (tests) opens a connection; without it requests use a pool of
-    settings.database_url, and the job events listener (streams.Hub) opens its own connection to it."""
+    settings.database_url, and the job events listener (streams.Hub) opens its own connection to it.
+    `clerk_send` and `stripe_send` (tests) stand in for Clerk and Stripe."""
     services = enginelib.services(settings.engine_root)
     version = build_version(settings.engine_root)
     enginelib.keys(settings.engine_root)    # a broken import fails at startup
@@ -317,12 +320,16 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
     @app.exception_handler(StarletteHTTPException)
     def refused(_request: Request, e: StarletteHTTPException):
         """Every HTTPException in the one shape (error_body)."""
-        return JSONResponse(error_body(e.status_code, e.detail), e.status_code, headers=getattr(e, "headers", None))
+        return JSONResponse(error_body(e.status_code, e.detail, code=getattr(e, "code", None)), e.status_code,
+                            headers=getattr(e, "headers", None))
 
     # ---- the routes, in the order they're matched -------------------------------------------
 
-    from .routes import account, auth as authroutes, client, conversations as conversationroutes, files, \
-        jobs as jobroutes, logs, media as mediaroutes, settings as settingroutes, state as routestate
+    from . import billing, clerk
+    from .routes import account, auth as authroutes, billing as billingroutes, client, \
+        conversations as conversationroutes, files, jobs as jobroutes, logs, media as mediaroutes, \
+        settings as settingroutes, state as routestate
+    sends = lambda send: {"send": send} if send is not None else {}  # noqa: E731
     app.state.hf = routestate.AppState(
         settings=settings, connection=connection, open_stream=open_stream, services=services,
         version=version, dist=dist, origin=origin,
@@ -331,7 +338,11 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
                    "reg_addr": Throttle(*authroutes.REGISTER_PER_ADDRESS),
                    "reg_all": Throttle(*authroutes.REGISTER_ALL),
                    "confirms": Throttle(*authroutes.CONFIRM_PER_USER)},
-        hub=hub)
+        hub=hub,
+        clerk=clerk.Client(settings.clerk_publishable_key, settings.clerk_secret_key, origin,
+                           **sends(clerk_send)) if settings.clerk else None,
+        billing=billing.Client(settings.stripe_secret_key, settings.stripe_webhook_secret, settings.base_url,
+                               **sends(stripe_send)) if settings.stripe else None)
 
     @app.get("/healthz")
     def healthz():
@@ -345,6 +356,7 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
     app.include_router(account.late)   # after the Logs routes, where these always were
     app.include_router(mediaroutes.router)
     app.include_router(settingroutes.router)
+    app.include_router(billingroutes.router)
     app.include_router(jobroutes.router)
     app.include_router(conversationroutes.router)   # /api/conversations/latest before /api/conversations/{cid}
     app.include_router(client.router)   # its catch-all last

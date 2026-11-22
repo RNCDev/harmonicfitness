@@ -22,7 +22,7 @@ import tomllib
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
 
-from . import engine, enginelib, folder
+from . import engine, enginelib, folder, hosted
 
 MINUTES_DEFAULT, MINUTES_MIN, MINUTES_MAX = 25, 10, 60
 FIRST_MINUTES = 10   # the setup skill's quick start ends with a ten-minute workout
@@ -249,12 +249,16 @@ def _modules(engine_root: str) -> list:
 
 
 def shape(files: dict[str, bytes], keyed, coaches: list, coverage: dict | None, *, engine_root: str,
-          presets, goals, services: list[str], chosen: tuple[str, str] | None = None) -> dict:
+          presets, goals, services: list[str], chosen: tuple[str, str] | None = None, paid: bool = False) -> dict:
     """The response, from the listener's files (path -> bytes), the services with a stored key, `coaches
     list --json`'s coaches and `coverage --json` (None when it didn't run); `presets`, `goals` and
     `services` are the engine's lists (enginelib.lists, enginelib.services); `chosen` is the coach
-    picked on the web app, as (slug, day), or None."""
+    picked on the web app, as (slug, day), or None. `paid`: the hosted site, where only its own coaches speak
+    (hosted.coaches), every one ready, and a workout costs minutes, so no coach carries a price."""
     fm, ctx, _ = _modules(engine_root)
+    if paid:
+        keyed = {hosted.SERVICE}
+        coaches = [{**c, "usd_per_workout": None} for c in hosted.coaches(coaches)]
     profile, _ = _front(fm, _text(files, "profile.md"))
     training, training_prose = _front(fm, _text(files, "training.md"))
     health, _ = _front(fm, _text(files, "health.md"))
@@ -289,7 +293,8 @@ def _json(r: engine.Result) -> dict | None:
     return out if isinstance(out, dict) else None
 
 
-def gather(engine_root: str, files: dict[str, bytes], keyed, chosen: tuple[str, str] | None = None) -> dict:
+def gather(engine_root: str, files: dict[str, bytes], keyed, chosen: tuple[str, str] | None = None,
+           paid: bool = False) -> dict:
     """Blocking: the listener's files (over the starter template, so the engine always sees a whole folder)
     in a temporary folder, the two engine reads (side by side: both only read), then `shape`. Neither
     command's output leaves here."""
@@ -305,4 +310,4 @@ def gather(engine_root: str, files: dict[str, bytes], keyed, chosen: tuple[str, 
     coaches = listed.get("coaches") if listed else None
     return shape(files, keyed, coaches if isinstance(coaches, list) else [], coverage,
                  engine_root=engine_root, presets=presets, goals=goals,
-                 services=list(enginelib.services(engine_root)), chosen=chosen)
+                 services=list(enginelib.services(engine_root)), chosen=chosen, paid=paid)

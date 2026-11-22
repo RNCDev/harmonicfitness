@@ -26,8 +26,9 @@ from typing import Any, Callable
 
 import psycopg
 
-from . import clipcache, codes, config, conversations, db, engine, enginelib, folder, jobs, keystore, log, media, photos, \
-    providers, retention, spend, store, turns
+from . import clipcache, codes, config, conversations, db, engine, enginelib, folder, hosted, jobs, keystore, log, media, \
+    minutes, \
+    photos, providers, retention, spend, store, turns
 
 HEARTBEAT_EVERY = 15      # seconds; jobs.reap fails a job silent for 120
 HEARTBEAT_TRIES = 3       # a heartbeat that fails is tried again on a new connection, this many tries in all
@@ -142,7 +143,10 @@ class Ctx:
 
     def key_env(self) -> dict[str, str]:
         """{key_var: value} for each of the user's keys whose service the engine knows, for a job's
-        extra_env only. Commits, so no transaction stays open across the engine run."""
+        extra_env only. Commits, so no transaction stays open across the engine run. On the hosted site it's the
+        site's own OpenRouter key and nothing else: a listener's stored keys are never opened there."""
+        if self.settings.hosted:
+            return {hosted.KEY_VAR: self.settings.openrouter_key}
         stored = keystore.open_all(self.conn, self.uk)
         self.conn.commit()
         services = enginelib.services(self.settings.engine_root)
@@ -155,6 +159,34 @@ class Ctx:
         """Files to write back to the store: run_one writes them in the same transaction that marks the
         job done, and only while it is still running, then says "saved" with the conflicts."""
         self.pending = (changes, base)
+
+
+def _writer(ctx: "Ctx") -> tuple[dict, str | None]:
+    """(the keys a turn may write with, the provider the listener chose). On the hosted site, the site's own
+    OpenRouter key and no choice. Commits."""
+    if ctx.settings.hosted:
+        return {hosted.SERVICE: ctx.settings.openrouter_key}, hosted.SERVICE
+    stored = keystore.open_all(ctx.conn, ctx.uk)
+    chosen = keystore.writer(ctx.conn, ctx.uk)
+    ctx.conn.commit()
+    return stored, chosen
+
+
+def _settle(ctx: "Ctx") -> None:
+    """The hosted site, as a turn ends: the minutes held for its recording go back unless the recording was
+    kept (minutes.keep, with the MP3). A failure here is left to the sweep, which hands back the same hold."""
+    if not ctx.settings.hosted:
+        return
+    try:
+        with ctx.db_lock:
+            ctx.conn.rollback()
+            back = minutes.release(ctx.conn, ctx.uk.user_id, ctx.job_id)
+            ctx.conn.commit()
+        if back:
+            print(f"worker: job {ctx.job_id} handed back {back} minutes", file=sys.stderr, flush=True)
+    except Exception as e:  # noqa: BLE001 - the sweep settles it
+        _quietly_rollback(ctx.conn)
+        log.failure(f"job {ctx.job_id} settling minutes failed", e)
 
 
 def _quietly_close(conn) -> None:
@@ -232,6 +264,8 @@ def balances(ctx: Ctx) -> dict:
     {service: row}} with only the fields the page shows. Needs none of the listener's files."""
     if ctx.args:
         raise JobFailed("invalid request: a balance check takes nothing")
+    if ctx.settings.hosted:   # the one account there is the site's own: never a listener's to read
+        return {"balances": {}}
     r = engine.run(ctx.settings.engine_root, ctx.home, ["balances", "--json"], extra_env=ctx.keys,
                    timeout=BALANCES_TIMEOUT, cancel=ctx.cancel)
     if r.code != 0:
@@ -281,9 +315,7 @@ def enrich(ctx: Ctx) -> dict:
     if not (isinstance(ref, str) and ENRICH_REF.fullmatch(ref) and isinstance(text, str) and text.strip()
             and isinstance(today, str) and _date_ok(today)):
         raise JobFailed("invalid request: needs ref, text and today")
-    stored = keystore.open_all(ctx.conn, ctx.uk)
-    chosen = keystore.writer(ctx.conn, ctx.uk)
-    ctx.conn.commit()
+    stored, chosen = _writer(ctx)
     provider = providers.pick(ctx.settings.providers, stored, chosen)
     if provider is None:
         return {"summary": "", "signals": 0}
@@ -401,6 +433,16 @@ def _provider_stop(provider: str, e: Exception) -> "_Stop":
     """A provider's failure, in explain's words; a refused key carries the code that offers Settings."""
     failed = providers.explain(provider, e)
     return _Stop(failed.message, codes.KEY_REFUSED_CODE if failed.kind == "auth" else None)
+
+
+def _writer_stop(ctx: "Ctx", provider: str, e: Exception) -> "_Stop":
+    """_provider_stop; on the hosted site the account that failed is the site's, so the listener is told only
+    that it's down (the log has the kind, for the maintainer)."""
+    if not ctx.settings.hosted:
+        return _provider_stop(provider, e)
+    print(f"worker: job {ctx.job_id} the site's own account failed: {providers.explain(provider, e).kind}",
+          file=sys.stderr, flush=True)
+    return _Stop(hosted.DOWN)
 
 
 def _agent_line(conv: conversations.Conversation, text: str) -> list:
@@ -524,9 +566,12 @@ def _keep_audio(ctx: Ctx, written: dict[str, str], done: set[str] | None = None)
             with open(path, "rb") as f:
                 body = f.read(media.MAX_BYTES + 1)
             try:
-                kept.append(media.put(ctx.conn, ctx.uk, name, body, _build_id(path)))
+                build = _build_id(path)
+                kept.append(media.put(ctx.conn, ctx.uk, name, body, build))
             except ValueError:
                 continue
+            if build and ctx.settings.hosted:   # a workout's recording, made and stored: its minutes are spent
+                minutes.keep(ctx.conn, ctx.uk.user_id, ctx.job_id)
         if kept:
             ctx.conn.commit()
     except BaseException:   # nothing counted as kept: a retry (ctx.retrying) keeps them all again
@@ -588,16 +633,20 @@ def turn(ctx: Ctx) -> dict:
         raise JobFailed("the conversation moved on")   # another job's turn, or none
     kept: list[dict] = []   # audio the turn has kept so far: a turn that fails after its recording still shows it
     try:
-        return _turn(ctx, conv, kept)
+        done = _turn(ctx, conv, kept)
     except _Stop as e:
+        _settle(ctx)
         _fail_conversation(ctx, conv, e.message, kept)
         raise JobFailed(e.message, code=e.code) from None
     except Exception:
+        _settle(ctx)
         try:
             _fail_conversation(ctx, conv, UNEXPECTED, kept)
         except Exception:  # noqa: BLE001 - the connection may be what broke; the first error is the one to log
             ctx.conn.rollback()
         raise   # run_one logs its type only
+    _settle(ctx)
+    return done
 
 
 def _turn(ctx: Ctx, conv: conversations.Conversation, kept: list[dict] | None = None) -> dict:
@@ -606,8 +655,7 @@ def _turn(ctx: Ctx, conv: conversations.Conversation, kept: list[dict] | None = 
     line, answer, today, now = _turn_request(ctx.args)
     # the kit photos the line carried, deleted as they're read: from here they live only in this turn's memory
     kit = photos.take(ctx.conn, ctx.uk, ctx.job_id)
-    stored = keystore.open_all(ctx.conn, ctx.uk)
-    chosen = keystore.writer(ctx.conn, ctx.uk)
+    stored, chosen = _writer(ctx)
     picked = keystore.coach(ctx.conn, ctx.uk)
     auto = keystore.auto_record(ctx.conn, ctx.uk)
     ctx.conn.commit()
@@ -618,7 +666,7 @@ def _turn(ctx: Ctx, conv: conversations.Conversation, kept: list[dict] | None = 
         model = providers.model_for(provider, providers.stored_key(stored, provider))
     except Exception as e:  # noqa: BLE001 - the client's own words may hold the key
         log.failure(f"job {ctx.job_id} model client failed", e)
-        raise _provider_stop(provider, e) from None
+        raise _writer_stop(ctx, provider, e) from None
     del stored   # the model key lives only in the model client from here on
 
     ctx.say("folder")
@@ -631,7 +679,8 @@ def _turn(ctx: Ctx, conv: conversations.Conversation, kept: list[dict] | None = 
                       keys=dict(ctx.keys, **({"TZ": zone} if zone else {})), today=today,
                       now=now, say=lambda text, tool, code, step=None, think=False: _step(ctx, text, tool, code, step, think),
                       cancel=ctx.cancel, picked=picked, event=lambda stage, **fields: ctx.say(stage, **fields),
-                      log=lambda text: print(f"worker: job {ctx.job_id} {text}", file=sys.stderr, flush=True))
+                      log=lambda text: print(f"worker: job {ctx.job_id} {text}", file=sys.stderr, flush=True),
+                      hosted=ctx.settings.hosted)
     deps.setup = agent.needs_setup(ctx.home) or agent.wants_setup(line)   # the setup skill comes too
     opening = next((x.get("text") for x in conv.lines if x.get("role") == "user"), None)
     # a topics job (topics add, or trending ideas): a light turn, with no workout skill, web search or feeds
@@ -655,10 +704,20 @@ def _turn(ctx: Ctx, conv: conversations.Conversation, kept: list[dict] | None = 
         deps.ceiling = int((conv.later or {}).get("ceiling_chars") or 0) or None
 
     def reserve(chars: int) -> bool:
-        """Today's allowance, reserved for a recording made without the Record button (as its endpoint does)."""
+        """Today's allowance, reserved for a recording made without the Record button (as its endpoint does); on
+        the hosted site its minutes are held with it, both or neither."""
         with ctx.db_lock:
             try:
                 fits = spend.reserve(ctx.conn, ctx.uk, today, chars, ctx.settings.daily_chars)
+                if fits and ctx.settings.hosted:
+                    offer = deps.offer or {}
+                    parts = str(offer.get("draft") or "").replace("\\", "/").split("/")
+                    tag = minutes.tag(ctx.uk, parts[-2] if len(parts) >= 2 else None)
+                    need = int(offer.get("minutes") or 0) or minutes.needed((offer.get("plan") or {}).get("seconds"))
+                    if not minutes.hold(ctx.conn, ctx.uk.user_id, ctx.job_id, need, tag):
+                        _quietly_rollback(ctx.conn)   # the allowance too
+                        deps.minutes_refused = True
+                        return False
                 ctx.conn.commit()
                 return fits
             except Exception:  # noqa: BLE001 - then the Record button is offered, as without the setting
@@ -765,7 +824,7 @@ def _turn(ctx: Ctx, conv: conversations.Conversation, kept: list[dict] | None = 
     except Exception as e:  # noqa: BLE001 - a provider's failure; only explain's words go anywhere
         log.failure(f"job {ctx.job_id} turn stopped", e)
         keep_clips()
-        raise _provider_stop(provider, e) from None
+        raise _writer_stop(ctx, provider, e) from None
     finally:
         background.shutdown(wait=True)   # feeds writes into the folder: done before it's harvested or removed
 
@@ -903,6 +962,8 @@ def run_one(conn, settings: config.Settings, connect: Callable[[], Any] | None =
         if _sweep_due():
             media.sweep(conn)
             clipcache.prune(conn)
+            if minutes.sweep(conn):   # holds a dead turn left: handed back
+                conn.commit()
             gone = retention.sweep(conn)
             if any(gone.values()):
                 print("worker: swept " + ", ".join(f"{n} {t}" for t, n in gone.items() if n), file=sys.stderr,

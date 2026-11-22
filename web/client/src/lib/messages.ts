@@ -12,6 +12,7 @@ export const SAID = {
   feed: "Couldn't load your podcast link.",
   workouts: "Couldn't load your workouts.",
   script: "Couldn't load the script. Try again.",
+  minutes: "Couldn't load your minutes.",
 
   // saving
   coach: "That coach couldn't be chosen just now. Try again.",
@@ -23,4 +24,5 @@ export const SAID = {
   feedOff: "Couldn't turn it off. Try again.",
   upload: "Couldn't send it. Try again.",
   deleteAccount: "Couldn't delete it. Try again.",
+  checkout: "Couldn't open the checkout page. Try again.",
 };

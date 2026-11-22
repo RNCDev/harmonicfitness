@@ -3,6 +3,7 @@ import { act, cleanup, fireEvent, render, screen, within } from "@testing-librar
 import { Chat } from "./Chat";
 import { planOf, stepsOf } from "../../lib/steps";
 import type { Offer } from "../../lib/api";
+import { SiteContext } from "../../lib/site";
 
 // a photo is shrunk by drawing it on a canvas, which jsdom has none of: each comes back named for its file
 vi.mock("../../lib/photos", () => ({ MOST_PHOTOS: 3, shrink: vi.fn(async (f: File) => `jpeg-of-${f.name}`) }));
@@ -180,6 +181,29 @@ describe("the chat", () => {
     expect(within(table).getByText("5:30")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Record it (about $0.05)" }));
     expect(onRecord).toHaveBeenCalled();
+  });
+
+  it("on a site that sells minutes, offers the recording in minutes, never dollars, and more minutes when they've run out", () => {
+    const onRecord = vi.fn();
+    const onGetMinutes = vi.fn();
+    const sold = (chat: JSX.Element) => <SiteContext.Provider value={{ hosted: true, clerk: true }}>{chat}</SiteContext.Provider>;
+    render(sold(<Chat {...base} offers={{ offer: { ...offer, minutes: 10, charge: 10 }, onRecord }} />));
+    expect(screen.getByText(/takes 10 minutes from your balance/)).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/\$|your own key/);
+    expect(screen.queryByRole("button", { name: "Get minutes" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Record it (10 minutes)" }));
+    expect(onRecord).toHaveBeenCalled();
+
+    cleanup();
+
+    // a second take of a script already paid for
+    render(sold(<Chat {...base} offers={{ offer: { ...offer, minutes: 10, charge: 0 }, onRecord }} />));
+    expect(screen.getByRole("button", { name: "Record it (free)" })).toBeInTheDocument();
+    cleanup();
+
+    render(sold(<Chat {...base} noMinutes error="This workout takes 10 minutes, and you have 4." onGetMinutes={onGetMinutes} />));
+    fireEvent.click(screen.getByRole("button", { name: "Get minutes" }));
+    expect(onGetMinutes).toHaveBeenCalled();
   });
 
   it("a workout for later is scheduled with its cost and ceiling, then waits with Cancel", () => {

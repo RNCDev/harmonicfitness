@@ -138,6 +138,54 @@ def register(conn, settings, raw_username, password) -> str:
     return _session(conn, settings, new_id)
 
 
+class Closed(Exception):
+    """New accounts are closed, and this Clerk user has none here."""
+
+
+def for_clerk(conn, settings, person, open_to_new: bool = True) -> tuple[uuid.UUID, str]:
+    """A session for a Clerk user (clerk.Person), as (the account's id, a session token). The account is the one
+    already theirs; else one made with a username and password before Clerk, which the maintainer exported by
+    setting the Clerk user's external_id to its id (linked here, once: an account already linked to someone is
+    never handed to another); else a new one, seeded as register's are. Raises Closed. No commit."""
+    row = conn.execute("select id from users where clerk_id = %s", (person.id,)).fetchone()
+    if row is None and person.external_id:
+        try:
+            old = uuid.UUID(person.external_id)
+        except ValueError:
+            old = None
+        if old is not None:
+            row = conn.execute("update users set clerk_id = %s where id = %s and clerk_id is null returning id",
+                               (person.id, old)).fetchone()
+    if row is not None:
+        return row[0], _session(conn, settings, row[0])
+    if not open_to_new:
+        raise Closed()
+    new_id = uuid.uuid4()
+    plain, wrapped = crypto.new_data_key(settings.master_key, new_id, KEY_VERSION)
+    short = new_id.hex[:6]
+    try:
+        wanted = [username(person.username)]
+    except Invalid:     # none at Clerk, or one this site's usernames can't hold
+        wanted = []
+    wanted += [f"{wanted[0][:25]}-{short}"] if wanted else []    # theirs is someone's here already
+    for name in (*wanted, f"user-{new_id.hex[:12]}"):
+        row = conn.execute(
+            "insert into users (id, username, wrapped_key, key_version, clerk_id) values (%s, %s, %s, %s, %s) "
+            "on conflict do nothing returning id", (new_id, name, wrapped, KEY_VERSION, person.id)).fetchone()
+        if row is not None:
+            break
+        # the Clerk user's account was made by another request just now (the page asked twice): that one's theirs
+        row = conn.execute("select id from users where clerk_id = %s", (person.id,)).fetchone()
+        if row is not None:
+            return row[0], _session(conn, settings, row[0])
+    else:
+        raise RuntimeError("no username was free for a new account")
+    uk = store.UserKey(user_id=new_id, key=plain)
+    if store.write_back(conn, uk, dict(folder.seed(settings.engine_root)), {}):
+        raise RuntimeError("seeding a new user conflicted")
+    return new_id, _session(conn, settings, new_id)
+
+
 def sign_in(conn, settings, raw_username, password) -> str:
     """A session token for a right username and password, else WrongPassword. No commit."""
     try:

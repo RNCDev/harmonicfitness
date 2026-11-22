@@ -9,6 +9,9 @@
 .auth .label { font-size: var(--fs-md); font-weight: var(--w-medium); letter-spacing: var(--track-btn); color: var(--text-2) }
 .auth .go { align-self: flex-start; margin-top: var(--s-1h) }
 .auth > .notice.err { font-size: var(--fs-md) }
+/* where sign-in goes through Clerk: its own form, and the two ways on after a refusal */
+.auth-clerk { display: grid; justify-items: start; gap: var(--s-3); margin: var(--s-4) 0 var(--s-5h) }
+.auth-again { margin: var(--s-4) 0 var(--s-5h) }
 
 /* the sign-in page's front: Sign in and Make an account in the header, the demo on the left, the free workouts on the
    right, both from the same line (stacked on a tablet) */

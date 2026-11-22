@@ -45,10 +45,12 @@ const SERVICE_NAMES: Record<string, string> = {
 };
 export const serviceName = (service: string) => SERVICE_NAMES[service] ?? service;
 
-/** Said once, before the first recording (on its Record card, or on the first screen's form for a new listener): where the script goes, and what that means. */
-export function privacyNote(service: string): string {
+/** Said once, before the first recording (on its Record card, or on the first screen's form for a new listener): where the script goes, and what that means. `hosted`: on a site that sells minutes, where the site's own key speaks and none is the listener's. */
+export function privacyNote(service: string, hosted = false): string {
   const name = serviceName(service);
-  return `Recording sends the script to ${name}, and it can mention your injuries ("easy on that left knee").`
+  const sent = `Recording sends the script to ${name}, and it can mention your injuries ("easy on that left knee").`;
+  if (hosted) return sent;
+  return sent
     + (service === "gemini"
       ? " On Gemini's free tier, Google may use what it's sent to improve its models, with human review; a paid key doesn't."
       : "")

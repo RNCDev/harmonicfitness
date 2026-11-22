@@ -7,6 +7,7 @@ import type { ChatLine, Later, Offer, Plan, StartInfo } from "../../lib/api";
 import { clockAt } from "../../lib/format";
 import { MOST_PHOTOS, shrink } from "../../lib/photos";
 import { writerRank } from "../../lib/keys";
+import { useSite } from "../../lib/site";
 import { readDraft, keepDraft } from "../../lib/draft";
 import { keepLineBreaks } from "../../lib/lines";
 import type { Step } from "../../lib/steps";
@@ -62,6 +63,9 @@ type Props = {
   plan?: Plan | null;
   error: string | null;
   noKey: boolean;
+  /** The last refusal was for want of minutes (a site that sells them), and where to get more. */
+  noMinutes?: boolean;
+  onGetMinutes?: () => void;
   /** Resolves false when the line was refused, so the box gets its text back. `startAt`: the starter's picked time;
    * `photos`: the kit photos the line carries, each a shrunk JPEG in base64. */
   onSend: (line: string, startAt?: string, photos?: string[]) => Promise<boolean> | void;
@@ -104,8 +108,9 @@ function Welcome({ need, onAddKey }: { need: KeyNeeded; onAddKey?: (service: str
   );
 }
 
-export function Chat({ lines, working, steps = [], plan = null, error, noKey, onSend, onStop, onOpenKeys, coachBar = null,
-  first = {}, offers = {} }: Props) {
+export function Chat({ lines, working, steps = [], plan = null, error, noKey, noMinutes = false, onGetMinutes, onSend,
+  onStop, onOpenKeys, coachBar = null, first = {}, offers = {} }: Props) {
+  const { hosted } = useSite();
   const { needsKey = null, onAddKey, waiting = null, onResume, start = null, starting = false, onCoach, coachError,
     onOpenCoaches, startError = null, onRetryStart } = first;
   const { offer = null, onRecord, later = null, scheduled = false, onSchedule, onCancel } = offers;
@@ -201,7 +206,7 @@ export function Chat({ lines, working, steps = [], plan = null, error, noKey, on
             </div>
           ))}
         {offer && !working && <RecordOffer offer={offer} onRecord={onRecord} />}
-        {later && later.usd != null && !later.done && !later.due && new Date(later.at).getTime() > Date.now() && !offer
+        {later && (hosted || later.usd != null) && !later.done && !later.due && new Date(later.at).getTime() > Date.now() && !offer
           && !working && !scheduled && <LaterOffer later={later} onSchedule={onSchedule} />}
         {later && scheduled && <Scheduled later={later} onCancel={onCancel} />}
         {working && <Working steps={steps} plan={plan} stopping={stopping} />}
@@ -210,6 +215,7 @@ export function Chat({ lines, working, steps = [], plan = null, error, noKey, on
         <div className="chat-error">
           <Notice tone="error">{error}</Notice>
           {noKey && <Button variant="outline" onClick={onOpenKeys}>Open Settings</Button>}
+          {noMinutes && onGetMinutes && <Button variant="outline" onClick={onGetMinutes}>Get minutes</Button>}
         </div>
       )}
       {(photos.length > 0 || photoError) && (
@@ -227,7 +233,8 @@ export function Chat({ lines, working, steps = [], plan = null, error, noKey, on
             </ul>
           )}
           {photoError ? <Notice tone="error">{photoError}</Notice>
-            : <small>Photos go to your AI provider to be read, and aren't kept here.</small>}
+            : <small>{hosted ? "Photos go to the AI that writes your workouts to be read, and aren't kept here."
+              : "Photos go to your AI provider to be read, and aren't kept here."}</small>}
         </div>
       )}
       <form className="chat-form" onSubmit={(e) => { e.preventDefault(); send(); }}>

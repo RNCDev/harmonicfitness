@@ -7,7 +7,7 @@ from fastapi import APIRouter, Body, HTTPException
 from fastapi.responses import Response
 from pydantic import AfterValidator, BaseModel, ConfigDict, StrictBool, StrictStr, StringConstraints
 
-from .. import enginelib, keystore, providers
+from .. import enginelib, hosted, keystore, providers
 from .state import POST, AppState, Day, St, User, read, tx
 
 router = APIRouter()
@@ -43,8 +43,17 @@ class CoachBody(BaseModel):
     day: Annotated[Day, AfterValidator(lambda d: datetime.date.fromisoformat(d).isoformat())]   # the listener's own day, as the log's are
 
 
+def unhosted(st: AppState) -> None:
+    """Keys and the writer's choice belong to a site run on its listeners' own keys: on the hosted site they're
+    not found."""
+    if st.settings.hosted:
+        raise HTTPException(404, hosted.NO_KEYS)
+
+
 @router.get("/api/keys")
 def list_keys(st: St, uk: User):
+    if st.settings.hosted:   # nothing to list: the site's own account writes and speaks
+        return []
     with read(st) as conn:
         have = keystore.listing(conn, uk)
         chosen = keystore.writer(conn, uk)
@@ -73,6 +82,7 @@ def list_keys(st: St, uk: User):
 @router.put("/api/writer", status_code=204, **POST)
 def put_writer(st: St, uk: User, body: Annotated[WriterBody, Body()]):
     """Which offered language model writes the listener's workouts, by the id its key is listed under."""
+    unhosted(st)
     provider = providers.provider_of(body.service)
     if provider not in st.settings.providers:
         raise HTTPException(404, "no such provider")
@@ -117,6 +127,7 @@ def known(st: AppState, service: str) -> dict:
 
 @router.put("/api/keys/{service}", status_code=204, **POST)
 def put_key(st: St, uk: User, service: str, body: Annotated[KeyBody, Body()]):
+    unhosted(st)
     info = known(st, service)
     value = enginelib.clean_key(st.settings.engine_root, info["key_var"], body.key)
     if not value or len(value) < KEY_MIN:
