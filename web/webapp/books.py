@@ -75,6 +75,10 @@ def summary(conn, days: int, fly: Fly) -> dict:
         spent.setdefault(d, {})[kind] = (float(usd), bool(est))
     counted = {d: float(u) for d, u in conn.execute(
         "select day, usd from provider_spend where day >= %s", (start,))}
+    # each kind is tracked from its own first row: a writing cost that never arrived reads "Not tracked", not $0,
+    # even once voices are counted
+    began = {k: at.astimezone(datetime.timezone.utc).date() for k, at in conn.execute(
+        "select kind, min(at) from costs group by kind")}
     tracking = conn.execute("select min(at) from costs").fetchone()[0]
     checked = conn.execute("select min(day) from provider_spend").fetchone()[0]
 
@@ -88,9 +92,9 @@ def summary(conn, days: int, fly: Fly) -> dict:
         voice_estimated |= v_est or w_est
         known = d in counted
         extra = max(0.0, counted[d] - write - voice) if known else None
-        tracked = (tracking is not None and d >= tracking.astimezone(datetime.timezone.utc).date()) or known
+        on = {k: (k in began and d >= began[k]) or known for k in ("write", "voice")}
         daily.append({"day": d.isoformat(), "sales": _f(s), "refunds": _f(back.get(d)), "fees": _f(fees.get(d)),
-                      "write": _f(write) if tracked else None, "voice": _f(voice) if tracked else None,
+                      "write": _f(write) if on["write"] else None, "voice": _f(voice) if on["voice"] else None,
                       "unattributed": _f(extra) if known else None,
                       "fly": round(fly_day, 4) if fly_day is not None else None})
 

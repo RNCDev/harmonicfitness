@@ -2,6 +2,21 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.87.0] - 2026-11-22
+
+An admin screen for the hosted site: how it's used, what it earns and what it costs. Revenue is the minute packs sold through Stripe; the cost of goods is OpenRouter (the writing and the voices) and Fly (the machines). Costs are captured from this release on, and anything not yet tracked says so instead of reading as $0.
+
+### Added
+- **The Admin page** (`zones/Admin.tsx`; `GET /api/admin/books?days=`, `webapp/books.py`), for 7, 30 or 90 days or all time: net revenue, costs, profit and margin; a profit and loss with Stripe's fee (estimated at 2.9% + 30¢), OpenRouter's writing, voices and spend no job claimed, and Fly; money in against money out day by day (each bar's numbers on hover, and as a table); what a minute sells for and costs to make; who's using it; and each listener (username and numbers only).
+- **Only named admins** (`HARMONICFITNESS_ADMINS`, account ids, never usernames) see it; anyone else gets 404. `python -m webapp.admin id <username>` prints an account's id.
+- **Sales kept for the books** (migration 026, `sales`): each paid pack at what was paid, written with its minutes, kept when the account is deleted, and a full refund taken back once. Earlier purchases are backfilled from the ledger.
+- **What OpenRouter charged** (`webapp/costs.py`, `costs`): every model reply's own charge, added up across the conversation, the writers' room and the enricher and written as the job ends however it ends; a recording's voice at the engine's estimate, marked estimated. OpenRouter's own daily count for the site's key is read every ten minutes (`provider_spend`), so spend no job claimed shows. The worker's log line for a turn says what it cost.
+- **Fly's cost, estimated** (`webapp/fly.py`) from the machines and volumes running, read with a read-only token (`FLY_API_TOKEN`) and priced at Fly's published rates; what it leaves out (the shared Postgres cluster, the media bucket, bandwidth) is said on the screen.
+
+### For forks
+- Migration 026 runs at start and backfills `sales` from the ledger at the packs' current prices.
+- To use the screen: set `HARMONICFITNESS_ADMINS` to your account id (`cd web && python -m webapp.admin id <username>`), and optionally `FLY_API_TOKEN` (`fly tokens create readonly`) for the Fly estimate. Costs are recorded only on a hosted site (`HARMONICFITNESS_HOSTED`), where the key is the site's own.
+
 ## [0.86.0] - 2026-11-21
 
 The sign-in page leads with what HarmonicFitness is: custom audio workouts for your mind and body. This release gathers the evening's work on the hosted site's first screens (0.85.2 to 0.85.7) under a new header.

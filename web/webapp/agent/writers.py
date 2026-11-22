@@ -460,9 +460,19 @@ def _tokens(result) -> tuple[int, int]:
     return got_in, got_out
 
 
+def base_model(model):
+    """The provider's own model under any wrappers (the turn's Narrated, the hosted site's costs.Metered), so a
+    check on its kind sees the model that answers, never the wrapper."""
+    seen = 0
+    while hasattr(model, "wrapped") and seen < 8:
+        model, seen = model.wrapped, seen + 1
+    return model
+
+
 def is_gemini(model) -> bool:
     """A Gemini model, on a Gemini key (GoogleModel) or through OpenRouter ("google/..."): the models whose thinking
     the harness sets by step."""
+    model = base_model(model)
     name = type(model).__name__
     return name == "GoogleModel" or (name == "OpenRouterModel" and str(model.model_name).startswith("google/"))
 
@@ -483,7 +493,7 @@ def thinking_settings(model, level: str | None) -> dict | None:
     model, which thinks at its provider's default."""
     if not level or not is_gemini(model):
         return None
-    if type(model).__name__ == "GoogleModel":
+    if type(base_model(model)).__name__ == "GoogleModel":
         return {"google_thinking_config": {"thinking_level": level}}
     return {"openrouter_reasoning": dict(OPENROUTER_REASONING[level])}
 

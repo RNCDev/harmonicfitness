@@ -26,7 +26,7 @@ from typing import Any, Callable
 
 import psycopg
 
-from . import clipcache, codes, config, conversations, db, engine, enginelib, folder, hosted, jobs, keystore, log, media, \
+from . import clipcache, codes, config, conversations, costs, db, engine, enginelib, folder, hosted, jobs, keystore, log, media, \
     minutes, \
     photos, providers, retention, spend, store, turns
 
@@ -85,6 +85,8 @@ class Ctx:
     opened: list = field(default_factory=list, repr=False)   # connections this job opened, closed by close()
     lost: threading.Event = field(default_factory=threading.Event)      # the heartbeat lost the job: it was stopped
     drained: threading.Event = field(default_factory=threading.Event)   # the worker's own stop stopped it
+    meter: Any = field(default=None, repr=False)   # the hosted site: what OpenRouter charged this job's replies
+    builds_before: int | None = None   # builds.jsonl's lines as the job began: its renders are the ones after
 
     def why_stopped(self) -> str:
         """The words for a job that `cancel` stopped: the listener's Stop, a lost heartbeat, or a deploy."""
@@ -177,6 +179,7 @@ def _settle(ctx: "Ctx") -> None:
     kept (minutes.keep, with the MP3). A failure here is left to the sweep, which hands back the same hold."""
     if not ctx.settings.hosted:
         return
+    _record_costs(ctx)
     try:
         with ctx.db_lock:
             ctx.conn.rollback()
@@ -187,6 +190,25 @@ def _settle(ctx: "Ctx") -> None:
     except Exception as e:  # noqa: BLE001 - the sweep settles it
         _quietly_rollback(ctx.conn)
         log.failure(f"job {ctx.job_id} settling minutes failed", e)
+
+
+def _record_costs(ctx: "Ctx") -> None:
+    """The hosted site, as a job ends however it ends: what OpenRouter charged for its writing (every reply, as
+    OpenRouter reported it) and its recordings (the engine's estimate), into the books. Once: the meter is let go."""
+    meter, ctx.meter = ctx.meter, None
+    before, ctx.builds_before = ctx.builds_before, None
+    try:
+        with ctx.db_lock:
+            ctx.conn.rollback()
+            if meter is not None:
+                costs.record(ctx.conn, ctx.uk.user_id, ctx.job_id, "write", meter.usd)
+            if before is not None:
+                costs.record(ctx.conn, ctx.uk.user_id, ctx.job_id, "voice", costs.voice_usd(ctx.home, before),
+                             estimated=True)
+            ctx.conn.commit()
+    except Exception as e:  # noqa: BLE001 - the books miss a cost; OpenRouter's own count still shows it
+        _quietly_rollback(ctx.conn)
+        log.failure(f"job {ctx.job_id} recording its cost failed", e)
 
 
 def _quietly_close(conn) -> None:
@@ -333,11 +355,16 @@ def enrich(ctx: Ctx) -> dict:
         facts = json.loads(r.stdout)
     except ValueError:
         raise JobFailed("the engine's answer couldn't be read") from None
+    if ctx.settings.hosted:   # the site's own key: what the enrichment costs goes in the books, however it ends
+        model = ctx.meter = costs.Metered(model)
     try:
         found = enricher.enrich(model, facts, text.strip()[:1000], agent.native_tools(model))
     except Exception as e:  # noqa: BLE001 - a provider's failure; only explain's words go anywhere
         log.failure(f"job {ctx.job_id} enrich stopped", e)
         raise JobFailed(providers.explain(provider, e).message) from None
+    finally:
+        if ctx.settings.hosted:
+            _record_costs(ctx)
     argv = enricher.signal_args(found.signals)
     if not argv:
         return {"summary": found.summary if found.signals else "", "signals": 0}
@@ -668,12 +695,16 @@ def _turn(ctx: Ctx, conv: conversations.Conversation, kept: list[dict] | None = 
         log.failure(f"job {ctx.job_id} model client failed", e)
         raise _writer_stop(ctx, provider, e) from None
     del stored   # the model key lives only in the model client from here on
+    if ctx.settings.hosted:   # the site's own key: what each reply costs goes in the books
+        model = ctx.meter = costs.Metered(model)
 
     ctx.say("folder")
     files = store.read_all(ctx.conn, ctx.uk)
     ctx.conn.commit()
     base = {path: version for path, (version, _) in files.items()}
     written = folder.materialize({path: body for path, (_, body) in files.items()}, ctx.home)
+    if ctx.settings.hosted:
+        ctx.builds_before = costs.builds_lines(ctx.home)
     zone = listener_zone(now)   # the engine's clock is the listener's: the brief's time, today's date for the menu
     deps = agent.Deps(engine_root=ctx.settings.engine_root, home=ctx.home, writers=ctx.settings.writers,
                       keys=dict(ctx.keys, **({"TZ": zone} if zone else {})), today=today,
@@ -812,7 +843,9 @@ def _turn(ctx: Ctx, conv: conversations.Conversation, kept: list[dict] | None = 
             outcome = agent.run_turn(model, deps, conv.history, line, answer, context=context, kit=kit)
         u = outcome.usage
         print(f"worker: job {ctx.job_id} turn {time.monotonic() - began:.1f}s, {u.get('requests')} model requests, "
-              f"{u.get('input_tokens')} tokens in, {u.get('output_tokens')} out, {u.get('searches', 0)} web searches",
+              f"{u.get('input_tokens')} tokens in, {u.get('output_tokens')} out, {u.get('searches', 0)} web searches"
+              + (f", ${float(ctx.meter.usd):.4f} over {ctx.meter.replies} priced replies" if ctx.meter is not None
+                 else ""),
               file=sys.stderr, flush=True)
     except agent.TurnError as e:
         keep_clips()
@@ -937,6 +970,8 @@ class _Heartbeat(threading.Thread):
 
 
 SWEEP_EVERY = 60   # seconds between the main lane's sweeps of expired media, unused clips and finished jobs
+SPEND_EVERY = 600  # seconds between readings of OpenRouter's own count of the site key's spend (the hosted site)
+_last_spend = [float("-inf")]
 _last_sweep = [float("-inf")]
 
 
@@ -964,6 +999,14 @@ def run_one(conn, settings: config.Settings, connect: Callable[[], Any] | None =
             clipcache.prune(conn)
             if minutes.sweep(conn):   # holds a dead turn left: handed back
                 conn.commit()
+            if settings.hosted and time.monotonic() - _last_spend[0] >= SPEND_EVERY:
+                _last_spend[0] = time.monotonic()
+                try:
+                    if costs.read_spend(conn, settings.openrouter_key) is not None:
+                        conn.commit()
+                except Exception as e:  # noqa: BLE001 - the books miss a reading; the next one comes
+                    _quietly_rollback(conn)
+                    log.failure("reading OpenRouter's spend failed", e)
             gone = retention.sweep(conn)
             if any(gone.values()):
                 print("worker: swept " + ", ".join(f"{n} {t}" for t, n in gone.items() if n), file=sys.stderr,

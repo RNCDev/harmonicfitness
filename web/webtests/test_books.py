@@ -9,7 +9,7 @@ import uuid
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
-from webapp import api, books, config, fly  # noqa: E402
+from webapp import api, books, config, costs, fly  # noqa: E402
 from webtests.test_minutes import SiteCase, paid_event, signed  # noqa: E402
 
 NO_FLY = books.Fly(None, why="no token")
@@ -58,10 +58,9 @@ class Books(SiteCase):
             self.assertEqual(admin.get("/api/admin/books?days=5").status_code, 400)
 
     def test_a_username_is_not_an_admin_id(self):
-        with self.assertRaises(config.ConfigError):
-            config._admins({"HARMONICFITNESS_ADMINS": "rowan"})
         one, two = uuid.uuid4(), uuid.uuid4()
         self.assertEqual(config._admins({"HARMONICFITNESS_ADMINS": f"{one}, {two}"}), (str(one), str(two)))
+        self.assertEqual(config._admins({"HARMONICFITNESS_ADMINS": f"rowan {one}"}), (str(one),))   # never a name
 
     def test_each_sale_counts_once_and_outlives_its_account(self):
         user_id, _ = self.signed_in()
@@ -100,6 +99,127 @@ class Books(SiteCase):
             self.assertEqual((got["write"], got["voice"]), (0.25, 0.5))
             self.assertEqual(got["profit"], round(5.0 - books.stripe_fee(5.0) - 0.75, 4))
             self.assertTrue(any(m.startswith("OpenRouter writing before ") for m in got["missing"]))
+
+
+    def test_a_job_ending_puts_its_writing_and_its_renders_in_the_books_once(self):
+        import json
+        import tempfile
+        import threading
+        import types
+        from decimal import Decimal
+
+        from webapp import worker
+        user_id, uk = self.make_user()
+        home = tempfile.mkdtemp()
+        path = os.path.join(home, costs.BUILDS)
+        os.makedirs(os.path.dirname(path))
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(json.dumps({"usd_estimate": 0.4}) + "\n")   # an earlier job's render
+        meter = types.SimpleNamespace(usd=Decimal("0.0731"))
+        ctx = types.SimpleNamespace(conn=self.conn, uk=uk, job_id=77, home=home, meter=meter,
+                                    builds_before=costs.builds_lines(home), db_lock=threading.RLock())
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(json.dumps({"usd_estimate": 0.18}) + "\n")   # this job's
+        worker._record_costs(ctx)
+        worker._record_costs(ctx)   # a second way out records nothing more
+        rows = self.conn.execute("select kind, usd, estimated from costs where job_id = 77 order by kind").fetchall()
+        self.conn.rollback()
+        self.assertEqual(rows, [("voice", Decimal("0.180000"), True), ("write", Decimal("0.073100"), False)])
+
+    def test_openrouters_own_count_is_kept_and_a_failed_read_keeps_nothing(self):
+        self.conn.execute("delete from provider_spend")
+        self.conn.commit()
+
+        def down(key):
+            raise OSError("unreachable")
+        self.assertIsNone(costs.read_spend(self.conn, "sk-or-site", get=down))
+        self.conn.commit()
+        self.assertIsNone(self.summary(7)["money"]["unattributed"])
+        self.assertEqual(costs.read_spend(self.conn, "sk-or-site", get=lambda k: {"data": {"usage_daily": 1.5}}), 1.5)
+        self.assertEqual(costs.read_spend(self.conn, "sk-or-site", get=lambda k: {"data": {"usage_daily": 1.2}}), 1.2)
+        self.conn.commit()
+        got = self.summary(7)["money"]
+        self.assertEqual(got["unattributed"], 1.5)   # a day's count never goes down within the day
+        self.assertIsNone(costs.read_spend(self.conn, "", get=lambda k: {"data": {"usage_daily": 9}}))
+
+
+class Costs(unittest.TestCase):
+    def test_every_reply_is_counted_at_what_openrouter_charged(self):
+        from decimal import Decimal
+
+        from pydantic_ai import Agent
+        from pydantic_ai.messages import ModelResponse, TextPart
+        from pydantic_ai.models.function import FunctionModel
+
+        def reply(messages, info):
+            return ModelResponse(parts=[TextPart("ok")], provider_details={"cost": 0.0125})
+
+        def unpriced(messages, info):
+            return ModelResponse(parts=[TextPart("ok")])
+        meter = costs.Metered(FunctionModel(reply))
+        Agent(meter).run_sync("one")
+        Agent(meter).run_sync("two")
+        self.assertEqual((meter.usd, meter.replies), (Decimal("0.025"), 2))
+        bare = costs.Metered(FunctionModel(unpriced))
+        Agent(bare).run_sync("one")
+        self.assertEqual((bare.usd, bare.replies), (Decimal(0), 1))
+
+    def test_a_wrapped_model_keeps_its_kind_and_its_search(self):
+        from webapp import providers
+        from webapp.agent import native_tools, writers
+        plain = providers.model_for("openrouter", "sk-or-test")
+        wrapped = costs.Metered(plain)
+        self.assertEqual(writers.is_gemini(wrapped), writers.is_gemini(plain))
+        self.assertEqual(writers.thinking_settings(wrapped, "HIGH"), writers.thinking_settings(plain, "HIGH"))
+        self.assertEqual(len(native_tools(wrapped)), len(native_tools(plain)))
+
+    def test_a_job_counts_only_the_renders_it_made(self):
+        import json
+        import tempfile
+        from decimal import Decimal
+        home = tempfile.mkdtemp()
+        path = os.path.join(home, costs.BUILDS)
+        os.makedirs(os.path.dirname(path))
+
+        def line(**rec):
+            return json.dumps(rec) + "\n"
+        with open(path, "w", encoding="utf-8") as f:   # an earlier job's recording
+            f.write(line(kind="mp3", draft_sha256="a", build_id="b0", usd_estimate=0.4))
+        before = costs.builds_lines(home)
+        with open(path, "a", encoding="utf-8") as f:   # this job: a render that stopped, then one that made the MP3
+            f.write(line(kind="failed", failed=True, draft_sha256="c", build_id="b1", usd_estimate=0.05))
+            f.write(line(kind="outcome", event="stopped", build_id="b1"))
+            f.write(line(kind="mp3", draft_sha256="c", build_id="b2", usd_estimate=0.25))
+            f.write(line(kind="outcome", event="delivered", build_id="b2", usd_estimate=9.0))   # never a render
+            f.write("not json\n")
+        self.assertEqual(costs.voice_usd(home, before), Decimal("0.30"))
+        self.assertEqual(costs.voice_usd(tempfile.mkdtemp(), 0), Decimal(0))
+
+    def test_openrouters_own_charge_reaches_the_meter_through_its_real_model(self):
+        """OpenRouter's usage.cost, through pydantic-ai's OpenRouterModel as the site builds it (only the HTTP is
+        faked), run as the writers run it and wrapped again as a turn's Narrated wraps it."""
+        import httpx
+        from decimal import Decimal
+
+        from openai import AsyncOpenAI
+        from pydantic_ai import Agent
+        from pydantic_ai.models.openrouter import OpenRouterModel
+        from pydantic_ai.models.wrapper import WrapperModel
+        from pydantic_ai.providers.openrouter import OpenRouterProvider
+
+        def answer(request):
+            return httpx.Response(200, json={
+                "id": "gen-1", "object": "chat.completion", "created": 1, "model": "google/gemini-3.8-flash",
+                "provider": "Google", "choices": [{"index": 0, "finish_reason": "stop",
+                                                    "message": {"role": "assistant", "content": "ok"}}],
+                "usage": {"prompt_tokens": 10, "completion_tokens": 2, "total_tokens": 12, "cost": 0.00042}})
+        client = AsyncOpenAI(api_key="sk-or-test", base_url="https://openrouter.ai/api/v1",
+                             http_client=httpx.AsyncClient(transport=httpx.MockTransport(answer)))
+        meter = costs.Metered(OpenRouterModel("google/gemini-3.8-flash",
+                                              provider=OpenRouterProvider(openai_client=client)))
+        Agent(meter).run_sync("as a writer")
+        Agent(WrapperModel(meter)).run_sync("as a turn")
+        self.assertEqual((meter.usd, meter.replies), (Decimal("0.00084"), 2))
 
 
 class FlyEstimate(unittest.TestCase):

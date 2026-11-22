@@ -46,7 +46,8 @@ function BooksView({ b }: { b: Books }) {
         <Head label="Net revenue" value={usd(m.net)} note={`${count(b.units.sales)} ${b.units.sales === 1 ? "pack" : "packs"} sold`} />
         <Head label="Costs" value={usd(costs)} note={m.missing.length ? "Incomplete" : "Stripe, OpenRouter, Fly"} warn={m.missing.length > 0} />
         <Head label={m.missing.length ? "Profit so far" : "Profit"} value={usd(m.profit)} note={m.missing.length ? `Leaves out ${m.missing.join(", ")}` : "After every cost"} warn={m.missing.length > 0} />
-        <Head label="Margin" value={pct(m.margin)} note="Of net revenue" />
+        <Head label={m.missing.length ? "Margin so far" : "Margin"} value={pct(m.margin)}
+          note={m.missing.length ? "Before the costs left out" : "Of net revenue"} warn={m.missing.length > 0} />
       </section>
 
       <section className="ad-block" aria-labelledby="ad-pl">
@@ -115,6 +116,8 @@ function BooksView({ b }: { b: Books }) {
 
       <section className="ad-block" aria-labelledby="ad-people">
         <h2 className="ad-h" id="ad-people">Listeners</h2>
+        {m.costs_since && <p className="ad-none">Cost is what OpenRouter charged since {m.costs_since}; profit is what
+          they paid, less Stripe's fee and that cost.</p>}
         {b.listeners.length === 0 ? <p className="ad-none">No one did anything in this range.</p> : (
           <div className="ad-scroll">
             <table className="ad-table ad-people">

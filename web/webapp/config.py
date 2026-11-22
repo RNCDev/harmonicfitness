@@ -2,6 +2,7 @@
 import base64
 import binascii
 import os
+import sys
 import uuid
 from dataclasses import dataclass, field
 from typing import Mapping
@@ -86,14 +87,15 @@ def _worker_slots(env: Mapping[str, str]) -> int:
 
 
 def _admins(env: Mapping[str, str]) -> tuple[str, ...]:
-    """HARMONICFITNESS_ADMINS: account ids, by commas or spaces; a malformed one stops the start, never just drops."""
+    """HARMONICFITNESS_ADMINS: account ids, by commas or spaces. A malformed one makes no one an admin and is said
+    in the log; it never stops the site (a typo in the admin list shouldn't take the site down)."""
     out = []
     for part in env.get("HARMONICFITNESS_ADMINS", "").replace(",", " ").split():
         try:
             out.append(str(uuid.UUID(part)))
         except ValueError:
-            raise ConfigError("HARMONICFITNESS_ADMINS lists account ids (python -m webapp.admin id <username>), "
-                              f"not {part[:40]!r}") from None
+            print("config: HARMONICFITNESS_ADMINS lists account ids (python -m webapp.admin id <username>); one entry "
+                  "isn't one and is ignored", file=sys.stderr, flush=True)
     return tuple(out)
 
 
