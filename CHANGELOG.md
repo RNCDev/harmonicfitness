@@ -2,6 +2,18 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.85.5] - 2026-11-21
+
+The sign-in page says what HarmonicFitness is, beside the form, with a clear way to the demos.
+
+### Changed
+- **The sign-in page is two columns** (`ui/Solo.tsx`'s new `pitch`, `zones/SignIn.tsx`): on a wide screen, "A coach in your ear." and one sentence on what the coach does on the left, the form on the right, both in the middle of the window; stacked on a tablet or phone.
+- **The way to the demos is a button with a play mark** in place of an underlined link, under the pitch (last on a phone).
+- **A new tagline:** "A coach in your ear, and a workout written for today" (`Solo.TAGLINE`), over the other one-task pages and the sign-in page's demos, in place of "Workouts for your earbuds, written and voiced fresh each time you ask".
+
+### For forks
+- Nothing to migrate.
+
 ## [0.85.4] - 2026-11-21
 
 The sign-in form is compact, and the night sky shows through it.

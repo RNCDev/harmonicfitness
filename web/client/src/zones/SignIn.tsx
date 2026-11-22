@@ -19,6 +19,7 @@ import { ClerkGate } from "../ui/ClerkGate";
 import { Field } from "../ui/Field";
 import { Notice } from "../ui/Notice";
 import { MIN_PASSWORD, PasswordForm, tooShort } from "../ui/PasswordForm";
+import { Icon } from "../ui/icons";
 import { Solo } from "../ui/Solo";
 
 /** The server's rule for a new username (web/webapp/auth.py USERNAME), checked here too, as you type once you've
@@ -32,6 +33,22 @@ const badName = (name: string) => (USERNAME.test(name.trim().toLowerCase()) ? nu
 const midway = () => window.location.hash.startsWith("#/");
 
 type Mode = "in" | "new";
+
+/** Beside the sign-in form: what this is, in the coach's own terms. */
+const PITCH = <>
+  <p className="pitch-line">A coach in your ear.</p>
+  <p className="pitch-more">Say how long you have, what's to hand and what hurts today. Your coach writes the workout
+    for you, then talks you through every set.</p>
+</>;
+
+/** The way to the demos and the free workouts, for someone not ready to sign in. */
+function ToFront({ onFront }: { onFront: () => void }) {
+  return (
+    <Button variant="outline" className="to-front" onClick={onFront}>
+      <Icon name="play" size={16} />Hear a demo, or play a free workout
+    </Button>
+  );
+}
 
 /** The front page: the demos and the free workouts, with the ways in at the header's right. */
 function Front({ version, open, onForm }: { version: string; open: boolean; onForm: (m: Mode) => void }) {
@@ -92,7 +109,7 @@ function ViaClerk({ version, open, front, onFront, onForm, onSignedIn }: {
   }
   if (front) return <Front version={version} open={open} onForm={onForm} />;
   return (
-    <Solo version={version}>
+    <Solo version={version} pitch={PITCH} after={<ToFront onFront={onFront} />}>
       <div className="auth-clerk">
         <ClerkLoading><Notice tone="busy">Loading sign-in…</Notice></ClerkLoading>
         <ClerkFailed>
@@ -101,7 +118,6 @@ function ViaClerk({ version, open, front, onFront, onForm, onSignedIn }: {
         <ClerkSignIn routing="hash" withSignUp={open}
           appearance={open ? undefined : { elements: { footerAction: { display: "none" } } }} />
       </div>
-      <p><Button variant="text" onClick={onFront}>Hear a demo, or play a free workout</Button></p>
     </Solo>
   );
 }
@@ -132,7 +148,7 @@ function ViaPassword({ version, open, mode, onMode, onFront, onSignedIn }: {
   };
 
   return (
-    <Solo version={version}>
+    <Solo version={version} pitch={PITCH} after={<ToFront onFront={onFront} />}>
       <h1>{fresh ? "Make an account" : "Sign in"}</h1>
       <form className="auth" onSubmit={(e) => form.submit(e, () => void go.run())} noValidate>
         <Field id="signin-username" label="Username" error={nameWrong ?? go.errorFor("username")}
@@ -163,7 +179,6 @@ function ViaPassword({ version, open, mode, onMode, onFront, onSignedIn }: {
           <p className="hint">Forgot your password? Ask the person who runs this site to send you a reset link.</p>
         </>
       )}
-      <p><Button variant="text" onClick={onFront}>Hear a demo, or play a free workout</Button></p>
     </Solo>
   );
 }

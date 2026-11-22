@@ -9,6 +9,7 @@ import { requestParts, type Part, type RequestValues } from "../lib/request";
 import { Button } from "../ui/Button";
 import { FlipWords } from "../ui/Flap";
 import { AudioPlayer } from "../ui/Player";
+import { TAGLINE } from "../ui/Solo";
 import { RequestLine } from "../ui/RequestLine";
 
 type Demo = {
@@ -56,7 +57,7 @@ export function Demos() {
 
   return (
     <section className="demos" aria-label="Workouts other people asked for">
-      <p className="label demo-eyebrow">Workouts for your earbuds, written and voiced fresh each time you ask</p>
+      <p className="label demo-eyebrow">{TAGLINE}</p>
 
       <div className="demo-slides" aria-live="polite">
         {DEMOS.map((x, i) => (

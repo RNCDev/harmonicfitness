@@ -20,6 +20,30 @@
 .auth-clerk .cl-footer { padding-block: var(--s-2) }
 .auth-again { margin: var(--s-4) 0 var(--s-5h) }
 
+/* the sign-in form with its pitch (Solo's `pitch`): on a wide screen the pitch on the left with the way to the
+   demos under it, the form on the right, both in the middle of the window's height; stacked on a tablet, the way to
+   the demos last */
+.solo-split {
+  flex: 1; width: 100%; display: grid; align-content: center;   /* to the header's edges: the pitch under the name */
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 26rem); grid-template-areas: "pitch task" "after task";
+  gap: var(--s-5) clamp(var(--s-6h), 6vw, var(--s-8)); padding: var(--s-6h) var(--gut) var(--s-7);
+}
+.solo-pitch { grid-area: pitch; align-self: end; max-width: 36rem }
+.solo-task { grid-area: task; align-self: center; min-width: 0 }
+.solo-after { grid-area: after; align-self: start }
+.solo-split .auth-clerk { margin: 0 }
+.solo-split .auth-clerk .cl-rootBox, .solo-split .auth-clerk .cl-cardBox { width: 100%; max-width: 100% }
+.pitch-line { margin: 0 0 var(--s-4); font: var(--w-bold) var(--fs-hero)/var(--lh-solid) var(--display); letter-spacing: var(--track-head);
+  text-transform: uppercase; color: var(--text); text-wrap: balance }
+.pitch-more { margin: 0; max-width: 32rem; font-size: var(--fs-lg); line-height: var(--lh-body); color: var(--text-2) }
+.to-front { display: inline-flex; align-items: center; gap: var(--s-2h); max-width: 100%; white-space: normal; text-align: left }
+.to-front svg { color: var(--sample) }
+@media (max-width: 1000px) {
+  .solo-split { grid-template-columns: minmax(0, 30rem); grid-template-areas: "pitch" "task" "after"; align-content: start; gap: var(--s-5) }
+  .solo-pitch, .solo-task, .solo-after { align-self: start }
+  .pitch-line { font-size: var(--fs-welcome) }
+}
+
 /* the sign-in page's front: Sign in and Make an account in the header, the demo on the left, the free workouts on the
    right, both from the same line (stacked on a tablet) */
 .solo-actions { margin-left: auto; display: flex; align-items: center; gap: var(--s-2) }
