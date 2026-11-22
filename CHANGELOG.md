@@ -2,6 +2,16 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.85.3] - 2026-11-21
+
+Signing in to the hosted site works again. Clerk stopped accepting its older React package, so its form showed "This app uses an outdated version of Clerk" and signed no one in.
+
+### Fixed
+- **The web client signs in through `@clerk/react` 6** (6.18.9) in place of `@clerk/clerk-react` 5, which Clerk now refuses. The provider, the sign-in form and the session hook are as before.
+
+### For forks
+- Nothing to migrate. Run `npm install` in `web/client`.
+
 ## [0.85.2] - 2026-11-21
 
 The Coaches page is a grid of coaches under one player bar. Tapping a coach plays them in the bar, and nothing else on the page moves.

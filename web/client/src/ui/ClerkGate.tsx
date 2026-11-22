@@ -3,7 +3,7 @@
 // resolved them, so no colour is typed here; and when Clerk leaves its form for an address on this site (after
 // signing in or out) only the address changes, never the page, which shows what's next itself.
 import { useMemo, type ReactNode } from "react";
-import { ClerkProvider } from "@clerk/clerk-react";
+import { ClerkProvider } from "@clerk/react";
 
 /** A token's value as the browser resolved it; undefined where there is none (Clerk then keeps its own). */
 function token(name: string): string | undefined {

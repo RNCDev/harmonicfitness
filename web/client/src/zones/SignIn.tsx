@@ -5,7 +5,7 @@
 // this browser before starts at the form. Also the screen that asks for a password when an account has none (one
 // from before passwords, or after a reset link).
 import { useState } from "react";
-import { ClerkFailed, ClerkLoading, SignIn as ClerkSignIn } from "@clerk/clerk-react";
+import { ClerkFailed, ClerkLoading, SignIn as ClerkSignIn } from "@clerk/react";
 import { Demos } from "./Demos";
 import { ReadyWorkouts } from "./Ready";
 import { api } from "../lib/api";

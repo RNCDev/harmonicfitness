@@ -9,7 +9,7 @@ const clerk = vi.hoisted(() => ({
   auth: { isLoaded: true, isSignedIn: false, sessionId: null as string | null,
     getToken: async (): Promise<string | null> => "clerk-token", signOut: vi.fn(async () => {}) },
 }));
-vi.mock("@clerk/clerk-react", () => ({
+vi.mock("@clerk/react", () => ({
   ClerkProvider: ({ children }: { children: ReactNode }) => children,
   ClerkLoading: () => null, ClerkFailed: () => null, SignIn: () => "Clerk's form",
   useAuth: () => clerk.auth,

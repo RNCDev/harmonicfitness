@@ -3,7 +3,7 @@
 // with a way to try again or to use another account. Someone who just signed out here is signed out of Clerk
 // instead (lib/visits.ts). Used inside ui/ClerkGate.tsx's provider.
 import { useEffect, useReducer, useRef, useState } from "react";
-import { useAuth } from "@clerk/clerk-react";
+import { useAuth } from "@clerk/react";
 import { api, ApiError, NotSignedIn } from "./api";
 import { leaving, left, remember } from "./visits";
 import { SAID } from "./messages";
