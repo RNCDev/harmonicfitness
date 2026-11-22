@@ -67,7 +67,8 @@ PROFILE_SECTIONS = ("Default session",)   # the profile prose the brief quotes
 DOSE_WORDS = {"sets": "sets", "reps": "reps", "bodyweight_reps": "reps with no load",
               "rest_seconds": "rest (s)", "hard_sets_per_session": "hard sets a session",
               "work_seconds": "work (s)", "rounds": "rounds", "efforts_per_session": "hard efforts a session",
-              "hold_seconds": "hold (s)", "drill_seconds": "drill (s)", "timed_seconds": "a timed set (s)"}
+              "hold_seconds": "hold (s)", "drill_seconds": "drill (s)", "timed_seconds": "a timed set (s)",
+              "transition_seconds": "switch between movements (s)"}
 GOAL_DOSES = {"strength": ("strength", "conditioning"), "general": ("strength", "conditioning"),
               "targeted": ("strength", "conditioning"), "conditioning": ("conditioning", "strength"),
               "mobility": ("mobility",), "skill": ("skill", "strength")}
@@ -308,12 +309,30 @@ def _limit_lines(cat: catalog.Catalog, scr, h, request: dict, today: datetime.da
 
 
 def _method_shape(m) -> str:
-    """What the method's rules say beyond its about: how its work is counted, and a rest of its own."""
+    """What the method's rules say beyond its about: how its work is counted, and where it rests (knowledge/
+    programming.md, Rest and pairing): a loop or a pair only switches between its movements, and rests after it."""
     parts = [f"work: {m.work}"]
+    if m.work in ("timed", "rounds"):
+        loop = f"a loop of {m.loop_stations[0]} to {m.loop_stations[1]} stations, never one pair repeated; " \
+            if m.loop_stations else ""
+        parts.append(f"{loop}between stations only the switch (the dose's switch between movements), which carries "
+                     "the next station's setup (the first round's lesson may run longer)")
+    if m.work == "pairs":
+        parts.append("the dose's switch between the two halves of a pair, its rest after the pair")
     if m.rest_seconds:
-        parts.append(f"rest {m.rest_seconds[0]} to {m.rest_seconds[1]} s between "
-                     + ("stations" if m.work == "timed" else "rounds"))
+        parts.append(f"rest {m.rest_seconds[0]} to {m.rest_seconds[1]} s between rounds")
     return "; ".join(parts)
+
+
+def _timed_set_seconds(sess: sessions.Sessions, level: str, m) -> int:
+    """About how long a 45-second timed set takes with what follows it: the dose's switch, and its share of the
+    round's rest across a loop (the middle of each range; a method with no loop rests as a straight set does)."""
+    mid = lambda r: (r[0] + r[1]) / 2  # noqa: E731
+    dose = sessions.dose(sess, "strength", level)
+    switch = mid(dose.get("transition_seconds") or [15, 15])
+    if m.rest_seconds and m.loop_stations:
+        return round(45 + switch + mid(m.rest_seconds) / mid(m.loop_stations))
+    return round(45 + mid(dose.get("rest_seconds") or [60, 60]))
 
 
 def _lean() -> Optional[str]:
@@ -369,9 +388,10 @@ def _programming_lines(sess: sessions.Sessions, request: dict, scr, log) -> List
         if goal in ("general", "strength"):
             work = total - screen.clamp(m.warmup, total) - screen.clamp(m.cooldown, total)
             sets = max(round(work / 120), 1)
+            timed = _timed_set_seconds(sess, scr.level, m)
             out.append(f"- This session's work: about {sets} hard sets in its {work} s (a counted set with its rest is "
-                       f"about two minutes; a timed set of forty-five seconds with its rest about a minute and a half, "
-                       f"so about {max(round(work / 90), 1)} of those): three sets of each main movement when the time "
+                       f"about two minutes; a timed set of forty-five seconds with its switch and its share of the "
+                       f"round's rest about {timed} s, so about {max(round(work / timed), 1)} of those): three sets of each main movement when the time "
                        "holds them, never two, and no more movements than leaves room for that. Make most of them timed, "
                        "each carrying a piece, and keep counted sets for the heaviest lifts: a counted set carries cues "
                        "only, and about half the session's words are the stories. Rests and timed sets are the dose's, never longer to "
@@ -392,7 +412,8 @@ def _programming_lines(sess: sessions.Sessions, request: dict, scr, log) -> List
     out += ["", "Timing: one set takes its reps times the seconds a rep (the menu's, already at the pace listeners "
             "really move: ten reps at two and a quarter seconds is under half a minute; both sides for one-sided work, plus "
             "about five seconds to switch), plus its setup the first time. A set with its rest takes about two "
-            "minutes, about a minute and a half when paired (a minute between the halves). Plan from the lint's "
+            "minutes, about a minute and a quarter when paired (the switch between the halves, the rest after the "
+            "pair). Plan from the lint's "
             "spoken column, not from the word guess."]
     out += ["", "What a good session looks like (the rules in knowledge/programming.md that bear on today):"]
     wanted = RULES_FOR.get(goal, RULES_FOR["strength"]) | ({"One-sided training"} if scr.sel.healthy_side_only else set())

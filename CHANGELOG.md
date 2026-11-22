@@ -2,6 +2,19 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.90.0] - 2026-11-22
+
+Shorter rests, set by research. A 30-minute timed session had rested about nine minutes for thirteen and a half of work, thirty seconds after every station; now a loop of stations only switches between them, and rests after the whole loop.
+
+### Changed
+- **A switch between movements** (`transition_seconds` in the strength dose, `knowledge/sessions.toml`): 20 to 30 seconds for a novice, 10 to 20 experienced, 10 to 15 advanced, between the stations of a timed loop or a circuit and between the two halves of a pair. It carries the next movement's setup, and never a story. After Ramos-Campo's meta-analysis of resistance circuits (10 to 30 s between exercises), Paz's trial of opposing pairs (no rest to a minute between the halves) and Klika and Jordan's bodyweight circuit (10 s to switch).
+- **A timed loop is four to six stations** (`loop_stations`), never one pair repeated, and rests 60 to 90 seconds between rounds (was 30 to 60 after every station), after the American College of Sports Medicine's under 90 seconds for light-load work and Singer's meta-analysis (little gained past 60 to 90 seconds).
+- **A pair rests after the pair**, not a minute between its halves.
+- **The brief** shows the switch with the doses, says how each format rests, and works out a timed set's time from them (`brief._timed_set_seconds`). `knowledge/programming.md`'s Rest and pairing has the sources and the rule; `knowledge/script.md` says a switch is no rest and carries no story.
+
+### For forks
+- Nothing to migrate. `knowledge/sessions.toml`'s strength doses need `transition_seconds` for each level (the check refuses a table without it), and a timed method's `rest_seconds` is now the rest between rounds.
+
 ## [0.89.0] - 2026-11-22
 
 A recording no longer fails because OpenRouter is busy with other requests on the same account, and the web app no longer tells a listener to check a key they don't have.

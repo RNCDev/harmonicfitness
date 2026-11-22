@@ -18,9 +18,12 @@ import paths
 FORMAT = 2
 WORK = ("sets", "pairs", "rounds", "timed", "intervals", "holds")
 OPTIONAL_DOSE_KEYS = ("bodyweight_reps", "timed_seconds")   # checked when present
+# transition_seconds (strength): the switch between movements, where nothing but the change happens: between the
+# stations of a timed loop or a circuit, and between the two halves of a pair
 ALL_OUT_KEYS = ("most_seconds", "rest_ratio")   # [all_out]: what counts as a sprint, and how long it rests
 DOSE_KEYS = {
-    "strength": ("sets", "reps", "rest_seconds", "hard_sets_per_session", "bodyweight_reps", "timed_seconds"),
+    "strength": ("sets", "reps", "rest_seconds", "transition_seconds", "hard_sets_per_session", "bodyweight_reps",
+                 "timed_seconds"),
     "conditioning": ("work_seconds", "rest_seconds", "rounds", "efforts_per_session"),
     "mobility": ("hold_seconds", "rounds"),
     "skill": ("drill_seconds", "rounds"),
@@ -39,7 +42,8 @@ class Method:
     work: str
     finisher: Optional[dict] = None
     needs: List[str] = field(default_factory=list)
-    rest_seconds: Optional[List[int]] = None   # rounds and timed: the rest between rounds or stations, in place of the dose's
+    rest_seconds: Optional[List[int]] = None   # rounds and timed: the rest between rounds, in place of the dose's
+    loop_stations: Optional[List[int]] = None  # rounds and timed: the stations in a loop before its round's rest
 
 
 @dataclass
@@ -60,7 +64,8 @@ def _method(name: str, raw: dict) -> Method:
         work=raw.get("work", ""),
         finisher=dict(raw["finisher"]) if "finisher" in raw else None,
         needs=list(raw.get("needs", [])),
-        rest_seconds=list(raw["rest_seconds"]) if "rest_seconds" in raw else None)
+        rest_seconds=list(raw["rest_seconds"]) if "rest_seconds" in raw else None,
+        loop_stations=list(raw["loop_stations"]) if "loop_stations" in raw else None)
 
 
 def load(path: Optional[str] = None) -> Sessions:
@@ -129,6 +134,12 @@ def problems(s: Sessions, cat: catalog.Catalog) -> List[str]:
                 out.append(f"The rest_seconds of method {name} {fault}: {m.rest_seconds}.")
             elif m.work not in ("rounds", "timed"):
                 out.append(f"Method {name} has rest_seconds, which only a rounds or timed method uses.")
+        if m.loop_stations is not None:
+            fault = _range_fault(m.loop_stations)
+            if fault:
+                out.append(f"The loop_stations of method {name} {fault}: {m.loop_stations}.")
+            elif m.work not in ("rounds", "timed"):
+                out.append(f"Method {name} has loop_stations, which only a rounds or timed method uses.")
     pace = s.rep_pace
     if not isinstance(pace, (int, float)) or isinstance(pace, bool) or not 0.3 <= pace <= 2:
         out.append(f"The timing rep_pace is {pace}; it needs a number from 0.3 to 2.")

@@ -36,7 +36,7 @@ levels = ["novice", "experienced", "advanced"]
 warmup = { share = 0.15, seconds = [120, 360] }     # house default: short and specific, as Iversen advises; no opened source scales it with length
 cooldown = { share = 0.10, seconds = [120, 300] }   # house default: slow breathing to close; no opened source gives a length
 finisher = { share = 0.10, seconds = [90, 300], from_minutes = 25 }   # house default: the finisher is house policy in programming.md
-work = "pairs"
+work = "pairs"   # the strength dose's transition_seconds between the two halves of a pair, its rest_seconds after the pair
 
 [methods.timed-sets]
 about = "A short loop of movements, each for a set time at a steady pace, a few rounds, the coach setting each one up before the go and talking with them through it."
@@ -46,7 +46,10 @@ levels = ["novice", "experienced", "advanced"]
 warmup = { share = 0.15, seconds = [120, 360] }     # house default: short and specific, as Iversen advises; no opened source scales it with length
 cooldown = { share = 0.10, seconds = [120, 300] }   # house default: slow breathing to close; no opened source gives a length
 work = "timed"   # each set the strength dose's timed_seconds, at a load that leaves two or three reps in reserve at the end
-rest_seconds = [30, 60]   # house default: a short breather between stations, the loop resting the other muscles in turn
+# Between stations only the strength dose's transition_seconds, which carries the next station's setup: the loop
+# alternates muscles, so each rests while the others work. This is the rest between rounds, after the whole loop.
+loop_stations = [4, 6]    # house default: enough stations that the round's rest comes after a whole-body loop, not after every pair
+rest_seconds = [60, 90]   # source: under 90 s for light-load endurance work, ACSM https://pubmed.ncbi.nlm.nih.gov/19204579/; past 60 s a small gain in muscle and none found past 90 s, Singer https://pubmed.ncbi.nlm.nih.gov/39205815/
 # House default, the listener's design (2026-11-02): timed work lets the coach set a movement up and then talk with
 # them through it, and stays in step with a listener who moves faster or slower than the plan, where a counted set
 # leaves them waiting on the audio or behind it. Effort is held as for counted sets (programming.md, Load range).
@@ -58,8 +61,9 @@ minutes = [10, 45]   # house default: the research note's table says fifteen; lo
 levels = ["novice", "experienced", "advanced"]
 warmup = { share = 0.15, seconds = [120, 360] }     # house default: short and specific, as Iversen advises; no opened source scales it with length
 cooldown = { share = 0.10, seconds = [120, 300] }   # house default: slow breathing to close; no opened source gives a length
-work = "rounds"   # rounds come from the strength dose's sets
-rest_seconds = [45, 90]   # house default: the rest between rounds, short as a circuit's "little rest" asks; the strength dose's rest is for straight sets
+work = "rounds"   # rounds come from the strength dose's sets; between exercises only the strength dose's transition_seconds
+loop_stations = [4, 6]    # house default: a whole-body loop before the round's rest, alternating upper with lower and push with pull
+rest_seconds = [45, 90]   # house default: the rest between rounds, short as a circuit's "little rest" asks, under ACSM's 90 s for light-load endurance work https://pubmed.ncbi.nlm.nih.gov/19204579/; the strength dose's rest is for straight sets
 # Upper and lower alternate, push with pull, after HPRC's summary
 # https://www.hprc-online.org/physical-fitness/training-performance/choosing-right-exercises-optimize-your-resistance-training
 
@@ -139,6 +143,7 @@ rep_pace = 0.75   # house default: listener feedback, 2026-11-01: ten reps finis
 sets = [2, 3]                      # house default: few sets while technique settles
 reps = [8, 12]                     # source: inside Iversen's six to fifteen https://pmc.ncbi.nlm.nih.gov/articles/PMC8449772
 rest_seconds = [60, 90]            # source: one to two minutes is enough for untrained people, Iversen https://pmc.ncbi.nlm.nih.gov/articles/PMC8449772
+transition_seconds = [20, 30]      # source: 10 to 30 s between exercises in resistance circuits, Ramos-Campo https://pubmed.ncbi.nlm.nih.gov/33924785/; 30 s or less between the halves of an opposing pair, Paz https://pubmed.ncbi.nlm.nih.gov/25148302/; the top of the range while a newcomer finds each setup is a house default
 hard_sets_per_session = [6, 12]    # house default: programming.md's session arithmetic, about two minutes a set, not a study
 timed_seconds = [40, 60]           # house default: about eighteen to twenty-five reps at the brief's rep pace, inside the fifteen to thirty for light dumbbells (programming.md, Iversen) https://pmc.ncbi.nlm.nih.gov/articles/PMC8449772
 
@@ -146,6 +151,7 @@ timed_seconds = [40, 60]           # house default: about eighteen to twenty-fiv
 sets = [3, 4]                      # house default: a step up from novice
 reps = [6, 10]                     # source: inside Iversen's six to fifteen https://pmc.ncbi.nlm.nih.gov/articles/PMC8449772
 rest_seconds = [90, 120]           # source: one to two minutes for muscle work, ACSM https://pubmed.ncbi.nlm.nih.gov/19204579/
+transition_seconds = [10, 20]      # source: inside 10 to 30 s between exercises, Ramos-Campo https://pubmed.ncbi.nlm.nih.gov/33924785/, and 30 s or less between opposing halves, Paz https://pubmed.ncbi.nlm.nih.gov/25148302/
 hard_sets_per_session = [10, 16]   # house default: programming.md's session arithmetic, about two minutes a set, not a study
 bodyweight_reps = [10, 15]         # house default: a movement with no load needs more reps to be hard; inside Iversen's six to fifteen https://pmc.ncbi.nlm.nih.gov/articles/PMC8449772
 timed_seconds = [40, 60]           # house default: about eighteen to twenty-five reps at the brief's rep pace, inside the fifteen to thirty for light dumbbells (programming.md, Iversen) https://pmc.ncbi.nlm.nih.gov/articles/PMC8449772
@@ -154,6 +160,7 @@ timed_seconds = [40, 60]           # house default: about eighteen to twenty-fiv
 sets = [3, 5]                      # house default: a step up from experienced
 reps = [4, 8]                      # house default: below Iversen's six for heavier sets; home kit rarely allows it
 rest_seconds = [120, 180]          # source: trained people probably need two minutes or more, Iversen https://pmc.ncbi.nlm.nih.gov/articles/PMC8449772; the upper bound is a house default
+transition_seconds = [10, 15]      # source: the 10 s switch of the bodyweight circuit Klika and Jordan describe (ACSM Health & Fitness Journal, 2013, doi 10.1249/FIT.0b013e31828cb1e8), inside Ramos-Campo's 10 to 30 s https://pubmed.ncbi.nlm.nih.gov/33924785/
 hard_sets_per_session = [12, 20]   # house default: programming.md's session arithmetic, about twenty at forty five minutes
 bodyweight_reps = [10, 20]         # house default: a movement with no load needs more reps to be hard; above Iversen's fifteen for trained people, slow on the way down
 timed_seconds = [40, 60]           # house default: about eighteen to twenty-five reps at the brief's rep pace, inside the fifteen to thirty for light dumbbells (programming.md, Iversen) https://pmc.ncbi.nlm.nih.gov/articles/PMC8449772
