@@ -1,7 +1,7 @@
 /* A page with one short task (sign in, a password, unreachable), and the sign-in page's demos. Part of theme.css, which imports every part in order. */
 /* ---------- signed out, unreachable ---------- */
 .solo { margin: auto 0 0; width: 100%; max-width: calc(30rem + 2 * var(--gut)); padding: var(--s-7) var(--gut) var(--s-8) }
-.solo h1 { font: var(--w-bold) var(--fs-hero)/var(--lh-solid) var(--display); letter-spacing: var(--track-head); text-transform: uppercase; margin: 0 0 var(--s-3h) }
+.solo h1:not(.cl-headerTitle) { font: var(--w-bold) var(--fs-hero)/var(--lh-solid) var(--display); letter-spacing: var(--track-head); text-transform: uppercase; margin: 0 0 var(--s-3h) }
 .solo p { color: var(--text-2); margin: 0 0 var(--s-5) }
 .solo .hint { margin: -4px 0 var(--s-1) }
 .solo .auth { margin-bottom: var(--s-5h) }
@@ -11,6 +11,13 @@
 .auth > .notice.err { font-size: var(--fs-md) }
 /* where sign-in goes through Clerk: its own form, and the two ways on after a refusal */
 .auth-clerk { display: grid; justify-items: start; gap: var(--s-3); margin: var(--s-4) 0 var(--s-5h) }
+/* Clerk's form, compact and see-through, so the sky shows behind it: a veil in place of its card, a heading in the
+   page's display face at a heading's size, and less room around everything */
+.auth-clerk .cl-cardBox { background: var(--veil-light); box-shadow: var(--ring) var(--border); border-radius: var(--radius-sheet) }
+.auth-clerk .cl-card, .auth-clerk .cl-footer { background: transparent; box-shadow: none }
+.auth-clerk .cl-card { padding: var(--s-5) var(--s-5) var(--s-4); gap: var(--s-4) }
+.auth-clerk .cl-headerTitle { font: var(--w-bold) var(--fs-d3)/var(--lh-solid) var(--display); letter-spacing: var(--track-head); text-transform: uppercase }
+.auth-clerk .cl-footer { padding-block: var(--s-2) }
 .auth-again { margin: var(--s-4) 0 var(--s-5h) }
 
 /* the sign-in page's front: Sign in and Make an account in the header, the demo on the left, the free workouts on the

@@ -2,6 +2,19 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.85.4] - 2026-11-21
+
+The sign-in form is compact, and the night sky shows through it.
+
+### Fixed
+- **Clerk's form title is a heading's size again** (`styles/signin.css`). Clerk 6 makes its title an `h1`, which took the sign-in page's hero size and filled the screen; the page's own heading style now leaves it alone.
+
+### Changed
+- **The sign-in form is see-through and tighter:** a veil in place of Clerk's solid card, with less room around the title, the fields and the footer.
+
+### For forks
+- Nothing to migrate.
+
 ## [0.85.3] - 2026-11-21
 
 Signing in to the hosted site works again. Clerk stopped accepting its older React package, so its form showed "This app uses an outdated version of Clerk" and signed no one in.
