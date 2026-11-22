@@ -99,7 +99,8 @@ def listing(last=None, facts=None):
     coach speaks with), default, placeholder,
     pending, shipped, speaks_here, description, tone (how the coach talks), sample (a web coach's own sample.mp3,
     or a stock coach's on the media bucket, coaches/samples.json), usd_per_workout (a web coach's, about), powered_by (who makes the voices of a
-    go-between service: OpenRouter's "ElevenLabs") (what --json prints for each), and notes (the list's remarks on it,
+    go-between service: OpenRouter's "ElevenLabs"), gender (a stock web voice's "f" or "m", where its service
+    knows it) (what --json prints for each), and notes (the list's remarks on it,
     such as "(a stand-in)"). `last` is the coach a build uses when none is named (default_coach). speaks_here: a
     web coach's service has a key here; a local coach renders here (never in the web client). `facts` stands in
     for the computer's, as in routes.usable."""
@@ -132,6 +133,8 @@ def listing(last=None, facts=None):
                                             or (p.shipped and media.has_sample(p.slug, samples)))),
                     "usd_per_workout": _workout_usd(p) if web else None,
                     "powered_by": cloud.powered_by(p.service, _model(p)) if web and p.service in cloud.SERVICES else None,
+                    "gender": cloud.voice_gender(p.service, p.voice_id) if web and p.service in cloud.SERVICES
+                    else None,
                     "notes": notes})
     return out
 
@@ -173,7 +176,7 @@ def main(argv=None):
     ls.add_argument("--json", action="store_true",
                     help="the list as one JSON object: coaches [{name, slug, kind, service, service_name, model, "
                          "default, placeholder, pending, shipped, speaks_here, description, tone, sample, usd_per_workout, "
-                         "powered_by}], "
+                         "powered_by, gender}], "
                          "default (a name or null), "
                          "note (why there's no default, or null)")
     sub.add_parser("last", help="the coach a build uses when none is named: the one used last (your own over a stand-in)")

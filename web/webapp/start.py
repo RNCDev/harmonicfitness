@@ -192,7 +192,9 @@ def _coaches(listed: list, keyed, used: list[tuple[str, str]], services: list[st
                 "sample": bool(c.get("sample")),
                 "usd_per_workout": c.get("usd_per_workout") if isinstance(c.get("usd_per_workout"), (int, float))
                 and not isinstance(c.get("usd_per_workout"), bool) else None,
-                "pending": bool(c.get("pending")), "powered_by": _words(c.get("powered_by"))}
+                "pending": bool(c.get("pending")), "powered_by": _words(c.get("powered_by")),
+                # a stock voice's "f" or "m", for the hosted Coaches page's Women and Men
+                "gender": c.get("gender") if c.get("gender") in ("f", "m") else None}
                for c in web]
     if not coaches:
         return []

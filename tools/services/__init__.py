@@ -5,7 +5,8 @@ spoken by the web coach's saved voice ID, in that argument order (tests/test_clo
 Optional: STORES_DRAFTS = True where design() saves each candidate at the service, so one not kept is deleted;
 DESIGN_NOTE, what else a design costs there, said with its price; balance() -> what's left on the account, where
 the service reports it (Fish, OpenRouter: {"usd"}; ElevenLabs: {"used", "limit", "resets"}), one GET that spends nothing;
-voice_model(voice_id) -> the model that speaks a voice, where each voice belongs to one (OpenRouter's stock voices).
+voice_model(voice_id) -> the model that speaks a voice, where each voice belongs to one (OpenRouter's stock voices);
+voice_gender(voice_id) -> "f", "m" or None, where the service's stock voices are known (the Coaches page's groups).
 cloud.service_module(name) is the one lookup.
 The shared core (HTTP, retries, errors, audio, cost) is tools/cloud.py; settings are knowledge/services.toml,
 read by settings() here (each table checked by validate()), which imports nothing of the engine's, so keys.py

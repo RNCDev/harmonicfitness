@@ -81,6 +81,13 @@ def voice_model(voice_id):
     return FAMILY_MODELS[family][0] if family else None
 
 
+def voice_gender(voice_id):
+    """"f" or "m" for a stock voice heard as a woman's or a man's, else None (a neutral one, or one not known)."""
+    family = _family(voice_id)
+    g = VOICES[family][voice_id][0] if family else None
+    return g if g in ("f", "m") else None
+
+
 # who makes each model's voices, for the web app's "OpenRouter, powered by ..."
 MAKERS = {"elevenlabs/": "ElevenLabs", "microsoft/": "Microsoft MAI", "google/": "Google Gemini"}
 

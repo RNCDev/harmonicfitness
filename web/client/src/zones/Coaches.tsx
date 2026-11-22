@@ -1,9 +1,10 @@
-// The Coaches page (beside Logs): an audition. Every coach that can speak on the web is a small tile, by service; a
-// tap puts that coach on the stage beside them and plays their sample (a ready-made coach's, or the one kept when a
-// coach was made), one sample at a time (ui/Player.tsx). The stage says how the coach talks and what a workout costs,
-// and chooses them. The listener's own coaches come first in their service's group. A coach whose service has no key
-// says which key it needs, and can open that key's row in Settings. The page's one colour, a soft blue, marks what
-// plays and who is coaching you.
+// The Coaches page (beside Logs): an audition. A stage across the top holds one coach: their sample (a ready-made
+// coach's, or the one kept when a coach was made, one sample at a time, ui/Player.tsx), how they talk, what a workout
+// costs, and the button that makes them your coach. Below it every coach that can speak on the web is a name chip; a
+// tap puts that coach on the stage and plays them. On the hosted site the chips are Women and Men, and who makes the
+// voices is a line at the foot; elsewhere they're by service, the listener's own first in their service's group, and
+// a coach whose service has no key says which key it needs. The page's one colour, a soft blue, marks what plays
+// and who is coaching you.
 import { useEffect, useRef, useState, type ReactNode, type Ref } from "react";
 import type { StartCoach } from "../lib/api";
 import { isNarrow } from "../lib/breakpoints";
@@ -19,43 +20,43 @@ export function cost(c: StartCoach): string | null {
   return typeof c.usd_per_workout === "number" ? `about ${dollars(c.usd_per_workout)} a workout` : null;
 }
 
-/** How the coach talks, in a few words for a tile: the line up to its first comma ("Warm and steady"). */
-const gist = (c: StartCoach) => (c.tone || c.description || "").split(/[,;.]/)[0].trim();
-
-/** One coach's tile: their name and a few words. A tap puts them on the stage. */
-function Tile({ c, picked, onPick }: { c: StartCoach; picked: boolean; onPick: () => void }) {
+/** One coach's chip: their first name, and a mark on the one coaching you (or one of your own). A tap puts them
+ * on the stage and plays their sample. */
+function Chip({ c, picked, onPick }: { c: StartCoach; picked: boolean; onPick: () => void }) {
   const active = c.current && c.ready;
   return (
-    <li className={`cg-tile${active ? " cur" : ""}${picked ? " on" : ""}`}>
+    <li className={`cg-chip${active ? " cur" : ""}${picked ? " on" : ""}`}>
       <Button variant="bare" pressed={picked} aria-label={`Hear Coach ${c.first}`} onClick={onPick}>
-        <b>Coach {c.first}</b>
-        {gist(c) && <span className="cg-gist">{gist(c)}</span>}
-        {(active || c.own) && <span className="cg-mark">{active ? "Active" : "Yours"}</span>}
+        <b>{c.first}</b>
+        {active ? <span className="cg-mark" title="Your coach">{"\u2713"}<span className="sr"> your coach</span></span>
+          : c.own && <span className="cg-mark">Yours</span>}
       </Button>
     </li>
   );
 }
 
 /** The coach on the stage: who they are, their sample, and the one thing to do next. */
-function Stage({ c, player, onCoach, addKey }: { c: StartCoach; player: Ref<AudioHandle>;
-  onCoach?: (slug: string) => void; addKey: (service: string, label: string) => ReactNode }) {
+function Stage({ c, current, player, onCoach, addKey }: { c: StartCoach; current?: StartCoach;
+  player: Ref<AudioHandle>; onCoach?: (slug: string) => void; addKey: (service: string, label: string) => ReactNode }) {
+  const { hosted } = useSite();
   const active = c.current && c.ready;
   const price = cost(c);
   const svc = `${c.service_name}${c.powered_by ? `, powered by ${c.powered_by}` : ""}`;
   return (
     <section className="cg-stage" aria-label={`Coach ${c.first}, on stage`}>
-      <p className="label cg-svc">{svc}</p>
+      {!hosted && <p className="label cg-svc">{svc}</p>}
       <h2 className="head cg-name">Coach {c.first}</h2>
-      {(c.tone || c.description) && <p className="cg-tone">{c.tone || c.description}</p>}
       {c.sample
         ? <AudioPlayer ref={player} large src={`/api/coaches/${encodeURIComponent(c.slug)}/sample.mp3`}
             label={`Coach ${c.first}'s sample`} />
         : c.pending && <p className="cg-note">Voice made on first use (about 1¢)</p>}
+      {(c.tone || c.description) && <p className="cg-tone">{c.tone || c.description}</p>}
       {price && <p className="cg-price">{price}</p>}
       <div className="cg-act">
         {active ? <p className="cg-now">Coaching you now</p>
-          : c.ready && onCoach ? <Button variant="primary" onClick={() => onCoach(c.slug)}>Choose {c.first}</Button>
+          : c.ready && onCoach ? <Button variant="primary" onClick={() => onCoach(c.slug)}>{`Make ${c.first} my coach`}</Button>
           : addKey(c.service, `Add ${an(c.service_name)} ${c.service_name} key to choose ${c.first}`)}
+        {!active && current && <p className="cg-yours">Your coach: {current.first}</p>}
       </div>
     </section>
   );
@@ -69,6 +70,26 @@ const serviceRank = (s: string) => { const i = SERVICE_ORDER.indexOf(s); return 
 function heading(group: StartCoach[]): string {
   const c = group[0], by = c.powered_by ? `, powered by ${c.powered_by}` : "";
   return `${c.service_name}${by} · ${group.length === 1 ? "1 coach" : `${group.length} coaches`}`;
+}
+
+/** A group of chips under its heading: a service's, or on the hosted site Women or Men. */
+type Group = { key: string; title: string; label: string; coaches: StartCoach[]; service?: string };
+
+/** The hosted site's groups: Women, then Men, then any voice not known as either. */
+function byGender(list: StartCoach[]): Group[] {
+  const rows: Group[] = [
+    { key: "f", title: "Women", label: "Women coaches", coaches: list.filter((c) => c.gender === "f") },
+    { key: "m", title: "Men", label: "Men coaches", coaches: list.filter((c) => c.gender === "m") },
+    { key: "x", title: "More coaches", label: "More coaches", coaches: list.filter((c) => c.gender !== "f" && c.gender !== "m") },
+  ];
+  return rows.filter((g) => g.coaches.length > 0);
+}
+
+/** Who makes the voices, for the hosted page's foot: "Voices by Google Gemini, through OpenRouter". */
+function credit(list: StartCoach[]): string | null {
+  const c = list[0];
+  if (!c || list.some((x) => x.service !== c.service || x.powered_by !== c.powered_by)) return null;
+  return c.powered_by ? `Voices by ${c.powered_by}, through ${c.service_name}` : `Voices by ${c.service_name}`;
 }
 
 function CoachGallery({ coaches, onCoach, onAddKey, onOpenSettings }: { coaches: StartCoach[];
@@ -88,11 +109,14 @@ function CoachGallery({ coaches, onCoach, onAddKey, onOpenSettings }: { coaches:
   const waiting = bySvc(coaches.filter((c) => !c.ready).sort(byName));
   const services = order(waiting);
   // with a voice key, only the coaches it can voice; with none, every coach, to hear first
-  const groups = ready.length > 0 ? order(voiced).map((s) => voiced.get(s)!) : services.map((s) => waiting.get(s)!);
-  const listed = groups.flat();
+  const bySvcGroups = ready.length > 0 ? order(voiced).map((s) => voiced.get(s)!) : services.map((s) => waiting.get(s)!);
+  const listed = bySvcGroups.flat();
+  const groups: Group[] = hosted ? byGender(listed) : bySvcGroups.map((g) => ({
+    key: g[0].service, title: heading(g), label: `${g[0].service_name} coaches`, coaches: g, service: g[0].service }));
 
   const [picked, setPicked] = useState<string | null>(null);
-  const onStage = listed.find((c) => c.slug === picked) ?? listed.find((c) => c.current && c.ready) ?? listed[0];
+  const current = listed.find((c) => c.current && c.ready);
+  const onStage = listed.find((c) => c.slug === picked) ?? current ?? listed[0];
   const player = useRef<AudioHandle>(null);
   const side = useRef<HTMLDivElement>(null);
   const playNext = useRef(false);
@@ -105,7 +129,7 @@ function CoachGallery({ coaches, onCoach, onAddKey, onOpenSettings }: { coaches:
   const pick = (slug: string) => {
     playNext.current = true;
     setPicked(slug);
-    // on a narrow screen the stage sits above the tiles: bring it into view
+    // on a narrow screen the chips can scroll the stage away: bring it back into view
     if (isNarrow()) side.current?.scrollIntoView?.({ block: "nearest" });
   };
 
@@ -118,19 +142,23 @@ function CoachGallery({ coaches, onCoach, onAddKey, onOpenSettings }: { coaches:
     ? <Button variant="text" onClick={() => onAddKey(service)}>{label}</Button>
     : <span className="cg-need">{label}</span>;
 
+  const foot = hosted ? credit(listed) : null;
   return (
     <div className="cg">
+      <div className="cg-side" ref={side}>
+        <Stage c={onStage} current={current} player={player} onCoach={onCoach} addKey={addKey} />
+      </div>
       <div className="cg-roster">
-        {groups.map((group) => {
-          const s = group[0].service, name = group[0].service_name;
+        {groups.map((g) => {
+          const name = g.coaches[0].service_name;
           return (
-            <section key={s} className="cg-group" aria-label={`${name} coaches`}>
+            <section key={g.key} className="cg-group" aria-label={g.label}>
               <div className="cg-group-h">
-                <p className="label cg-h">{heading(group)}</p>
-                {ready.length === 0 && addKey(s, `Add ${an(name)} ${name} key`)}
+                <p className="label cg-h">{g.title}</p>
+                {ready.length === 0 && g.service && addKey(g.service, `Add ${an(name)} ${name} key`)}
               </div>
               <ul className="cg-list">
-                {group.map((c) => <Tile key={c.slug} c={c} picked={c.slug === onStage.slug} onPick={() => pick(c.slug)} />)}
+                {g.coaches.map((c) => <Chip key={c.slug} c={c} picked={c.slug === onStage.slug} onPick={() => pick(c.slug)} />)}
               </ul>
             </section>
           );
@@ -144,9 +172,7 @@ function CoachGallery({ coaches, onCoach, onAddKey, onOpenSettings }: { coaches:
             })}
           </p>
         )}
-      </div>
-      <div className="cg-side" ref={side}>
-        <Stage c={onStage} player={player} onCoach={onCoach} addKey={addKey} />
+        {foot && <p className="cg-foot">{foot}</p>}
       </div>
     </div>
   );
@@ -167,7 +193,7 @@ export function CoachesPage({ coaches, onCoach, onAddKey, onOpenSettings, onClos
     <section className="page wide" aria-labelledby="coaches-title">
       <PageHeader id="coaches-title" title="Coaches" onClose={onClose}>
         <p className="page-note">{any
-          ? "Tap a coach to hear them, then choose the one you like."
+          ? "Tap a name to hear that coach, then make the one you like your coach."
           : "Tap a coach to hear them, then add the key for the coaches you like."}</p>
       </PageHeader>
       <Notice tone="error">{error}</Notice>

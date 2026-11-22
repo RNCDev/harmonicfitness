@@ -12,6 +12,7 @@ The hosted site's coaches are twelve new ones, six men and six women, on Google'
 
 ### Changed
 - **The hosted site speaks with Gemini Flash Lite** (`hosted.VOICE_MODEL`). The six MAI-Voice coaches (Hugh, Ivy, Luke, Nell, Seth, Skye) stay for anyone's own key; on the hosted site a listener who had chosen one gets the first of the new twelve until they choose again.
+- **The Coaches page is a stage with name chips** (`zones/Coaches.tsx`): the coach you're hearing across the top, with their sample, how they talk and Make them my coach (with your coach named beside it), and every coach below as a chip whose tap plays them. On the hosted site the chips are Women and Men, from each stock voice's gender (`coaches list --json`'s new `gender`, a service's optional `voice_gender()`), and who makes the voices is a line at the foot; elsewhere they stay by service.
 - **Stripe's setup gives each pack's product a tax code** (`stripe_setup.TAX_CODE`). Stripe's Managed Payments, on by default on a new account, refused a checkout page for a product without one, so the site said its checkout page wasn't answering.
 
 ### For forks

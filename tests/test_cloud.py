@@ -653,6 +653,9 @@ class Services(unittest.TestCase):
             v = personas.voice_for(personas.lookup("Coach Gale"), "openrouter")
             self.assertEqual(v["model"], "google/gemini-3.8-flash-lite-tts")
             self.assertEqual(cloud.powered_by("openrouter", v["model"]), "Google Gemini")
+            self.assertEqual((cloud.voice_gender("openrouter", "Sulafat"), cloud.voice_gender("openrouter", "Iapetus"),
+                              cloud.voice_gender("openrouter", "nobody"), cloud.voice_gender("fish", "x")),
+                             ("f", "m", None, None))   # the hosted Coaches page's Women and Men
             pcm = cloud.speaker(v)("Rest.", 1)
             self.assertEqual(json.loads(fake.requests[-1].body)["response_format"], "pcm")
             self.assertAlmostEqual(len(pcm) / 2 / cloud.SR, 0.6, delta=0.1)   # 48 kHz read as 48 kHz, not 24

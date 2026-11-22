@@ -96,7 +96,9 @@ export type StartCoach = { slug: string; name: string; first: string; service: s
    * whether its voice is made the first time it's used. */
   description?: string | null; tone?: string | null; sample?: boolean; usd_per_workout?: number | null; pending?: boolean;
   /** Who makes the voices, where the service is a go-between: OpenRouter's "ElevenLabs". */
-  powered_by?: string | null };
+  powered_by?: string | null;
+  /** A stock voice heard as a woman's ("f") or a man's ("m"): the hosted Coaches page's two rows. */
+  gender?: "f" | "m" | null };
 export type StartKit = { id: string; label: string; preset: boolean };
 type StartLimit = { area: string; side: string | null; level: "delicate" | "off-limits" };
 export type StartInfo = { coaches: StartCoach[]; kits: StartKit[]; minutes: number; limits: StartLimit[];

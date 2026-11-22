@@ -579,6 +579,12 @@ def voice_model(service, voice_id):
     return hook(voice_id) if hook else None
 
 
+def voice_gender(service, voice_id):
+    """"f" or "m" where a service knows its stock voice `voice_id` (its optional voice_gender()), else None."""
+    hook = getattr(service_module(service), "voice_gender", None) if voice_id else None
+    return hook(voice_id) if hook else None
+
+
 def powered_by(service, model):
     """Who makes the voices a service speaks with `model`, where the service is a go-between (its optional
     powered_by(): OpenRouter's ElevenLabs, Microsoft MAI or Google Gemini voices), else None."""
