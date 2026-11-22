@@ -257,9 +257,9 @@ class OnTheWeb(unittest.TestCase):
             for flag, argv, needle in (("REMOTE", ["init", "fish"], "FISH_AUDIO_API_KEY=<your key>"),
                                        ("REMOTE", ["open"], "GEMINI_API_KEY"),
                                        ("REMOTE", ["paste", "fish"], "Environment variables"),
-                                       ("WEB", ["init", "fish"], "HarmonicFitness's settings"),
-                                       ("WEB", ["open"], "HarmonicFitness's settings"),
-                                       ("WEB", ["paste", "fish"], "settings")):
+                                       ("WEB", ["init", "fish"], "no key to add here"),
+                                       ("WEB", ["open"], "no key to add here"),
+                                       ("WEB", ["paste", "fish"], "no key to add here")):
                 with self.subTest(flag=flag, argv=argv):
                     out = io.StringIO()
                     with redirect_stdout(out), mock.patch.object(keys.paths, "ENV_FILE", env), \

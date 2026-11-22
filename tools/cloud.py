@@ -182,6 +182,13 @@ def _kind(status, body):
     return "bad_request"
 
 
+def _settling(status, body):
+    """A 402 that refuses only until the account's other requests finish (OpenRouter checks a request's worst-case
+    cost against the credit left after every request still running on the account, and says to retry once those
+    settle). Refused before anything was made, so nothing was charged and it's safe to send again (0.88.1)."""
+    return status == 402 and "in-flight" in body.decode("utf-8", "replace").lower()
+
+
 def stop_on(event):
     """From now on (until stop_on(None)), in this thread's context, `event` being set stops every request's
     retries: a render that failed or was interrupted sends nothing more, and a worker waiting out a backoff wakes
@@ -246,8 +253,9 @@ def request(method, url, headers, body, timeout=60, service=None, tries=TRIES, s
             deadline=DEADLINE):
     """(status, headers, body) for a 2xx answer. Rate limits, server errors and dropped connections are
     retried with backoff (honoring Retry-After); anything else raises ServiceError with the service's reason.
+    A 402 asking to wait for the account's other requests to settle (_settling) is retried as a 429 is.
     A request that saves something (idempotent=False: a saved voice, a stored design) is retried only when
-    the service can't have acted on it: a 429, or a connection refused before anything was sent. A server
+    the service can't have acted on it: a 429, a settling 402, or a connection refused before anything was sent. A server
     error or a timeout after sending could have saved it, and a retry would save a second one. Once a render
     is stopping (stop_on), nothing more is sent. A redirect is never followed: it raises ServiceError.
     `deadline` bounds the whole call, every try and every wait (a slow service holds the render lock): each try
@@ -290,9 +298,10 @@ def request(method, url, headers, body, timeout=60, service=None, tries=TRIES, s
             # So is one that names no wait at all: it's retried with backoff, and only a 429 that outlasts every
             # try is reported as the quota (the last error raised below).
             rate_limited = e.code == 429 and (_short(retry_after) or retry_after is None)
-            limited = rate_limited or (e.code == 429 and kind == "unavailable")
-            slowed = e.code == 429
-            if not rate_limited and (e.code not in RETRY_STATUS or kind != "unavailable"):
+            settling = _settling(e.code, data)
+            limited = rate_limited or settling or (e.code == 429 and kind == "unavailable")
+            slowed = e.code == 429 or settling
+            if not (rate_limited or settling) and (e.code not in RETRY_STATUS or kind != "unavailable"):
                 raise last from None
             if not idempotent and not limited:
                 raise last from None
@@ -306,8 +315,8 @@ def request(method, url, headers, body, timeout=60, service=None, tries=TRIES, s
         except (ValueError, UnicodeEncodeError) as e:   # the request couldn't be built: a header value the
             var = keys.SERVICE_VARS.get(service, "the key")   # client refuses carries the key, so never echo it
             if "header" in str(e).lower() and paths.WEB:
-                raise ServiceError("auth", service, f"the key couldn't be sent as a request header (a stray "
-                                   f"character in it?): re-paste it in {keys.APP_SETTINGS}") from None
+                raise ServiceError("auth", service, "the site's key couldn't be sent as a request header (a stray "
+                                   "character in it?): it's the site's to fix, not the listener's") from None
             if "header" in str(e).lower():
                 raise ServiceError("auth", service, f"the key couldn't be sent as a request header (a stray character "
                                    f"in it?): re-paste it after {var}= (./harmonicfitness keys open)") from None
@@ -618,7 +627,7 @@ def speaker(voice):
 def key_or_stop(service):
     value = keys.get(service)
     if not value and paths.WEB:
-        raise ServiceError("auth", service, f"no key yet: add your {service_name(service)} key in {keys.APP_SETTINGS}")
+        raise ServiceError("auth", service, f"{service_name(service)} doesn't speak on this site: {keys.WEB_COACHES}")
     if not value:
         raise ServiceError("auth", service, f"no key on this computer: ./harmonicfitness keys init {service}, then paste "
                                             f"the key into me/.env after {keys.SERVICE_VARS[service]}=")

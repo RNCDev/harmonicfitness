@@ -2,6 +2,17 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.89.0] - 2026-11-22
+
+A recording no longer fails because OpenRouter is busy with other requests on the same account, and the web app no longer tells a listener to check a key they don't have.
+
+### Fixed
+- **A busy account waits instead of failing** (`cloud._settling`): OpenRouter refuses a request with a 402 when its worst-case cost, added to every request still running on the account, is more than the credit left, and asks to retry once those settle. That refusal comes before anything is made, so the engine now waits and sends it again, as it does a 429 (with backoff, within the request's five minutes). A 402 for an account truly out of credit still stops at once and is never sent again.
+- **No key talk on the web app** (`keys.WEB_NO_KEYS`, `keys.WEB_COACHES`): a refused recording says it's the site's own account and to try again in a while; a coach whose service the site doesn't use points to the Coaches page; and the `keys` commands say there's no key to add. The engine no longer says "Check the key in HarmonicFitness's settings, under Keys".
+
+### For forks
+- Nothing to migrate. `keys.APP_SETTINGS` is gone; anything that used it says what the web app now says instead.
+
 ## [0.88.0] - 2026-11-22
 
 The web app runs only one way now: the site's own key writes and speaks every workout, and listeners pay in minutes. The "bring your own keys" mode is gone. Minutes cost half what they did, and Settings' Minutes tab is easier to read.

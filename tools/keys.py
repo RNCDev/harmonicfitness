@@ -68,7 +68,9 @@ def _read(path):
     return out
 
 
-APP_SETTINGS = "HarmonicFitness's settings, under Keys"   # where the web client takes keys
+# On the web app (paths.WEB) every key is the site's own: a listener has none to add, check or fix (0.88.0)
+WEB_NO_KEYS = "this site speaks with its own coaches, on its own key: there's no key to add here"
+WEB_COACHES = "choose one of the site's coaches on the Coaches page"
 
 
 def clean_value(var, value):
@@ -76,8 +78,8 @@ def clean_value(var, value):
     value = (value or "").strip()
     if any(c.isspace() or not 32 < ord(c) < 127 for c in value):
         if paths.WEB:
-            raise BadKey(f"{var} holds a character a key can't (a stray line break, space or symbol): re-paste the "
-                         f"key in {APP_SETTINGS}.")
+            raise BadKey(f"the site's {var} holds a character a key can't (a stray line break, space or symbol): "
+                         "it's the site's to fix, not the listener's.")
         raise BadKey(f"{var} holds a character a key can't (a stray line break, space or symbol): re-paste the key "
                      f"after {var}= in me/.env (./harmonicfitness keys open), or fix it in the environment.")
     return value
@@ -285,7 +287,7 @@ def open_env(path=None, run=subprocess.Popen):
     the chat. Makes the file (with init's header, no service line) if it's missing; never reads it. Returns the
     command run, or [] on the web or when there's no opener (then it prints the file's path)."""
     if paths.WEB:
-        print(f"Add your keys in {APP_SETTINGS}.")
+        print(f"No keys here: {WEB_NO_KEYS}.")
         return []
     if paths.REMOTE:
         print(web_instructions())
@@ -317,7 +319,7 @@ def main(argv=None):
     p.add_argument("--replace", action="store_true", help="put it in place of a key already set")
     args = ap.parse_args(argv)
     if args.cmd in ("init", "paste") and paths.WEB:
-        print(f"Add your {args.service} key in {APP_SETTINGS}. Never paste it into the chat.")
+        print(f"No keys here: {WEB_NO_KEYS}. Never paste a key into the chat.")
         return errors.OK
     if args.cmd in ("init", "paste") and paths.REMOTE:
         print(web_instructions(args.service))

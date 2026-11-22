@@ -37,8 +37,8 @@ def missing_key(persona):
     var = keys.SERVICE_VARS[persona.service]
     name = cloud.service_name(persona.service)
     if paths.WEB:
-        fix = f"add your {name} key in {keys.APP_SETTINGS}"
-    elif paths.REMOTE:
+        return f"{persona.name} speaks through {name}, which doesn't speak on this site: {keys.WEB_COACHES}."
+    if paths.REMOTE:
         fix = (f"set {var}=<your key> in the cloud environment's settings, under Environment variables "
                "(a new session picks it up)")
     else:
@@ -88,7 +88,7 @@ def usable(route, persona=None, facts=None):
     except keys.BadKey as e:
         return False, f"{route}: {e}"
     if not have and paths.WEB:
-        return False, f"{route}: no key yet: add your {cloud.service_name(route)} key in {keys.APP_SETTINGS}."
+        return False, f"{route}: {cloud.service_name(route)} doesn't speak on this site: {keys.WEB_COACHES}."
     if not have:
         return False, (f"{route}: no key on this computer ({keys.SERVICE_VARS[route]} in me/.env): "
                        f"./harmonicfitness keys init {route}, then paste the key into the file")
@@ -109,14 +109,15 @@ def stand_ins():
 def way_out(folder=None):
     """How to get a coach that speaks here when local voices don't: make a web coach, or use the stock web coach
     of a service with a key here."""
+    if paths.WEB:
+        return keys.WEB_COACHES
     shipped = stand_ins()
     make = 'make a web coach (the coach skill: "I want a new coach")'
     keyed = [s for s in SERVICES if keys.is_set(s) and s in shipped]
     if keyed:
         uses = [f"{shipped[s].name} ({cloud.service_name(s)}): build with --coach \"{shipped[s].name}\"" for s in keyed]
         return f"{make}, or use the stock coach for a service with a key here: " + "; ".join(uses) + "."
-    add = (f"add its key in {keys.APP_SETTINGS}" if paths.WEB else
-           "set its key in the cloud environment's settings, under Environment variables" if paths.REMOTE
+    add = ("set its key in the cloud environment's settings, under Environment variables" if paths.REMOTE
            else "./harmonicfitness keys init <service>, then paste the key into the file")
     names = ", ".join(f"{shipped[s].name} ({cloud.service_name(s)})" for s in SERVICES if s in shipped)
     return f"{make}, or add a service's key ({add}) and use its stock coach: {names}."

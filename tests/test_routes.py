@@ -116,7 +116,7 @@ class Routes(unittest.TestCase):
         self.assertNotIn("keys init", str(e.exception.code))
         with mock.patch.object(routes.paths, "WEB", True):
             for text in (routes.missing_key(owen), routes.way_out()):
-                self.assertIn("HarmonicFitness's settings", text)
+                self.assertIn("Coaches page", text)   # the site's coaches: no key of the listener's to add
                 self.assertNotIn("keys init", text)
         profile = context.Profile({"render": ["local"]}, "", "profile.md")
         with mock.patch.object(context, "profile", return_value=profile), \

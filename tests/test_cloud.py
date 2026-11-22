@@ -130,7 +130,25 @@ class Core(unittest.TestCase):
             with mock.patch.object(cloud, "_open", cut_off), self.assertRaises(cloud.ServiceError):
                 cloud.request("POST", "http://127.0.0.1:9/x", {}, b"", sleep=lambda s: None, tries=3, idempotent=False)
             self.assertEqual(len(tries), 1)   # a save may have landed: never sent twice
-        table(self, [("429", a_429_then_success_is_retried), ("long wait", a_long_retry_after_is_quota_not_a_sleep),
+        def a_402_is_retried_only_while_running_requests_settle():
+            settling = b'{"error": {"message": "This request would exceed your available credits given your current ' \
+                       b'in-flight requests. Retry after in-flight requests settle, or add credits."}}'
+            calls = []
+
+            def answer(req):
+                calls.append(1)
+                return (402, {}, settling) if len(calls) < 3 else (200, {}, b"ok")
+            with FakeService(answer) as fake:
+                status, _, data = cloud.request("POST", fake.url + "/x", {}, b"", sleep=lambda s: None)
+            self.assertEqual((status, data, len(calls)), (200, b"ok", 3))
+            calls.clear()
+            out = b'{"error": {"message": "Insufficient credits. Add more using https://openrouter.ai/credits"}}'
+            with FakeService(lambda r: calls.append(1) or (402, {}, out)) as fake:
+                with self.assertRaises(cloud.ServiceError) as got:
+                    cloud.request("POST", fake.url + "/x", {}, b"", service="openrouter", sleep=lambda s: None)
+            self.assertEqual((len(calls), got.exception.kind), (1, "billing"))   # out of credit: never sent again
+        table(self, [("402 settling", a_402_is_retried_only_while_running_requests_settle),
+                     ("429", a_429_then_success_is_retried), ("long wait", a_long_retry_after_is_quota_not_a_sleep),
                      ("save", a_save_is_retried_only_on_429), ("refused", a_save_retries_a_refused_connection_not_a_timeout),
                      ("cut off", a_cut_off_answer_is_retried_only_when_safe)])
 
