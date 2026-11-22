@@ -19,6 +19,9 @@ EVENTS = ("checkout.session.completed", "checkout.session.async_payment_succeede
 HOOK = "/api/stripe/webhook"
 KEY_NAMES = ("STRIPE_SECRET_KEY", "STRIPE_API_SECRET_KEY")
 SECRET_NAME = "STRIPE_WEBHOOK_SECRET"
+# Each product's tax code: AI as a service, cloud based, for personal use. Stripe's Managed Payments (on by default:
+# Stripe is the merchant of record and settles sales tax and VAT) refuses a Checkout page for a product without one.
+TAX_CODE = "txcd_10105001"
 
 
 class Failed(Exception):
@@ -60,20 +63,27 @@ def _ok(what: str, status: int, body) -> dict:
     return body
 
 
+def pack_product(api, pack: minutes.Pack) -> None:
+    """The pack's product, made unless it's there, and carrying TAX_CODE (an older one without it gets it)."""
+    status, body = api("GET", f"/products/{pack.id}")
+    if status == 404:
+        _ok("making a product", *api("POST", "/products", [
+            ("id", pack.id), ("name", f"HarmonicFitness: {pack.label}"), ("tax_code", TAX_CODE),
+            ("description", f"{pack.minutes} minutes of recorded workouts. They don't expire.")]))
+        return
+    product = _ok("looking up a product", status, body)
+    if product.get("tax_code") != TAX_CODE:
+        _ok("setting the product's tax code", *api("POST", f"/products/{pack.id}", [("tax_code", TAX_CODE)]))
+
+
 def pack_price(api, pack: minutes.Pack, say) -> None:
     """The pack's product and price, made unless they're there."""
+    pack_product(api, pack)
     found = _ok("looking up a price", *api("GET", f"/prices?lookup_keys[]={pack.id}&limit=1")).get("data") or []
     if found and found[0].get("unit_amount") == pack.cents and found[0].get("currency") == "usd" \
             and found[0].get("active"):
         say(f"{pack.label}: already ${pack.cents / 100:.2f}")
         return
-    status, body = api("GET", f"/products/{pack.id}")
-    if status == 404:
-        _ok("making a product", *api("POST", "/products", [
-            ("id", pack.id), ("name", f"HarmonicFitness: {pack.label}"),
-            ("description", f"{pack.minutes} minutes of recorded workouts. They don't expire.")]))
-    else:
-        _ok("looking up a product", status, body)
     _ok("making a price", *api("POST", "/prices", [
         ("product", pack.id), ("unit_amount", str(pack.cents)), ("currency", "usd"), ("lookup_key", pack.id),
         ("transfer_lookup_key", "true"), ("nickname", pack.label)]))
