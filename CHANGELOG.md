@@ -2,6 +2,16 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.86.0] - 2026-11-21
+
+The sign-in page leads with what HarmonicFitness is: custom audio workouts for your mind and body. This release gathers the evening's work on the hosted site's first screens (0.85.2 to 0.85.7) under a new header.
+
+### Changed
+- **The sign-in page's header is "Custom audio workouts for your mind and body."** (`zones/SignIn.tsx`), set on three lines at any size, with "Each workout is new and made just for you. You get clear instruction for every set and, in between, stories about the things you care about." under it.
+
+### For forks
+- Nothing to migrate.
+
 ## [0.85.7] - 2026-11-21
 
 ### Changed

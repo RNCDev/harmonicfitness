@@ -36,9 +36,9 @@ type Mode = "in" | "new";
 
 /** Beside the sign-in form: what this is, in the coach's own terms. */
 const PITCH = <>
-  <p className="pitch-line">A coach in your ear.</p>
-  <p className="pitch-more">Say how long you have, what's to hand and what hurts today. Your coach writes the workout
-    for you, then talks you through every set.</p>
+  <p className="pitch-line">Custom audio workouts for your mind and body.</p>
+  <p className="pitch-more">Each workout is new and made just for you. You get clear instruction for every set and, in
+    between, stories about the things you care about.</p>
 </>;
 
 /** The way to the demos and the free workouts, for someone not ready to sign in. */

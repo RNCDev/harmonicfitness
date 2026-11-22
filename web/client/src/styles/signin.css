@@ -32,13 +32,13 @@
   grid-template-columns: minmax(0, 1.2fr) minmax(0, 26rem); grid-template-areas: "pitch task" "after task";
   gap: var(--s-5) clamp(var(--s-6h), 6vw, var(--s-8)); padding: var(--s-6h) var(--gut) var(--s-7);
 }
-.solo-pitch { grid-area: pitch; align-self: end; max-width: 36rem }
+.solo-pitch { grid-area: pitch; align-self: end; max-width: 46rem }
 .solo-task { grid-area: task; align-self: center; min-width: 0 }
 .solo-after { grid-area: after; align-self: start }
 .solo-split .auth-clerk { margin: 0 }
 .solo-split .auth-clerk .cl-rootBox, .solo-split .auth-clerk .cl-cardBox { width: 100%; max-width: 100% }
 .pitch-line { margin: 0 0 var(--s-4); font: var(--w-bold) var(--fs-hero)/var(--lh-solid) var(--display); letter-spacing: var(--track-head);
-  text-transform: uppercase; color: var(--text); text-wrap: balance }
+  text-transform: uppercase; color: var(--text); text-wrap: balance; max-width: 8.5em }   /* three lines, at any size */
 .pitch-more { margin: 0; max-width: 32rem; font-size: var(--fs-lg); line-height: var(--lh-body); color: var(--text-2) }
 .to-front { display: inline-flex; align-items: center; gap: var(--s-2h); max-width: 100%; white-space: normal; text-align: left }
 .to-front svg { color: var(--sample) }
