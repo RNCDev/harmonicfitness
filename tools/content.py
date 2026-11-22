@@ -47,7 +47,11 @@ import locks  # noqa: E402
 import paths  # noqa: E402
 
 RECIPE = paths.CONTENT   # the engine's formats; the listener's told.jsonl and stock are read at call time
-RECENT_DAYS = 30    # how far back the plan lists what's been told
+RECENT_DAYS = 30    # how far back the plan lists a news item told: it's stale by then, so no one picks it again
+LASTING_DAYS = 180  # and an item of a lasting format (any not researched as news): it stays true, so it came round
+                    # again within weeks once the thirty days had passed (2026-11-22)
+CHECKED_DAYS = 365  # how far back the web app's writers' room checks a story against what's been told, in code, at
+                    # no cost to the prompt (told_checked)
 SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 NO_TOPIC = "-"      # a told item tied to no topic (a puzzle, a callback from the log)
 RESEARCH = ("news", "evergreen", "either", "none")
@@ -311,9 +315,10 @@ def plan_facts(minutes: int, today: datetime.date, r: Recipe = None, profile=Non
     (whether the session carries one thread), in_work (pieces told during steady timed work), story_share (of the
     spoken words, told as stories), mix [rules]; venues [{name, note}] (whose
     upcoming shows they want to hear about); due [{topic, note, last_told (a date or null), spare}]; formats
-    [{id, name, group, what, words, research, across, fits, tell, ends, avoid}] and skipped [ids]; recent_days and told_recent
-    [{date, topic, format, title}]; reserve [{slug, title, topic, format, source, good_until, path}]; restock
-    [{topic, note, more}]; threads [{id, date, topic, kind, what}] (left open by earlier sessions); unreadable
+    [{id, name, group, what, words, research, across, fits, tell, ends, avoid}] and skipped [ids]; recent_days,
+    lasting_days and told_recent [{date, topic, format, title}] (news told in the first, the rest in the second);
+    told_checked [titles told in the last CHECKED_DAYS]; reserve [{slug, title, topic, format, source, good_until,
+    path}]; restock [{topic, note, more}]; threads [{id, date, topic, kind, what}] (left open by earlier sessions); unreadable
     [{slug, good_until, path}] (stock left out until its Good until line is a date or evergreen)."""
     r = r or recipe()
     items = told() if items is None else items
@@ -324,6 +329,12 @@ def plan_facts(minutes: int, today: datetime.date, r: Recipe = None, profile=Non
     b = band(r, minutes)
     skip = skipped(r, profile)
     since = (today - datetime.timedelta(days=RECENT_DAYS)).isoformat()
+    lasting = (today - datetime.timedelta(days=LASTING_DAYS)).isoformat()
+    checked = (today - datetime.timedelta(days=CHECKED_DAYS)).isoformat()
+    news = {f.id for f in r.formats.values() if f.research == "news"}
+
+    def listed(i: dict) -> bool:
+        return i["date"] >= since or (i["date"] >= lasting and item_format(i) not in news)
     picked = due(tops, items, b.topics + b.spares, lr.strength, today)
     return {
         "minutes": minutes, "topics": b.topics, "spares": b.spares, "serial": b.serial, "in_work": b.in_work,
@@ -336,9 +347,10 @@ def plan_facts(minutes: int, today: datetime.date, r: Recipe = None, profile=Non
                 for i, (t, d) in enumerate(picked)],
         "formats": [dict(f._asdict(), fits=list(f.fits)) for f in r.formats.values() if f.id not in skip],
         "skipped": skip,
-        "recent_days": RECENT_DAYS,
+        "recent_days": RECENT_DAYS, "lasting_days": LASTING_DAYS,
         "told_recent": [{"date": i["date"], "topic": item_topic(i) or None, "format": item_format(i) or None,
-                         "title": i["title"]} for i in items if i["date"] >= since],
+                         "title": i["title"]} for i in items if listed(i)],
+        "told_checked": list(dict.fromkeys(i["title"] for i in items if i["date"] >= checked)),
         "reserve": [{"slug": p.slug, "title": p.title, "topic": p.topic, "format": p.format, "source": p.source,
                      "good_until": p.good_until, "path": paths.show(p.path)} for p in pieces],
         "restock": [{"topic": t.name, "note": t.note or None, "more": k} for t, k in restock(r, tops, items, pieces)],
@@ -413,7 +425,8 @@ def plan(minutes: int, today: datetime.date, r: Recipe = None, profile=None, ite
     if today_told:
         out += ["", "## Already told today, in an earlier session (never again today, not even reworded)"]
         out += [f"- {i['topic'] or '?'} / {i['format'] or '?'}: {i['title']}" for i in today_told]
-    out += ["", f"## Told in the last {RECENT_DAYS} days (don't tell again; a follow-up needs something new)"]
+    out += ["", f"## Told before: news in the last {RECENT_DAYS} days, the lasting formats in the last {LASTING_DAYS} "
+                "(don't tell again; a follow-up needs something new)"]
     out += [f"- {i['date']} {i['topic'] or '?'} / {i['format'] or '?'}: {i['title']}" for i in f["told_recent"]] \
         or ["- nothing yet"]
     out += ["", "## Stock (unused pieces, still current, ready to tell)"]
@@ -633,7 +646,7 @@ def main(argv=None):
     p.add_argument("--json", action="store_true",
                    help="the same plan as one JSON object: minutes, topics, spares, serial, in_work, mix, venues (name, note, learned), taste (name, note, parent), due (topic, note, "
                         "last_told, spare), formats (id, name, group, what, words, research, across, fits, tell, ends, avoid), skipped, "
-                        "recent_days, told_recent, reserve, restock, threads (id, date, topic, kind, what), "
+                        "recent_days, lasting_days, told_recent, told_checked (titles told in the last year), reserve, restock, threads (id, date, topic, kind, what), "
                         "unreadable (slug, good_until, path)")
     lg = sub.add_parser("log", help="record the items a session told")
     lg.add_argument("--date", required=True, help="the session's date, YYYY-MM-DD")

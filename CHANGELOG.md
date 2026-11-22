@@ -2,6 +2,15 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.91.0] - 2026-11-22
+
+### Changed
+- **A lasting story is kept from coming round again for six months, not thirty days** (`content plan`): news (quick hits, roundups, big stories, what's on, on this day) is still listed for thirty days, since it's stale after that, but every other format (an explainer, a quiz, a profile, a number, a research summary) is listed for 180. Those stay true, so a researcher found them again within weeks once the thirty days had passed. The plan's heading is now "Told before: news in the last 30 days, the lasting formats in the last 180".
+- **The web app checks each researched story against a full year of what's been told** (`writers.checked_titles`): the check runs in code, after the researcher writes, so the year costs nothing in the prompt. `content plan --json` has two new keys for it: `lasting_days` and `told_checked` (every title told in the last 365 days).
+
+### For forks
+- Nothing to migrate. A fork that reads the plan's "Told in the last 30 days" heading by its words should read "Told before" instead; `told_recent` in `--json` keeps its shape and now holds the longer list.
+
 ## [0.90.3] - 2026-11-22
 
 ### Fixed

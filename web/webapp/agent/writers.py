@@ -9,6 +9,7 @@ the build's check, safety first and the host's voice left alone. Each reads only
 must hold (the clock, the silences, what was told, where each story goes)."""
 import asyncio
 import functools
+import json
 import os
 import re
 import time
@@ -268,8 +269,19 @@ def _section(sheet: str, start: str) -> str:
 
 
 def told_titles(plan: str) -> list[str]:
-    """The titles the content plan lists as told today and in the last thirty days."""
+    """The titles the content plan lists as told (news in the last thirty days, the rest in the last six months)."""
     return list(dict.fromkeys(m.group(1).strip() for m in TOLD.finditer(plan)))
+
+
+def checked_titles(plain, minutes: int) -> list[str]:
+    """The titles a story is checked against in code (retold): every one told in the last year (content plan's
+    told_checked), far more than the plan lists for the researcher to read; none when that can't be read."""
+    r = tools.run(plain, ["content", "plan", "--minutes", str(minutes), "--json"])
+    try:
+        got = json.loads(r.output)["told_checked"] if r.code == 0 else []
+    except (ValueError, KeyError, TypeError):
+        got = []
+    return [t for t in got if isinstance(t, str)] if isinstance(got, list) else []
 
 
 STOP = set("the a an and of to in on for with at from by is was are be its it this that their his her new how what "
@@ -536,9 +548,10 @@ async def stories(deps, model, usage, draft: str, minutes: int, search=()) -> li
     full, _ = tools._mine(deps, draft)
     brief = _read(full[:-len(".draft.txt")] + ".brief.md") if full else ""
     plain = replace(deps, say=None)
-    plan, feeds = await asyncio.gather(
+    plan, feeds, checked = await asyncio.gather(
         asyncio.to_thread(tools.run, plain, ["content", "plan", "--minutes", str(minutes)]),
-        asyncio.to_thread(tools.run, plain, ["feeds"]))
+        asyncio.to_thread(tools.run, plain, ["feeds"]),
+        asyncio.to_thread(checked_titles, plain, minutes))
     research = _home_text(deps, f"workouts/research/daily/{deps.today}.md")
     count = pieces_for(minutes)
     plan_text = re.sub(r"\n## Restock.*", "", plan.output, flags=re.DOTALL).strip()
@@ -556,7 +569,7 @@ async def stories(deps, model, usage, draft: str, minutes: int, search=()) -> li
     told = await _ask(deps, "research", RESEARCHER, model, prompt, usage, LEVEL["research"], capabilities=search)
     deps.research_history = told.all_messages()   # what a top-up goes on from, once the skeleton's places are known
     found = {s.number: s for s in told.output.stories}
-    titles = told_titles(plan.output)
+    titles = list(dict.fromkeys([*told_titles(plan.output), *checked]))   # today's and the last year's
     repeats = {n: t for n, s in found.items() if (t := retold(s, titles))}
     kept = without_retold(found, repeats, count)
     if kept is not None:
@@ -696,9 +709,9 @@ async def write(deps, model, usage, path: str, search=(), name: str | None = Non
                         "research failed: every place gets coaching only")
                 return []
         if len(got) < len(rests):
-            plan = await asyncio.to_thread(tools.run, plain, ["content", "plan", "--minutes",
-                                                              str(max(1, round(sum(s for _, _, s, _ in segs) / 60)))])
-            got = await top_up(deps, model, usage, got, len(rests), told_titles(plan.output), search)
+            titles = await asyncio.to_thread(checked_titles, plain,
+                                             max(1, round(sum(s for _, _, s, _ in segs) / 60)))
+            got = await top_up(deps, model, usage, got, len(rests), titles, search)
         return got
 
     # the researcher's notes and the trainer's side by side, each from its own material
