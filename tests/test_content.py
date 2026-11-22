@@ -85,8 +85,8 @@ class Record(unittest.TestCase):
         self.assertEqual(content.parse_item("Anything | quiz | Q", "2026-10-23", content.recipe(), profile())["topic"],
                          "Anything")   # with no topics at all, any topic is taken
         r = content.recipe()
-        for bad in ("Kraken | quiz", "Kraken |  | t", "a | quiz | c | d | e | f", "x | history | t",
-                    "Kraken | quiz | t | | Bad Slug"):
+        for bad in ("Kraken | quiz", "Kraken |  | t", "a | quiz | c | d | e | f | g", "x | history | t",
+                    "Kraken | quiz | t | | Bad Slug", "Kraken | quiz | t | | | Key Words"):
             with self.assertRaises(ValueError, msg=bad):
                 content.parse_item(bad, "2026-10-23", r)
         write(os.path.join(self.reserve, "grid-plan.md"), "# Grid\n- Topic: History\n- Format: explainer\n")

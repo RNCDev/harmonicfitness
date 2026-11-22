@@ -2,6 +2,18 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.91.1] - 2026-11-22
+
+### Changed
+- **The web app catches a story retold in other words** (`writers.retold`): each story the writers tell is now logged with its key words (the names, numbers and content words that stay when it's reworded), and each new story the researcher brings is matched against a year of them, the rarer words counting more, besides the title check as before. On the 2026-11-22 sessions it caught 13 of the 16 stories retold under new titles (Voyager, Toy Story, the MIT ultrasound patch, the NBER persistence paper and others), and of the 20 new stories flagged only a rye debate told after a rye review. Items logged before this have no key words and are matched by their titles alone.
+- **`content log` takes an item's key words** as a sixth field: `"topic | format | title | source | stock slug | key words"` (lowercase, by spaces, at most 80), kept as `keys` in told.jsonl. `content plan --json`'s `told_checked` is now `[{title, keys}]`, not titles alone.
+
+### Fixed
+- A `|` in a researched story's title or source no longer breaks the site's log line for it: it's written as `/`.
+
+### For forks
+- Nothing to migrate. A tool that read 0.91.0's `told_checked` as a list of titles reads each item's `title`.
+
 ## [0.91.0] - 2026-11-22
 
 ### Changed

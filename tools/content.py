@@ -53,6 +53,8 @@ LASTING_DAYS = 180  # and an item of a lasting format (any not researched as new
 CHECKED_DAYS = 365  # how far back the web app's writers' room checks a story against what's been told, in code, at
                     # no cost to the prompt (told_checked)
 SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
+KEY_RE = re.compile(r"^[a-z0-9][a-z0-9'-]*$")   # one of an item's key words: what the story said, for the repeat check
+MAX_KEYS = 80
 NO_TOPIC = "-"      # a told item tied to no topic (a puzzle, a callback from the log)
 RESEARCH = ("news", "evergreen", "either", "none")
 FITS = ("steady", "rest", "close")   # where a format lands: during steady work, in a rest, at the close
@@ -317,9 +319,9 @@ def plan_facts(minutes: int, today: datetime.date, r: Recipe = None, profile=Non
     upcoming shows they want to hear about); due [{topic, note, last_told (a date or null), spare}]; formats
     [{id, name, group, what, words, research, across, fits, tell, ends, avoid}] and skipped [ids]; recent_days,
     lasting_days and told_recent [{date, topic, format, title}] (news told in the first, the rest in the second);
-    told_checked [titles told in the last CHECKED_DAYS]; reserve [{slug, title, topic, format, source, good_until,
-    path}]; restock [{topic, note, more}]; threads [{id, date, topic, kind, what}] (left open by earlier sessions); unreadable
-    [{slug, good_until, path}] (stock left out until its Good until line is a date or evergreen)."""
+    told_checked [{title, keys}] (told in the last CHECKED_DAYS); reserve [{slug, title, topic, format, source,
+    good_until, path}]; restock [{topic, note, more}]; threads [{id, date, topic, kind, what}] (left open by
+    earlier sessions); unreadable [{slug, good_until, path}] (stock left out until its Good until line is a date or evergreen)."""
     r = r or recipe()
     items = told() if items is None else items
     pieces = reserve(items=items, today=today) if pieces is None else [p for p in pieces if current(p, today)]
@@ -350,7 +352,8 @@ def plan_facts(minutes: int, today: datetime.date, r: Recipe = None, profile=Non
         "recent_days": RECENT_DAYS, "lasting_days": LASTING_DAYS,
         "told_recent": [{"date": i["date"], "topic": item_topic(i) or None, "format": item_format(i) or None,
                          "title": i["title"]} for i in items if listed(i)],
-        "told_checked": list(dict.fromkeys(i["title"] for i in items if i["date"] >= checked)),
+        "told_checked": [{"title": i["title"], "keys": _keys(i)}
+                         for i in items if i["date"] >= checked],
         "reserve": [{"slug": p.slug, "title": p.title, "topic": p.topic, "format": p.format, "source": p.source,
                      "good_until": p.good_until, "path": paths.show(p.path)} for p in pieces],
         "restock": [{"topic": t.name, "note": t.note or None, "more": k} for t, k in restock(r, tops, items, pieces)],
@@ -358,6 +361,12 @@ def plan_facts(minutes: int, today: datetime.date, r: Recipe = None, profile=Non
         "unreadable": [{"slug": p.slug, "good_until": p.bad_until, "path": paths.show(p.path)}
                        for p in unreadable(items=items)],
     }
+
+
+def _keys(item: dict) -> list:
+    """A told item's key words, or none (an item from before 0.91.1, or a line written by hand)."""
+    keys = item.get("keys")
+    return [k for k in keys if isinstance(k, str)] if isinstance(keys, list) else []
 
 
 FITS_SAYS = {"steady": "in steady work", "rest": "in a rest", "close": "at the close"}
@@ -446,13 +455,15 @@ def plan(minutes: int, today: datetime.date, r: Recipe = None, profile=None, ite
 
 
 def parse_item(text: str, date: str, r: Recipe, profile=None) -> dict:
-    """"topic | format | title [| source [| stock slug]]" as a record item; ValueError says what's wrong.
+    """"topic | format | title [| source [| stock slug [| key words]]]" as a record item; ValueError says what's
+    wrong. The key words (lowercase, by spaces) are what the story said, which the web app's repeat check matches a
+    reworded retelling by.
     The topic must be one of the listener's (any case), or - for an item tied to none, or the rotation would
     never see it told; the format, one of knowledge/content.toml's (its id or name)."""
     parts = [p.strip() for p in text.split("|")]
     if len(parts) < 3 or not all(parts[:3]):
-        raise ValueError(f"'{text}': expected 'topic | format | title [| source [| stock slug]]'")
-    if len(parts) > 5:
+        raise ValueError(f"'{text}': expected 'topic | format | title [| source [| stock slug [| key words]]]'")
+    if len(parts) > 6:
         raise ValueError(f"'{text}': too many fields (a title can't hold a |)")
     topic, fmt, title = parts[:3]
     fid = format_id(r, fmt)
@@ -471,6 +482,11 @@ def parse_item(text: str, date: str, r: Recipe, profile=None) -> dict:
         if not SLUG_RE.match(parts[4]):
             raise ValueError(f"'{text}': stock slug '{parts[4]}' should be lowercase words and dashes")
         item["reserve"] = parts[4]
+    if len(parts) > 5 and parts[5]:
+        keys = list(dict.fromkeys(parts[5].split()))
+        if len(keys) > MAX_KEYS or not all(KEY_RE.match(k) for k in keys):
+            raise ValueError(f"'{text}': key words should be at most {MAX_KEYS} lowercase words, by spaces")
+        item["keys"] = keys
     return item
 
 
@@ -646,12 +662,12 @@ def main(argv=None):
     p.add_argument("--json", action="store_true",
                    help="the same plan as one JSON object: minutes, topics, spares, serial, in_work, mix, venues (name, note, learned), taste (name, note, parent), due (topic, note, "
                         "last_told, spare), formats (id, name, group, what, words, research, across, fits, tell, ends, avoid), skipped, "
-                        "recent_days, lasting_days, told_recent, told_checked (titles told in the last year), reserve, restock, threads (id, date, topic, kind, what), "
+                        "recent_days, lasting_days, told_recent, told_checked (title, keys: told in the last year), reserve, restock, threads (id, date, topic, kind, what), "
                         "unreadable (slug, good_until, path)")
     lg = sub.add_parser("log", help="record the items a session told")
     lg.add_argument("--date", required=True, help="the session's date, YYYY-MM-DD")
     lg.add_argument("--item", action="append", required=True,
-                    help='"topic | format | title [| source [| stock slug]]", once per item; topic - for none')
+                    help='"topic | format | title [| source [| stock slug [| key words]]]", once per item; topic - for none')
     lg.add_argument("--draft", help="the session's draft: ties the items to its build, so deleting the workout "
                                     "takes them back")
     th = sub.add_parser("thread", help="open or close a thread a later session picks up")

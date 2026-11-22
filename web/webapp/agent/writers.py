@@ -10,6 +10,7 @@ must hold (the clock, the silences, what was told, where each story goes)."""
 import asyncio
 import functools
 import json
+import math
 import os
 import re
 import time
@@ -273,31 +274,88 @@ def told_titles(plan: str) -> list[str]:
     return list(dict.fromkeys(m.group(1).strip() for m in TOLD.finditer(plan)))
 
 
-def checked_titles(plain, minutes: int) -> list[str]:
-    """The titles a story is checked against in code (retold): every one told in the last year (content plan's
-    told_checked), far more than the plan lists for the researcher to read; none when that can't be read."""
+def checked_told(plain, minutes: int) -> list[dict]:
+    """What a story is checked against in code (retold): every item told in the last year, each {title, keys}
+    (content plan's told_checked), far more than the plan lists for the researcher to read; none when that can't
+    be read."""
     r = tools.run(plain, ["content", "plan", "--minutes", str(minutes), "--json"])
     try:
         got = json.loads(r.output)["told_checked"] if r.code == 0 else []
     except (ValueError, KeyError, TypeError):
         got = []
-    return [t for t in got if isinstance(t, str)] if isinstance(got, list) else []
+    if not isinstance(got, list):
+        return []
+    return [{"title": t["title"], "keys": [k for k in t.get("keys") or [] if isinstance(k, str)]}
+            for t in got if isinstance(t, dict) and isinstance(t.get("title"), str)]
 
 
 STOP = set("the a an and of to in on for with at from by is was are be its it this that their his her new how what "
            "after into over just more than about".split())
+# and, for a story's key words, the talk around the facts, which every story shares
+FILLER = STOP | set("here quick back speaking while there they them then when which where would could should still also "
+                    "like your you've you're only even very much some other first last next these those week today "
+                    "yesterday tonight tomorrow night morning year years under each every around ever been being have "
+                    "having were will really right story stories".split())
+MAX_KEYS = 80   # content log's cap on an item's key words
+SAME = 0.25     # how alike two stories' weighted key words must be (their cosine) to count as the same story: on
+                # the 2026-11-22 sessions it caught 13 of 16 retellings, and of the 20 new stories only a rye debate
+                # after a rye review
+SHARED = 3      # and the fewest key words they must share
 
 
 def _key(text: str) -> set[str]:
     return {w for w in re.findall(r"[a-z0-9']+", text.lower()) if len(w) > 3 and w not in STOP}
 
 
-def retold(story: Told, titles: list[str]) -> str | None:
-    """The told title a story repeats (most of its words in the story's title and opening), or None."""
-    mine = _key(story.title + " " + " ".join(story.text.split()[:40]))
-    for title in titles:
+def story_keys(title: str, text: str) -> list[str]:
+    """A story's key words, in the order said: the names, numbers and content words that stay when it's
+    reworded (a plural taken back to its singular), for content log and the repeat check."""
+    out = []
+    for w in re.findall(r"[a-z0-9][a-z0-9']*", f"{title} {text}".lower()):
+        w = w[:-2] if w.endswith("'s") else w.strip("'")
+        if w in FILLER or (len(w) <= 3 and not (w.isdigit() and len(w) >= 2)):
+            continue
+        if len(w) > 4 and w.endswith("s") and not w.endswith("ss"):
+            w = w[:-1]
+        out.append(w)
+    return list(dict.fromkeys(out))[:MAX_KEYS]
+
+
+class ToldIndex:
+    """What's been told, for retold: each item's title, and its key words weighted by how rare they are among
+    the items told (a word every Sixers story says counts for little)."""
+
+    def __init__(self, told: list):
+        self.items = [(t["title"], set(t.get("keys") or ())) if isinstance(t, dict) else (t, set()) for t in told]
+        keyed = [k for _, k in self.items if k]
+        df: dict[str, int] = {}
+        for k in keyed:
+            for w in k:
+                df[w] = df.get(w, 0) + 1
+        self.df, self.n = df, len(keyed)
+
+    def weight(self, w: str) -> float:
+        return math.log((self.n + 1) / (self.df.get(w, 0) + 1)) + 0.1
+
+    def same(self, mine: set, theirs: set) -> bool:
+        shared = mine & theirs
+        if len(shared) < SHARED:
+            return False
+        both = math.sqrt(sum(map(self.weight, mine)) * sum(map(self.weight, theirs)))
+        return bool(both) and sum(map(self.weight, shared)) / both >= SAME
+
+
+def retold(story, told) -> str | None:
+    """The told title a story repeats, or None: most of a told title's words in the story's title and opening, or,
+    for an item logged with its key words, enough of them that it's the same story reworded."""
+    index = told if isinstance(told, ToldIndex) else ToldIndex(told)
+    opening = _key(story.title + " " + " ".join(story.text.split()[:40]))
+    mine = set(story_keys(story.title, story.text))
+    for title, keys in index.items:
         key = _key(title)
-        if key and len(key & mine) >= max(2, 0.6 * len(key)):
+        if key and len(key & opening) >= max(2, 0.6 * len(key)):
+            return title
+        if keys and index.same(mine, keys):
             return title
     return None
 
@@ -551,7 +609,7 @@ async def stories(deps, model, usage, draft: str, minutes: int, search=()) -> li
     plan, feeds, checked = await asyncio.gather(
         asyncio.to_thread(tools.run, plain, ["content", "plan", "--minutes", str(minutes)]),
         asyncio.to_thread(tools.run, plain, ["feeds"]),
-        asyncio.to_thread(checked_titles, plain, minutes))
+        asyncio.to_thread(checked_told, plain, minutes))
     research = _home_text(deps, f"workouts/research/daily/{deps.today}.md")
     count = pieces_for(minutes)
     plan_text = re.sub(r"\n## Restock.*", "", plan.output, flags=re.DOTALL).strip()
@@ -569,7 +627,7 @@ async def stories(deps, model, usage, draft: str, minutes: int, search=()) -> li
     told = await _ask(deps, "research", RESEARCHER, model, prompt, usage, LEVEL["research"], capabilities=search)
     deps.research_history = told.all_messages()   # what a top-up goes on from, once the skeleton's places are known
     found = {s.number: s for s in told.output.stories}
-    titles = list(dict.fromkeys([*told_titles(plan.output), *checked]))   # today's and the last year's
+    titles = ToldIndex([*told_titles(plan.output), *checked])   # what the plan lists, and the last year's
     repeats = {n: t for n, s in found.items() if (t := retold(s, titles))}
     kept = without_retold(found, repeats, count)
     if kept is not None:
@@ -586,7 +644,7 @@ async def stories(deps, model, usage, draft: str, minutes: int, search=()) -> li
     return [found[n] for n in sorted(found)]
 
 
-async def top_up(deps, model, usage, got: list, places: int, titles: list[str], search=()) -> list:
+async def top_up(deps, model, usage, got: list, places: int, titles, search=()) -> list:
     """More pieces when the skeleton has more places than the researcher wrote for (it wrote before the skeleton
     existed): the researcher goes on from its own run, while the trainer works. A place left without one gets
     coaching only, and the host is told so: a rest whose label named a topic got a story made up from the label
@@ -709,9 +767,8 @@ async def write(deps, model, usage, path: str, search=(), name: str | None = Non
                         "research failed: every place gets coaching only")
                 return []
         if len(got) < len(rests):
-            titles = await asyncio.to_thread(checked_titles, plain,
-                                             max(1, round(sum(s for _, _, s, _ in segs) / 60)))
-            got = await top_up(deps, model, usage, got, len(rests), titles, search)
+            known = await asyncio.to_thread(checked_told, plain, max(1, round(sum(s for _, _, s, _ in segs) / 60)))
+            got = await top_up(deps, model, usage, got, len(rests), ToldIndex(known), search)
         return got
 
     # the researcher's notes and the trainer's side by side, each from its own material
@@ -762,8 +819,10 @@ async def write(deps, model, usage, path: str, search=(), name: str | None = Non
     draft = _read(full) if name and coach else draft   # as the last check read it
 
     # what was told, for content log: the site logs it itself once the recording is made (agent.log_after)
-    deps.told = {"draft": path, "items": [f"{s.topic} | {s.format} | {s.title} | {s.source}"
-                                          for _, s in sorted(placed.items())]}
+    # with its key words, which a reworded retelling is caught by later (an empty stock slug before them)
+    deps.told = {"draft": path, "items": [
+        " | ".join(f.replace("|", "/") for f in (s.topic, s.format, s.title, s.source)) + " | | "
+        + " ".join(story_keys(s.title, s.text)) for _, s in sorted(placed.items())]}
     note = (f"The writers' room wrote the words: the host told {len(placed)} stories in {len(rests)} places and wrote "
             f"{len(spoken)} of {len(segs)} segments from the trainer's notes, and the trainer's review changed "
             f"{len(changed)}. " + ("The site logs the stories told itself once the recording is made: no "
