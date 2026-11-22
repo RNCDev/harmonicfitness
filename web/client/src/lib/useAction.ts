@@ -1,6 +1,6 @@
 // A button's call to the server: busy while it runs, its error in words, and nothing to do for a lost session
 // (api.ts sends the page to sign-in itself).
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, NotSignedIn, plainError } from "./api";
 import { SAID } from "./messages";
 
@@ -8,7 +8,9 @@ import { SAID } from "./messages";
 export class Quiet extends Error {}
 
 /** `run` calls `work`, resolving true when it went through. `hold` keeps the button busy after success, for an
- * action whose screen goes away on its own (a recording starting). `field` is the form box a refusal is about,
+ * action whose screen goes away on its own (a recording starting, a checkout page opening); a page the browser
+ * brings back from its memory with Back (the back-forward cache, `pageshow` with `persisted`) gets the button back,
+ * since what it was waiting on never comes. `field` is the form box a refusal is about,
  * when the server named one: the form says the error under that box instead of above the button. */
 export function useAction<A extends unknown[]>(work: (...a: A) => Promise<unknown>,
   { fallback = SAID.unreachable, hold = false }: { fallback?: string; hold?: boolean } = {}) {
@@ -17,6 +19,12 @@ export function useAction<A extends unknown[]>(work: (...a: A) => Promise<unknow
   const [field, setField] = useState<string | null>(null);
   const latest = useRef(work);
   latest.current = work;
+  useEffect(() => {
+    if (!hold) return;
+    const back = (e: PageTransitionEvent) => { if (e.persisted) setBusy(false); };
+    window.addEventListener("pageshow", back);
+    return () => window.removeEventListener("pageshow", back);
+  }, [hold]);
   const run = useCallback(async (...a: A): Promise<boolean> => {
     setBusy(true);
     setError(null);

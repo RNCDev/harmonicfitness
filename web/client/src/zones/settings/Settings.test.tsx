@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { api, ApiError, type LevelState, type MinutesState } from "../../lib/api";
 import { SiteContext } from "../../lib/site";
 import { Settings } from "./Settings";
@@ -36,6 +36,11 @@ describe("Settings, with minutes", () => {
     expect(screen.queryByLabelText(/password/i)).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Buy for $5" }));
     expect(checkout).toHaveBeenCalledWith("hf_minutes_60");
+    // Back from the checkout page: the browser restores this page as it was, and the button is usable again
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Buy for $5" })).toBeNull());
+    const shown = Object.assign(new Event("pageshow"), { persisted: true });
+    act(() => { window.dispatchEvent(shown); });
+    expect(screen.getByRole("button", { name: "Buy for $5" })).toBeEnabled();
   });
 });
 

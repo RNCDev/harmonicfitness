@@ -2,6 +2,14 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.90.1] - 2026-11-22
+
+### Fixed
+- **Back from Stripe's checkout page gives the Buy button back** (`lib/useAction.ts`): the browser restored the page from its memory with the button still saying "Opening…", and nothing could press it. A button held busy for a page that goes away on its own is now released when the browser brings the page back.
+
+### For forks
+- Nothing to migrate.
+
 ## [0.90.0] - 2026-11-22
 
 Shorter rests, set by research. A 30-minute timed session had rested about nine minutes for thirteen and a half of work, thirty seconds after every station; now a loop of stations only switches between them, and rests after the whole loop.
