@@ -2,14 +2,16 @@
 a voice designed from a description: OpenRouter can't design or save a voice, and can't reach a voice saved
 in someone's own ElevenLabs or Fish account.
 
-Speech: POST /api/v1/audio/speech {model, input, voice, response_format: "mp3"}, Bearer key; the answer is
-the audio itself (an error is JSON under `error`). MP3 is asked for because OpenRouter doesn't say each
-model's PCM rate; cloud.audio_pcm reads it through ffmpeg.
+Speech: POST /api/v1/audio/speech {model, input, voice, response_format}, Bearer key; the answer is
+the audio itself (an error is JSON under `error`). MP3 is asked for where a model sends it, because OpenRouter
+doesn't say those models' PCM rate (cloud.audio_pcm reads it through ffmpeg); Google's Gemini models send only
+raw PCM, whose rate the reply's Content-Type names (audio/pcm;rate=24000;channels=1).
 Voices: ElevenLabs' stock voices (elevenlabs/eleven-v4-turbo, the default since 0.46.2 at half the price, and
-eleven-v4) and Microsoft's English MAI-Voice
-voices (microsoft/mai-voice-2.1), from OpenRouter's model list on 2026-10-31. A coach's voice ID is the
-voice's name; voice_model() names the model that speaks it, so an MAI voice is billed and keyed as MAI, and a
-coach naming a model that can't speak its voice is refused.
+eleven-v4), Microsoft's English MAI-Voice voices (microsoft/mai-voice-2.1), from OpenRouter's model list on
+2026-10-31, and Google's Gemini voices (google/gemini-3.8-flash-lite-tts, 2026-11-21: the hosted site's, about
+$14 a million characters as billed, since Gemini is billed by the audio it makes). A coach's voice ID is the
+voice's name; voice_model() names the model that speaks it, so an MAI or Gemini voice is billed and keyed as
+its own model, and a coach naming a model that can't speak its voice is refused.
 Design: no request at all. The description picks the closest stock voices (gender, accent, age, a few
 sound words), and each says the coaching line once: the audition is by ear, so the matching only steers.
 Save: nothing to save; the voice ID is the candidate's. Delete: nothing to delete.
@@ -26,6 +28,8 @@ SPEECH = "/api/v1/audio/speech"
 
 ELEVEN = ("elevenlabs/eleven-v4-turbo", "elevenlabs/eleven-v4")   # the first speaks a voice whose coach names no model
 MAI = ("microsoft/mai-voice-2.1",)
+GEMINI = ("google/gemini-3.8-flash-lite-tts",)
+PCM_ONLY = ("google/",)   # models whose speech comes only as raw PCM, its rate named in the Content-Type
 
 # name: (gender, accent, age, sound words), from each voice's listing; the audition settles it by ear.
 VOICES = {
@@ -46,8 +50,17 @@ VOICES = {
         ("Isla", "f", "au"), ("Emily", "f", "gb"), ("Harry", "m", "gb"), ("Dhruv", "m", "in"), ("Priya", "f", "in"),
         ("Ethan", "m", "us"), ("Grant", "m", "us"), ("Harper", "f", "us"), ("Iris", "f", "us"),
         ("Jasper", "m", "us"), ("Olivia", "f", "us"), ("Sage", "n", "us"))},
+    # Google's word for each voice; the gender is by ear (an American accent unless the text asks otherwise)
+    "gemini": {name: (g, "us", age, sound) for name, g, age, sound in (
+        ("Iapetus", "m", "middle", "clear"), ("Algenib", "m", "old", "gravelly"), ("Sadachbia", "m", "young", "lively"),
+        ("Umbriel", "m", "middle", "easygoing"), ("Orus", "m", "middle", "firm"), ("Schedar", "m", "middle", "even"),
+        ("Charon", "m", "middle", "informative"), ("Achird", "m", "middle", "friendly"), ("Puck", "m", "young", "upbeat"),
+        ("Sulafat", "f", "middle", "warm"), ("Laomedeia", "f", "young", "upbeat"), ("Gacrux", "f", "old", "mature"),
+        ("Erinome", "f", "middle", "clear"), ("Vindemiatrix", "f", "middle", "gentle"),
+        ("Pulcherrima", "m", "middle", "forward"), ("Kore", "f", "middle", "firm"), ("Aoede", "f", "young", "breezy"),
+        ("Autonoe", "f", "young", "bright"))},
 }
-FAMILY_MODELS = {"elevenlabs": ELEVEN, "mai": MAI}
+FAMILY_MODELS = {"elevenlabs": ELEVEN, "mai": MAI, "gemini": GEMINI}
 
 _WORDS = {
     "f": r"\b(woman|female|she|her|girl|lady)\b", "m": r"\b(man|male|he|his|guy)\b",
@@ -69,7 +82,7 @@ def voice_model(voice_id):
 
 
 # who makes each model's voices, for the web app's "OpenRouter, powered by ..."
-MAKERS = {"elevenlabs/": "ElevenLabs", "microsoft/": "Microsoft MAI"}
+MAKERS = {"elevenlabs/": "ElevenLabs", "microsoft/": "Microsoft MAI", "google/": "Google Gemini"}
 
 
 def powered_by(model):
@@ -109,24 +122,37 @@ def _score(description, facts):
 
 
 def match(description, n):
-    """The `n` stock voices closest to `description`, best first: ElevenLabs' then one MAI voice when n > 1."""
+    """The `n` stock voices closest to `description`, best first: ElevenLabs' then one Gemini voice when n > 1
+    (the cheapest that sounds as good; an MAI voice is chosen only by naming it)."""
     def ranked(family):
         names = list(VOICES[family])
         return sorted(names, key=lambda v: -_score(description, VOICES[family][v]))   # stable: listing order on ties
     n = max(1, int(n))
-    eleven, mai = ranked("elevenlabs"), ranked("mai")
-    return eleven[:n] if n == 1 else eleven[:n - 1] + mai[:1]
+    eleven, gemini = ranked("elevenlabs"), ranked("gemini")
+    return eleven[:n] if n == 1 else eleven[:n - 1] + gemini[:1]
 
 
 def _headers():
     return {"Authorization": f"Bearer {cloud.key_or_stop(SERVICE)}", "Content-Type": "application/json"}
 
 
+def _rate(headers):
+    """The sample rate a raw PCM reply names in its Content-Type (";rate=24000"), else the engine's own."""
+    for k, v in (headers or {}).items():
+        if k.lower() == "content-type":
+            m = re.search(r"rate=(\d+)", v or "")
+            if m and 8000 <= int(m.group(1)) <= 96000:
+                return int(m.group(1))
+    return cloud.SR
+
+
 def _speak(voice_id, model, text):
-    body = json.dumps({"model": model, "input": text, "voice": voice_id, "response_format": "mp3"}).encode()
+    fmt = "pcm" if str(model).startswith(PCM_ONLY) else "mp3"
+    body = json.dumps({"model": model, "input": text, "voice": voice_id, "response_format": fmt}).encode()
     _, headers, data = cloud.request("POST", cloud.base_url(SERVICE) + SPEECH, _headers(), body, timeout=120,
                                      service=SERVICE)
-    return cloud.trim(cloud.audio_pcm(data, service=SERVICE, expect="mp3", content_type=cloud.content_type(headers)))
+    return cloud.trim(cloud.audio_pcm(data, _rate(headers) if fmt == "pcm" else cloud.SR, service=SERVICE,
+                                      expect=fmt, content_type=cloud.content_type(headers)))
 
 
 def speaker(voice):

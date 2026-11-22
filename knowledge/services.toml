@@ -100,10 +100,12 @@ key_var = "OPENROUTER_API_KEY"
 key_page = "https://openrouter.ai/settings/keys"
 billing_page = "https://openrouter.ai/settings/credits"
 default_model = "elevenlabs/eleven-v4-turbo"
-models = { "elevenlabs/eleven-v4-turbo" = "ElevenLabs' stock voices, the default (about $0.80 a 20,000-character workout)", "elevenlabs/eleven-v4" = "the same voices, a little more natural, twice the price (about $1.60)", "microsoft/mai-voice-2.1" = "Microsoft's MAI-Voice (about $0.44)" }
+models = { "elevenlabs/eleven-v4-turbo" = "ElevenLabs' stock voices, the default (about $0.80 a 20,000-character workout)", "elevenlabs/eleven-v4" = "the same voices, a little more natural, twice the price (about $1.60)", "microsoft/mai-voice-2.1" = "Microsoft's MAI-Voice (about $0.44)", "google/gemini-3.8-flash-lite-tts" = "Google's Gemini voices (about $0.30)" }
 unit = "characters"
-# from OpenRouter's model list, checked 2026-10-31; credit bought there carries OpenRouter's own fee
-usd_per_million = { "elevenlabs/eleven-v4" = 80, "elevenlabs/eleven-v4-turbo" = 40, "microsoft/mai-voice-2.1" = 22 }
+# from OpenRouter's model list, checked 2026-10-31; credit bought there carries OpenRouter's own fee. Gemini is billed
+# by the audio it makes ($6 a million audio tokens): $14.42 a million characters as billed for a coaching line on
+# 2026-11-21, so 15 here
+usd_per_million = { "elevenlabs/eleven-v4" = 80, "elevenlabs/eleven-v4-turbo" = 40, "microsoft/mai-voice-2.1" = 22, "google/gemini-3.8-flash-lite-tts" = 15 }
 design_usd = 0.01            # no design: about a cent to speak the coaching line on each stock voice offered
 # 30 lines on eleven-v4-turbo, 2026-11-03: 13.7 s three at a time, 7.4 s at five, 5.0 s at eight, no 429 at any
 concurrency = 6

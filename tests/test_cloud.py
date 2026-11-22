@@ -417,6 +417,8 @@ def inworld_answer(req):
 
 def openrouter_answer(req):
     if req.path == "/api/v1/audio/speech":
+        if json.loads(req.body)["model"].startswith("google/"):   # Gemini sends only raw PCM, its rate in the type
+            return 200, {"Content-Type": "audio/pcm;rate=48000;channels=1"}, tone_pcm(0.6, rate=48000)
         return 200, {"Content-Type": "audio/wav"}, tone_wav(0.6)
     if req.path == "/api/v1/credits":
         return 200, {"Content-Type": "application/json"}, json.dumps(
@@ -646,6 +648,14 @@ class Services(unittest.TestCase):
             self.assertIn("microsoft/mai-voice-2.1", str(got.exception))
             self.assertEqual(m._model({"voice_id": "brian", "model": "elevenlabs/eleven-v4-turbo"}),
                              "elevenlabs/eleven-v4-turbo")
+            # a Gemini voice: asked for as raw PCM (all Gemini sends), read at the rate its reply names
+            web_coach(self.folder, "openrouter", name="Coach Gale", voice_id="Sulafat")
+            v = personas.voice_for(personas.lookup("Coach Gale"), "openrouter")
+            self.assertEqual(v["model"], "google/gemini-3.8-flash-lite-tts")
+            self.assertEqual(cloud.powered_by("openrouter", v["model"]), "Google Gemini")
+            pcm = cloud.speaker(v)("Rest.", 1)
+            self.assertEqual(json.loads(fake.requests[-1].body)["response_format"], "pcm")
+            self.assertAlmostEqual(len(pcm) / 2 / cloud.SR, 0.6, delta=0.1)   # 48 kHz read as 48 kHz, not 24
         table(self, [("fish", fish), ("elevenlabs", elevenlabs), ("gemini", gemini), ("inworld", inworld),
                      ("openrouter", openrouter)])
 
@@ -742,8 +752,8 @@ class Services(unittest.TestCase):
             three = m.match("A young Australian man, natural and confident", 3)
             self.assertEqual(three[0], "charlie")
             self.assertEqual(len(three), 3)
-            self.assertTrue(three[2].endswith(":MAI-Voice-2.1"))
-            self.assertEqual(m.VOICES["mai"][three[2]][0], "m")
+            self.assertIn(three[2], m.VOICES["gemini"])
+            self.assertEqual(m.VOICES["gemini"][three[2]][0], "m")
             cands = m.design("A man in his forties, warm baritone, American accent", "Set your feet.", 3, "label")
             self.assertEqual([c["draft_id"] for c in cands][:1], ["brian"])
             for c in cands:

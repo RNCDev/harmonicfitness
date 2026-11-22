@@ -1,0 +1,8 @@
+{
+ "3b788a302add|openrouter|google/gemini-3.8-flash-lite-tts": {
+  "name": "Coach Dev",
+  "weight": 400.5000000000001,
+  "seconds": 33.986,
+  "estimate": true
+ }
+}

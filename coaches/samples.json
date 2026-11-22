@@ -1,9 +1,17 @@
 {
  "url": "https://harmonicfitness-media.fly.storage.tigris.dev",
  "samples": {
+  "coach-ana-openrouter": {
+   "bytes": 569736,
+   "sha256": "a7bd6cbbde3720e13973d76b27c86006f2699d57e2d74f8f68743d853fcad17f"
+  },
   "coach-andy-local": {
    "bytes": 569738,
    "sha256": "0a83870e35e2eec97d2274cacdef6c5910c07285a14cfe8a0c6cb28a7ed1e2f4"
+  },
+  "coach-ben-openrouter": {
+   "bytes": 569736,
+   "sha256": "6625ed5039c38e3f460a73072bf9d85698e11e21dbbb6bbd3e5b40887015aba8"
   },
   "coach-callum-local": {
    "bytes": 569740,
@@ -12,6 +20,22 @@
   "coach-claire-local": {
    "bytes": 569740,
    "sha256": "269d1806bf86012c2ceb2ef964cbcd6dbc625466a35035c783fda42d5ee1bc12"
+  },
+  "coach-cole-openrouter": {
+   "bytes": 569737,
+   "sha256": "4594b370ba66ddde2cb1efb677dab04641d768d6e99753dca3f5477bb431b03c"
+  },
+  "coach-dev-openrouter": {
+   "bytes": 569736,
+   "sha256": "8874fd222a4c981e1f17d149761f541be8c52f9da4875a8b778afae5b451807b"
+  },
+  "coach-drew-openrouter": {
+   "bytes": 569737,
+   "sha256": "7a7662869ac334a8cd3533b6ed958cef8f4d4e86279eebd0b0148c2641935299"
+  },
+  "coach-elise-openrouter": {
+   "bytes": 569738,
+   "sha256": "68ac53bd7e584493afcb07b1d7f3283caa711c2741ad3ba019a06e3163b0c022"
   },
   "coach-fraser-gemini": {
    "bytes": 569740,
@@ -25,6 +49,10 @@
    "bytes": 569740,
    "sha256": "8215eea3ddfa9711d0862dfb0d6ef2d90a9b7323ee4532f25e4e7d06fe805013"
   },
+  "coach-hank-openrouter": {
+   "bytes": 569737,
+   "sha256": "b4aa8f26574538c72f89ff20a01272a531b70ec75e81d3f490ed41bc1bbf2421"
+  },
   "coach-helen-local": {
    "bytes": 569739,
    "sha256": "4b2bb953833ebcce41b37fe47f3577d9d066fe4512e0b75232972cc16c31e714"
@@ -36,6 +64,10 @@
   "coach-ivy-openrouter": {
    "bytes": 569736,
    "sha256": "e5bc5cd205dfa009d1bb7f57500abbae6fa390c0125f0138e1ef3b53ba3cc572"
+  },
+  "coach-jo-openrouter": {
+   "bytes": 569735,
+   "sha256": "913052660327592e2c9eaa4941b66d83c70981b2275c6f65e116033c1622dafc"
   },
   "coach-jonah-openrouter": {
    "bytes": 569739,
@@ -52,6 +84,10 @@
   "coach-leah-openrouter": {
    "bytes": 569738,
    "sha256": "3b5542d8d2e19fe42b46a2264b9b067e3e757fb2d5b7df40bd9aecc6596925cb"
+  },
+  "coach-lena-openrouter": {
+   "bytes": 569737,
+   "sha256": "f21a7781b83bae5a23e7aef79cb29cb5caab0de0c6ed9f8c9bf521bff0ee548b"
   },
   "coach-luke-openrouter": {
    "bytes": 569737,
@@ -77,6 +113,10 @@
    "bytes": 569738,
    "sha256": "ed88d6d27a4a477a6c91e2a8392d1ddb11d8e465d922537050b31398e8e43802"
   },
+  "coach-paul-openrouter": {
+   "bytes": 569737,
+   "sha256": "c652b2eb2c9ece1770d7329ec076273806bf050707aeecfc7626f2ffc1a53fcd"
+  },
   "coach-rosa-local": {
    "bytes": 569738,
    "sha256": "464504a7dd25033197a66cabb1e3b5d51d6635d4d906f6cf7ed07b397f3d5343"
@@ -88,6 +128,10 @@
   "coach-ruby-gemini": {
    "bytes": 569738,
    "sha256": "658773fc3e0da8039adabfcaa7ab2e4ae19991203a14bb5180367f05cbb2a88c"
+  },
+  "coach-ruth-openrouter": {
+   "bytes": 569737,
+   "sha256": "7823e8d0070ea384888ccb6e81924f5745ea18ffc5318d7d965f16a051c7f847"
   },
   "coach-sam-local": {
    "bytes": 569737,
@@ -112,6 +156,10 @@
   "coach-wade-gemini": {
    "bytes": 569738,
    "sha256": "370f65cb8adcd0b45ac87415d8bb1af6593249561b2b6e3cad97e8f904d1f8f3"
+  },
+  "coach-zoe-openrouter": {
+   "bytes": 569736,
+   "sha256": "378a71f79a8926846e2bb76b861242b99d4efb38c05450ce8281c0e5bd565bc5"
   }
  }
 }

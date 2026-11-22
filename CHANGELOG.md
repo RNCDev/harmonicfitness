@@ -2,6 +2,21 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.85.1] - 2026-11-21
+
+The hosted site's coaches are twelve new ones, six men and six women, on Google's Gemini voices through Gemini 3.8 Flash Lite TTS on OpenRouter. In auditions against Microsoft's MAI-Voice, HeyGen and Speechify on a rounds-and-countdown script, every model said every word, but only Gemini counted in real seconds (about one a second; the others ran a ten-second count in six to eight), and it costs less: about $14 a million characters as billed, against MAI-Voice's $22. Minute packs on the live site are sold through Stripe's live account.
+
+### Added
+- **Twelve ready-made coaches on OpenRouter's Gemini voices:** Ben, Cole, Dev, Drew, Hank and Paul; Ana, Elise, Jo, Lena, Ruth and Zoe (`coaches/roster.toml`), each with a 45-second sample on the media bucket and a pace estimate. They're the coaches of a site that sells minutes, and anyone's own OpenRouter key speaks them too.
+- **Gemini voices on OpenRouter** (`google/gemini-3.8-flash-lite-tts`, `tools/services/openrouter.py`): asked for as raw PCM, the only form Gemini sends there, and read at the rate the reply names. An OpenRouter audition now offers a Gemini voice as its third candidate, in place of an MAI one.
+
+### Changed
+- **The hosted site speaks with Gemini Flash Lite** (`hosted.VOICE_MODEL`). The six MAI-Voice coaches (Hugh, Ivy, Luke, Nell, Seth, Skye) stay for anyone's own key; on the hosted site a listener who had chosen one gets the first of the new twelve until they choose again.
+- **Stripe's setup gives each pack's product a tax code** (`stripe_setup.TAX_CODE`). Stripe's Managed Payments, on by default on a new account, refused a checkout page for a product without one, so the site said its checkout page wasn't answering.
+
+### For forks
+- Nothing to migrate. A fork running a hosted site can keep MAI-Voice by setting `hosted.VOICE_MODEL` back to `microsoft/mai-voice-2.1`. A fork with products already in Stripe should run `python -m webapp.stripe_setup` again, which gives each product its tax code.
+
 ## [0.85.0] - 2026-11-21
 
 The web app can be a site people sign up for and pay by the minute, with no keys of their own. Sign-in goes through Clerk, minutes are sold in packs through Stripe, and the site's own OpenRouter key writes each workout with Gemini and speaks it with six new coaches on Microsoft's MAI-Voice. Each part is switched on by its own settings; without them the web app runs on a listener's own keys as before, and nothing changes on a computer.

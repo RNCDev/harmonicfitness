@@ -581,7 +581,7 @@ def voice_model(service, voice_id):
 
 def powered_by(service, model):
     """Who makes the voices a service speaks with `model`, where the service is a go-between (its optional
-    powered_by(): OpenRouter's ElevenLabs or Microsoft MAI voices), else None."""
+    powered_by(): OpenRouter's ElevenLabs, Microsoft MAI or Google Gemini voices), else None."""
     hook = getattr(service_module(service), "powered_by", None)
     return hook(model) if hook else None
 

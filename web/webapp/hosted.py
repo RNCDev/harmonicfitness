@@ -5,7 +5,7 @@ would cost the site more than a minute sells for, so it never records here (agen
 
 SERVICE = "openrouter"             # the one provider that writes, and the one service that speaks
 KEY_VAR = "OPENROUTER_API_KEY"     # how the engine is handed the site's key (never a listener's)
-VOICE_MODEL = "microsoft/mai-voice-2.1"
+VOICE_MODEL = "google/gemini-3.8-flash-lite-tts"   # about 0.9 of a cent a minute spoken, as billed (0.85.1)
 CHARS_A_MINUTE = 650               # about what a minute of a workout speaks: a length, when no plan gives one
 
 # what a listener reads when the site's own account is what failed: nothing they can fix, so no key talk
