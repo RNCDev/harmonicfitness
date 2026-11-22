@@ -100,6 +100,17 @@ def purchase(conn, user_id, minutes: int, ref: str, note: str | None = None) -> 
     return minutes > 0 and _credit(conn, user_id, "purchase", minutes, ref, note)
 
 
+def sold(conn, user_id, p: Pack, ref: str) -> None:
+    """The sale behind a purchase, for the books: the pack and what was paid, once per ref (0.87.0)."""
+    conn.execute("insert into sales (ref, user_id, pack, minutes, cents) values (%s, %s, %s, %s, %s) "
+                 "on conflict (ref) do nothing", (ref, user_id, p.id, p.minutes, p.cents))
+
+
+def refunded(conn, ref: str) -> None:
+    """A sale refunded in full, for the books, once: its money is taken back whatever minutes were left to take."""
+    conn.execute("update sales set refunded_at = now() where ref = %s and refunded_at is null", (ref,))
+
+
 def refund(conn, user_id, ref: str) -> int:
     """Take back a refunded purchase's minutes, once, as far as the balance goes; the minutes taken."""
     conn.execute("select 1 from users where id = %s for update", (user_id,))

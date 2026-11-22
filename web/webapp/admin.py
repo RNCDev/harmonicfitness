@@ -1,4 +1,5 @@
-"""Maintainer commands: python -m webapp.admin reset-password <username>, and grant <username> <minutes>.
+"""Maintainer commands: python -m webapp.admin reset-password <username>, grant <username> <minutes>, and
+id <username>.
 
 reset-password, for someone who forgot their password: clears it and prints a one-time sign-in link (24 hours),
 and nothing else on stdout, so it can be piped. Opening the link signs them in, and the app asks
@@ -7,6 +8,8 @@ a database that lacks any.
 
 grant, on a site that runs on minutes: adds that many to the account (a gift, or a part refund settled by hand)
 and prints the new balance.
+
+id: the account's id, to name it in HARMONICFITNESS_ADMINS (who may open the admin screen).
 """
 import os
 import secrets
@@ -14,7 +17,7 @@ import sys
 
 from . import auth, config, db, minutes
 
-USAGE = "usage: python -m webapp.admin reset-password <username> | grant <username> <minutes>"
+USAGE = "usage: python -m webapp.admin reset-password <username> | grant <username> <minutes> | id <username>"
 GIFT = "Minutes added by the site"
 
 
@@ -30,7 +33,7 @@ def _grant(conn, name: str, count: int) -> int | None:
 def main(argv=None, env=None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
     grant = len(args) == 3 and args[0] == "grant" and args[2].isdigit() and 0 < int(args[2]) <= 10000
-    if not grant and (len(args) != 2 or args[0] != "reset-password"):
+    if not grant and (len(args) != 2 or args[0] not in ("reset-password", "id")):
         print(USAGE, file=sys.stderr)
         return 64
     try:
@@ -42,6 +45,14 @@ def main(argv=None, env=None) -> int:
                 print("the database needs migrations the web service applies at start; deploy first",
                       file=sys.stderr)
                 return 1
+            if args[0] == "id":
+                row = conn.execute("select id from users where username = %s", (name,)).fetchone()
+                conn.rollback()
+                if row is None:
+                    print("No user with that username.", file=sys.stderr)
+                    return 1
+                print(row[0])
+                return 0
             if grant:
                 now = _grant(conn, name, int(args[2]))
                 if now is None:

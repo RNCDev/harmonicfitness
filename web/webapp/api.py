@@ -326,7 +326,7 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
     # ---- the routes, in the order they're matched -------------------------------------------
 
     from . import billing, clerk
-    from .routes import account, auth as authroutes, billing as billingroutes, client, \
+    from .routes import account, admin as adminroutes, auth as authroutes, billing as billingroutes, client, \
         conversations as conversationroutes, files, jobs as jobroutes, logs, media as mediaroutes, \
         settings as settingroutes, state as routestate
     sends = lambda send: {"send": send} if send is not None else {}  # noqa: E731
@@ -357,6 +357,7 @@ def create_app(settings: config.Settings, connect: Callable[[], psycopg.Connecti
     app.include_router(mediaroutes.router)
     app.include_router(settingroutes.router)
     app.include_router(billingroutes.router)
+    app.include_router(adminroutes.router)
     app.include_router(jobroutes.router)
     app.include_router(conversationroutes.router)   # /api/conversations/latest before /api/conversations/{cid}
     app.include_router(client.router)   # its catch-all last

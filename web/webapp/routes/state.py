@@ -93,6 +93,22 @@ def session(request: Request) -> store.UserKey:
 
 
 User = Annotated[store.UserKey, Depends(session)]
+
+
+def is_admin(st: AppState, uk: store.UserKey) -> bool:
+    """Whether this account is one HARMONICFITNESS_ADMINS names, by its id (a username can be taken again)."""
+    return str(uk.user_id) in st.settings.admins
+
+
+def admin(request: Request) -> store.UserKey:
+    """A signed-in admin; anyone else is told there's nothing here (404), as if the page weren't there at all."""
+    uk = session(request)
+    if not is_admin(state(request), uk):
+        raise HTTPException(404, "not found")
+    return uk
+
+
+Admin = Annotated[store.UserKey, Depends(admin)]
 POST = {"dependencies": [Depends(same_origin)]}
 
 

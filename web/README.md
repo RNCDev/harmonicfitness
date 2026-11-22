@@ -28,6 +28,10 @@ It clears their password, signs out their devices and prints a one-time sign-in 
 
 Where sign-in goes through Clerk (below), the username and password routes are off and none of that applies: a forgotten password is Clerk's to reset.
 
+**The admin screen** (0.87.0; `webapp/books.py`, `webapp/fly.py`, `routes/admin.py`, `client/src/zones/Admin.tsx`, migration 026). The site's books for 7, 30 or 90 days or all time (`GET /api/admin/books?days=`): revenue from minute packs (`sales`, a row per paid pack at what was paid, kept when the account is deleted; a full refund takes its money back once), Stripe's fee (estimated at 2.9% + 30¢), what OpenRouter charged (`costs`, a row per turn's writing and per recording's voice, as OpenRouter reported it; `provider_spend`, OpenRouter's own daily count for the site's key, so spend no turn claimed shows), Fly (estimated from the machines and volumes running, read with `FLY_API_TOKEN`, a `fly tokens create readonly` token, and priced at Fly's published rates; the shared Postgres cluster, the media bucket and bandwidth are left out and say so), the profit and margin, a day-by-day chart, what a minute sells for and costs to make, how the site is used, and each listener (username and numbers only). A cost that isn't tracked reads "Not tracked" and the profit says it's incomplete, never a silent $0. Only accounts `HARMONICFITNESS_ADMINS` names, by id (a username can be taken again), get it; anyone else gets 404, and `GET /api/me` says `admin` so the page offers it. To find an id:
+
+    python -m webapp.admin id <username>
+
 ## Sign-in, minutes and the hosted site
 
 Three settings, each on its own, turn the site from "bring your own keys" into one a listener signs up for and pays by the minute (0.85.0). Without them the site runs as before.

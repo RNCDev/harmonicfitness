@@ -2,6 +2,7 @@
 import base64
 import binascii
 import os
+import uuid
 from dataclasses import dataclass, field
 from typing import Mapping
 
@@ -38,6 +39,11 @@ class Settings:
     # listener's stored keys are never opened
     hosted: bool = False
     openrouter_key: str = field(default="", repr=False)
+    # The admin screen (0.87.0): the account ids (never usernames, which can be taken again) that may open it
+    admins: tuple[str, ...] = ()
+    # A read-only Fly token, for the admin screen's estimate of what the site's machines and volumes cost
+    fly_token: str = field(default="", repr=False)
+    fly_app: str = ""
 
     @property
     def clerk(self) -> bool:
@@ -79,6 +85,18 @@ def _worker_slots(env: Mapping[str, str]) -> int:
         return 2
 
 
+def _admins(env: Mapping[str, str]) -> tuple[str, ...]:
+    """HARMONICFITNESS_ADMINS: account ids, by commas or spaces; a malformed one stops the start, never just drops."""
+    out = []
+    for part in env.get("HARMONICFITNESS_ADMINS", "").replace(",", " ").split():
+        try:
+            out.append(str(uuid.UUID(part)))
+        except ValueError:
+            raise ConfigError("HARMONICFITNESS_ADMINS lists account ids (python -m webapp.admin id <username>), "
+                              f"not {part[:40]!r}") from None
+    return tuple(out)
+
+
 def load(env: Mapping[str, str]) -> Settings:
     from . import providers     # providers imports ConfigError from here
     database_url = _required(env, "DATABASE_URL")
@@ -114,4 +132,5 @@ def load(env: Mapping[str, str]) -> Settings:
                     providers=tuple(providers.offered(env)), daily_chars=_daily_chars(env), writers=_writers(env),
                     worker_slots=_worker_slots(env), clerk_publishable_key=clerk[0], clerk_secret_key=clerk[1],
                     stripe_secret_key=stripe[0], stripe_webhook_secret=stripe[1], hosted=hosted,
-                    openrouter_key=openrouter)
+                    openrouter_key=openrouter, admins=_admins(env), fly_token=get("FLY_API_TOKEN"),
+                    fly_app=get("FLY_APP_NAME"))

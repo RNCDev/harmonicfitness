@@ -1,9 +1,9 @@
-// Which page shows beside the chat: an address of its own (#logs, #coaches), so a reload keeps it and the
+// Which page shows beside the chat: an address of its own (#logs, #coaches, #admin), so a reload keeps it and the
 // back button closes it. The Settings drawer and the pickers are moments, not places: they stay out of it.
 import { useCallback, useEffect, useState } from "react";
 
-type Page = "chat" | "logs" | "coaches";
-const PAGES: Page[] = ["logs", "coaches"];
+type Page = "chat" | "logs" | "coaches" | "admin";
+const PAGES: Page[] = ["logs", "coaches", "admin"];
 
 function read(): Page {
   const h = window.location.hash.slice(1);

@@ -9,6 +9,7 @@ const LINE = {
   </>,
   coaches: <path d="M12 3v18M8 8v8M4 11v2M16 6v12M20 10v4" />,
   logs: <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />,
+  chart: <path d="M4 20V11M10 20V5M16 20v-6M21 20H3" />,
   plus: <path d="M12 3v18M3 12h18" />,
   close: <path d="M18 6 6 18M6 6l12 12" />,
   camera: <><path d="M3 8.5A1.5 1.5 0 0 1 4.5 7h3l1.5-2.5h6L16.5 7h3A1.5 1.5 0 0 1 21 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5z" /><circle cx="12" cy="12.75" r="3.5" /></>,

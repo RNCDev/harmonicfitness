@@ -97,3 +97,15 @@ export function shortDay(when: string | Date | null | undefined): string {
   const d = when instanceof Date ? (Number.isNaN(when.getTime()) ? null : when) : valid(when);
   return d ? d.toLocaleDateString([], { month: "short", day: "numeric" }) : "";
 }
+
+/** The Admin page's money: dollars to the cent with thousands ("$1,234.56", "-$3.20"); `fine` gives an amount under
+ * a dollar a tenth of a cent ("$0.083"); "Not tracked" where a cost isn't known. */
+export function usd(n: number | null | undefined, fine = false): string {
+  if (n === null || n === undefined) return "Not tracked";
+  const a = Math.abs(n);
+  const digits = fine && a > 0 && a < 1 ? 3 : 2;
+  return `${n < 0 ? "-" : ""}$${a.toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits })}`;
+}
+
+/** A share as a percent to a tenth ("12.5%"), or a dash where there's none. */
+export const pct = (n: number | null | undefined) => (n === null || n === undefined ? "\u2014" : `${Math.round(n * 1000) / 10}%`);

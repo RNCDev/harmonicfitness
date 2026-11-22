@@ -103,7 +103,8 @@ class SignIn(ApiCase):
         self.assertEqual(self.client.get("/api/me").json(),
                          {"app_name": "HarmonicFitness", "username": "fresh.one",
                           "has_password": True, "version": VERSION, "sky": "flow", "auto_record": False,
-                          "clerk": False, "clerk_linked": False, "hosted": False, "minutes": None})
+                          "clerk": False, "clerk_linked": False, "hosted": False, "minutes": None,
+                          "admin": False})
         self.assertIn("profile.md", [f["path"] for f in self.client.get("/api/sync").json()["files"]])
         r = self.register("FRESH.ONE", client=self.other_client())
         self.assertEqual(r.status_code, 409)

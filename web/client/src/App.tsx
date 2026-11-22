@@ -25,6 +25,7 @@ import { Solo } from "./ui/Solo";
 import { Chat, type KeyNeeded } from "./zones/chat/Chat";
 import { Settings } from "./zones/settings/Settings";
 import { Logs } from "./zones/logs/Logs";
+import { AdminPage } from "./zones/Admin";
 import { CoachesPage } from "./zones/Coaches";
 
 /** With no language-model key yet: the ones to choose from, to write the workouts. */
@@ -113,9 +114,10 @@ function SignedIn({ me, onSignedOut }: { me: Me; onSignedOut: () => void }) {
   const [drawer, setDrawer] = useState(false);
   const gear = useRef<HTMLButtonElement>(null);
   const [page, go] = usePage();
-  const toggle = (p: "logs" | "coaches") => go(page === p ? "chat" : p);
+  const toggle = (p: "logs" | "coaches" | "admin") => go(page === p ? "chat" : p);
   // a page that closes gives focus back to the header button that opened it
-  const pageButtons = { logs: useRef<HTMLButtonElement>(null), coaches: useRef<HTMLButtonElement>(null) };
+  const pageButtons = { logs: useRef<HTMLButtonElement>(null), coaches: useRef<HTMLButtonElement>(null),
+    admin: useRef<HTMLButtonElement>(null) };
   const lastPage = useRef(page);
   useEffect(() => {
     const was = lastPage.current;
@@ -205,6 +207,13 @@ function SignedIn({ me, onSignedOut }: { me: Me; onSignedOut: () => void }) {
             <Icon name="logs" size={16} />
             <span className="top-label">Logs</span>
           </Button>
+          {me.admin && (
+            <Button ref={pageButtons.admin} variant="header" className="new page-toggle" pressed={page === "admin"}
+              title="Usage and profit" aria-label="Admin" onClick={() => toggle("admin")}>
+              <Icon name="chart" size={16} />
+              <span className="top-label">Admin</span>
+            </Button>
+          )}
           {hosted && left !== null && (
             <Button variant="header" className="minutes-chip" title="Your minutes: add more, and see what was used"
               aria-label={`${left} ${left === 1 ? "minute" : "minutes"} left`} onClick={openMinutes}>
@@ -217,6 +226,8 @@ function SignedIn({ me, onSignedOut }: { me: Me; onSignedOut: () => void }) {
           </Button>
         </header>
         {page === "logs" && <Boundary key="logs" what="The Logs page"><Logs onClose={() => go("chat")} /></Boundary>}
+        {page === "admin" && me.admin && <Boundary key="admin" what="The Admin page">
+          <AdminPage onClose={() => go("chat")} /></Boundary>}
         {page === "coaches" && <Boundary key="coaches" what="The Coaches page">
           <CoachesPage coaches={start && !startError ? coaches : null} loadError={startError}
             onRetry={reloadStart} onCoach={(slug) => void chooseCoach(slug)}

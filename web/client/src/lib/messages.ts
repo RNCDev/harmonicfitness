@@ -11,6 +11,7 @@ export const SAID = {
   level: "Couldn't load your level.",
   feed: "Couldn't load your podcast link.",
   workouts: "Couldn't load your workouts.",
+  books: "Couldn't load the books.",
   script: "Couldn't load the script. Try again.",
   minutes: "Couldn't load your minutes.",
 

@@ -26,7 +26,9 @@ export type Me = { app_name: string; username: string; has_password: boolean; ve
    * Clerk's; absent from a server older than 0.85.0, as the two below are. */
   clerk?: boolean; clerk_linked?: boolean;
   /** The site's own key writes and speaks, paid for in minutes: no keys to add, and `minutes` is the balance. */
-  hosted?: boolean; minutes?: number | null };
+  hosted?: boolean; minutes?: number | null;
+  /** One of the accounts HARMONICFITNESS_ADMINS names: the Admin page shows (the server checks again). */
+  admin?: boolean };
 /** The listener's level (novice when none is set), and the three to choose from as a listener would say each. */
 export type LevelState = { level: Level; set: boolean; choices: { level: Level; said: string }[] };
 export type Level = "novice" | "experienced" | "advanced";
@@ -99,6 +101,24 @@ export type StartCoach = { slug: string; name: string; first: string; service: s
   powered_by?: string | null;
   /** A stock voice heard as a woman's ("f") or a man's ("m"), where its service knows it. */
   gender?: "f" | "m" | null };
+/** The Admin page's books (GET /api/admin/books): dollars throughout; null where a cost isn't tracked. */
+export type BooksDay = { day: string; sales: number; refunds: number; fees: number; write: number | null;
+  voice: number | null; unattributed: number | null; fly: number | null };
+export type Books = { days: number; from: string; to: string;
+  money: { sales: number; refunds: number; net: number; fees: number; write: number | null; voice: number | null;
+    voice_estimated: boolean; unattributed: number | null; fly: number | null; profit: number; margin: number | null;
+    missing: string[]; costs_since: string | null; checked_since: string | null };
+  fly: { monthly: number | null; lines: { what: string; monthly: number }[]; left_out: string[]; why: string | null };
+  daily: BooksDay[];
+  units: { packs: { id: string; minutes: number; price: number; per_minute: number; after_fee: number }[];
+    minutes_sold: number; sales: number; per_minute_sold: number | null; minutes_recorded: number; recordings: number;
+    minutes_given: number; cost_per_minute: number | null; write_per_recording: number | null;
+    voice_per_minute: number | null };
+  usage: { accounts: number; new_accounts: number; active: number; turns: number; talking: number; turn_days: number;
+    payers: number; payers_ever: number; repeat_payers: number; recorders_ever: number; paid_share: number | null;
+    recorded_share: number | null };
+  listeners: { username: string; joined: string; balance: number; paid: number; bought: number; packs: number;
+    recorded: number; recordings: number; cost: number | null; profit: number }[] };
 export type StartKit = { id: string; label: string; preset: boolean };
 type StartLimit = { area: string; side: string | null; level: "delicate" | "off-limits" };
 export type StartInfo = { coaches: StartCoach[]; kits: StartKit[]; minutes: number; limits: StartLimit[];
@@ -174,6 +194,7 @@ export const api = {
   session: (token: string) => call<void>("POST", "/api/session", { token }),
   /** The balance of minutes, the packs for sale and what happened lately. */
   minutes: () => call<MinutesState>("GET", "/api/minutes"),
+  books: (days: number) => call<Books>("GET", `/api/admin/books?days=${days}`),
   /** Where to pay for a pack: its checkout page's address. Nothing is credited until the payment is. */
   checkout: (pack: string) => call<{ url: string }>("POST", "/api/minutes/checkout", { pack }),
   deviceLink: () => call<DeviceLink>("POST", "/api/device-link"),

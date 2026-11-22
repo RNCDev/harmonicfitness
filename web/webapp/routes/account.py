@@ -13,7 +13,7 @@ from pydantic import BaseModel, ConfigDict, StrictStr, StringConstraints
 
 from .. import APP_NAME, auth, clerk, keystore, level, providers, start, store, workouts
 from .logs import workout_call
-from .state import COOKIE, POST, St, User, confirming, read, tx
+from .state import COOKIE, POST, St, User, confirming, is_admin, read, tx
 
 router = APIRouter()
 late = APIRouter()   # included after the Logs routes, where these always were
@@ -57,7 +57,8 @@ def me(st: St, uk: User):
     # speaks, paid for in minutes (no keys to add), and `minutes` is the balance
     return {"app_name": APP_NAME, "username": name, "has_password": pw, "version": st.version, "sky": sky,
             "auto_record": auto, "clerk": st.clerk is not None, "clerk_linked": linked,
-            "hosted": st.settings.hosted, "minutes": have if st.settings.hosted else None}
+            "hosted": st.settings.hosted, "minutes": have if st.settings.hosted else None,
+            "admin": is_admin(st, uk)}
 
 
 coach_slug = re.compile(r"coach-[a-z0-9-]{1,60}")
