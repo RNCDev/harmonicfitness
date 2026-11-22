@@ -29,6 +29,14 @@
    "bytes": 569739,
    "sha256": "4b2bb953833ebcce41b37fe47f3577d9d066fe4512e0b75232972cc16c31e714"
   },
+  "coach-hugh-openrouter": {
+   "bytes": 569737,
+   "sha256": "b9b04e03f70ec11ff54dccebe256a026e51f4a04a8ed76ea18885c701d9f4ac9"
+  },
+  "coach-ivy-openrouter": {
+   "bytes": 569736,
+   "sha256": "e5bc5cd205dfa009d1bb7f57500abbae6fa390c0125f0138e1ef3b53ba3cc572"
+  },
   "coach-jonah-openrouter": {
    "bytes": 569739,
    "sha256": "3984b1de5a52d4d6d658aec75862fecd202a35d48857ade6f8162fbbaa1bd905"
@@ -45,6 +53,10 @@
    "bytes": 569738,
    "sha256": "3b5542d8d2e19fe42b46a2264b9b067e3e757fb2d5b7df40bd9aecc6596925cb"
   },
+  "coach-luke-openrouter": {
+   "bytes": 569737,
+   "sha256": "87e905edcfac9072899aa1f0f1d77c9a2f4d2f8abd2720022d9a7948f53ab53f"
+  },
   "coach-marcus-local": {
    "bytes": 569740,
    "sha256": "6748b140a8fbc146925cd84bf25c3cf54413741fcd929290a349b0d7ea19ef5a"
@@ -56,6 +68,10 @@
   "coach-miles-gemini": {
    "bytes": 569739,
    "sha256": "08461af4414f34b1226d6e1da74a6086e8f2d6d4b843851a572156ecc83003f2"
+  },
+  "coach-nell-openrouter": {
+   "bytes": 569737,
+   "sha256": "a3ae1872bb6e4ba1eb9f7c5c7f01f61ea109d9cd179525eae368de3d2ac9400a"
   },
   "coach-nora-openrouter": {
    "bytes": 569738,
@@ -76,6 +92,14 @@
   "coach-sam-local": {
    "bytes": 569737,
    "sha256": "2a5c0c42881b89bff24aa2d77fb1fc2d1fdd6db5d6a63d527e8ab049f5b23312"
+  },
+  "coach-seth-openrouter": {
+   "bytes": 569737,
+   "sha256": "f0cf59c3f2f01ff0a99192c22ac955acf48fdec10ed6c53085832374c9f045cf"
+  },
+  "coach-skye-openrouter": {
+   "bytes": 569737,
+   "sha256": "4f5c1bc4911d488357e422054c18777f8189f34c3837b67be0922482ea79fdb4"
   },
   "coach-tess-openrouter": {
    "bytes": 569738,
