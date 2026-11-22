@@ -101,10 +101,11 @@ def purchase(conn, user_id, minutes: int, ref: str, note: str | None = None) -> 
     return minutes > 0 and _credit(conn, user_id, "purchase", minutes, ref, note)
 
 
-def sold(conn, user_id, p: Pack, ref: str) -> None:
-    """The sale behind a purchase, for the books: the pack and what was paid, once per ref (0.87.0)."""
+def sold(conn, user_id, p: Pack, ref: str, cents: int | None = None) -> None:
+    """The sale behind a purchase, for the books: the pack and what was paid (`cents`, after any promotion code;
+    the pack's price when not given), once per ref (0.87.0)."""
     conn.execute("insert into sales (ref, user_id, pack, minutes, cents) values (%s, %s, %s, %s, %s) "
-                 "on conflict (ref) do nothing", (ref, user_id, p.id, p.minutes, p.cents))
+                 "on conflict (ref) do nothing", (ref, user_id, p.id, p.minutes, p.cents if cents is None else cents))
 
 
 def refunded(conn, ref: str) -> None:

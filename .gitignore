@@ -20,8 +20,9 @@ __pycache__/
 # browser walks: screenshots and logs from the Playwright tools
 .playwright-mcp/
 
-# a local key file at the root (nothing reads it now); never committed
+# the maintainer's local keys at the root (web/dev.sh reads them, web/env-sync.sh fills them); never committed
 /.env
+/.env.sync*
 
 # the script-writing bench (web/bench/): each run holds a copy of the listener's files
 .bench/

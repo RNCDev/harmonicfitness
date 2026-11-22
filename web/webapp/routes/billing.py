@@ -71,13 +71,13 @@ async def webhook(st: St, request: Request):
             # an account deleted since it paid has nothing left to credit, but the books still keep the money
             if conn.execute("select 1 from users where id = %s for update", (event.user_id,)).fetchone() is None:
                 if event.kind == "paid":
-                    minutes.sold(conn, None, event.pack, event.ref)
+                    minutes.sold(conn, None, event.pack, event.ref, event.cents)
                 else:
                     minutes.refunded(conn, event.ref)
                 return
             if event.kind == "paid":
                 minutes.purchase(conn, event.user_id, event.pack.minutes, event.ref, event.pack.label)
-                minutes.sold(conn, event.user_id, event.pack, event.ref)
+                minutes.sold(conn, event.user_id, event.pack, event.ref, event.cents)
             else:
                 minutes.refund(conn, event.user_id, event.ref)
                 minutes.refunded(conn, event.ref)

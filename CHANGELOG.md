@@ -2,6 +2,17 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.90.2] - 2026-11-22
+
+### Added
+- **`web/env-sync.sh` and `web/env-sync.ps1`** (maintainer only): fill the repo's `.env` on another computer with the live site's keys from its Fly secrets (OpenRouter and Clerk; `--bucket` adds the media bucket's), never printing one and keeping every other line. Live Stripe keys, the database and the master key are never copied; keys that live only on your own computers are named for you to add.
+
+### Fixed
+- **Promotion codes work at checkout** (`billing.checkout`): Stripe's page now offers "Add promotion code", for a code made from a coupon in Stripe. A discounted sale goes in the books at what was paid, and a code for the whole price ("no payment required") still credits the pack's minutes. A code never changes which pack's minutes are given.
+
+### For forks
+- Nothing to migrate. To offer a discount, make a coupon in Stripe and a promotion code from it: buyers type the code.
+
 ## [0.90.1] - 2026-11-22
 
 ### Fixed

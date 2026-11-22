@@ -245,6 +245,16 @@ class Webhook(unittest.TestCase):
                             paid_event("not-a-user"), unpaid, {"type": "customer.created", "data": {"object": {}}}):
                 self.assertIsNone(self.billing.event(*self.sent(payload)))
 
+    def test_a_promotion_code_lowers_what_is_paid_never_the_minutes(self):
+        off = paid_event(self.user)
+        off["data"]["object"]["total_details"] = {"amount_discount": 125}
+        event = self.billing.event(*self.sent(off))
+        self.assertEqual((event.kind, event.pack, event.cents), ("paid", minutes.PACKS[0], minutes.PACKS[0].cents - 125))
+        free = paid_event(self.user)   # a code for the whole price: nothing to pay, the pack's minutes still given
+        free["data"]["object"].update(payment_status="no_payment_required", total_details={"amount_discount": 500})
+        event = self.billing.event(*self.sent(free))
+        self.assertEqual((event.kind, event.pack, event.cents), ("paid", minutes.PACKS[0], 0))
+
     def sent(self, payload):
         raw, headers = signed(payload)
         return raw, headers["stripe-signature"]
@@ -256,6 +266,7 @@ class Webhook(unittest.TestCase):
         self.assertEqual((form["metadata[user]"], form["metadata[pack]"], form["line_items[0][price]"]),
                          (str(self.user), "hf_minutes_140", "price_hf_minutes_140"))
         self.assertEqual(form["metadata[ref]"], form["payment_intent_data[metadata][ref]"])   # a refund finds it
+        self.assertEqual(form["allow_promotion_codes"], "true")   # a code made in Stripe can be entered
         self.stripe.amount["hf_minutes_320"] = 100      # someone changed the price in Stripe
         with self.assertRaises(billing.Unavailable):
             self.billing.checkout(self.user, minutes.PACKS[2])

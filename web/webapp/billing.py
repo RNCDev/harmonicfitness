@@ -38,6 +38,7 @@ class Event:
     user_id: uuid.UUID
     ref: str                # the purchase's own id, made here when its Checkout page was asked for
     pack: minutes.Pack | None
+    cents: int | None = None   # what a paid one came to before tax, after any promotion code (the books' figure)
 
 
 def _send(method: str, url: str, headers: dict, form: list | None) -> tuple[int, object]:
@@ -87,7 +88,8 @@ class Client:
         meta = {"user": str(user_id), "pack": pack.id, "ref": ref}
         form = [("mode", "payment"), ("client_reference_id", str(user_id)),
                 ("line_items[0][price]", self._price(pack)), ("line_items[0][quantity]", "1"),
-                ("success_url", f"{self.base}/?minutes=bought"), ("cancel_url", f"{self.base}/?minutes=cancelled")]
+                ("success_url", f"{self.base}/?minutes=bought"), ("cancel_url", f"{self.base}/?minutes=cancelled"),
+                ("allow_promotion_codes", "true")]   # the page's "Add promotion code" box, for a code made in Stripe
         # the same three facts on the session and on its payment, so a refund's event carries them too
         form += [(f"metadata[{k}]", v) for k, v in meta.items()]
         form += [(f"payment_intent_data[metadata][{k}]", v) for k, v in meta.items()]
@@ -121,8 +123,10 @@ class Client:
         except (ValueError, KeyError, TypeError, AttributeError):
             return None
         if kind in ("checkout.session.completed", "checkout.session.async_payment_succeeded"):
-            if obj.get("payment_status") != "paid":
-                return None     # a slow payment method: its minutes come with async_payment_succeeded
+            # paid, or nothing to pay (a promotion code for the whole price); a slow payment method's minutes come
+            # with async_payment_succeeded
+            if obj.get("payment_status") not in ("paid", "no_payment_required"):
+                return None
             what = "paid"
         elif kind == "charge.refunded" and obj.get("refunded") is True:
             what = "refunded"   # the whole payment; a part refund is the maintainer's to settle by hand
@@ -133,6 +137,12 @@ class Client:
         except ValueError:
             return None
         pack = minutes.pack(str(meta.get("pack") or ""))
+        # the pack's own price before any discount: a code lowers what's paid, never which pack's minutes are given
         if not ref or (what == "paid" and (pack is None or obj.get("amount_subtotal") != pack.cents)):
             return None
-        return Event(what, user_id, ref, pack)
+        if what != "paid":
+            return Event(what, user_id, ref, pack)
+        details = obj.get("total_details")
+        off = details.get("amount_discount") if isinstance(details, dict) else 0
+        off = off if isinstance(off, int) and not isinstance(off, bool) and 0 <= off <= pack.cents else 0
+        return Event(what, user_id, ref, pack, pack.cents - off)
