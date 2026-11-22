@@ -228,6 +228,23 @@ class Files(AgentCase):
 
 
 class Turns(AgentCase):
+    def test_every_story_a_long_session_told_is_logged(self):
+        """A 40-minute session's 36 stories went over the command's argument cap in one content log and none was
+        recorded, so the next day's retold them (2026-11-22): the site logs every one, in batches under it."""
+        draft = f"me/workouts/{STEM}/{STEM}.draft.txt"
+        items = [f"- | quick_hit | Story {n} | https://example.org/{n}" for n in range(40)]
+        self.deps.told = {"draft": draft, "items": items}
+        calls = []
+
+        def run(root, home, argv, **kw):
+            calls.append(argv)
+            return tools.engine.Result(0, "Recorded.", "")
+        with mock.patch.object(tools.engine, "run", side_effect=run):
+            out = agent.log_after(self.deps, {}, draft, tools.ToolResult(code=0, output="built"))
+        logged = [a[i + 1] for a in calls if a[:2] == ["content", "log"] for i, x in enumerate(a) if x == "--item"]
+        self.assertEqual(logged, items)
+        self.assertIn("logged the 40 stories", out.output)
+
     def test_a_failed_recording_is_still_a_failure(self):
         from unittest import mock
         said = []

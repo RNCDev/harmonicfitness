@@ -442,6 +442,7 @@ ALREADY_LOGGED = "Already logged: the site logged this session as the recording 
 LOGGING = "Logging the session"
 NOTING_LOG = "Noting the session for your log"   # a log-session sent before the recording: kept until it's made
 NOTING = "Noting the stories you heard"
+LOG_BATCH = 25   # stories a content log takes at once: 6 + 2 * 25 arguments, under tools.run's 60
 
 
 def log_after(deps: Deps, ok: dict, draft: str, result: ToolResult) -> ToolResult:
@@ -452,14 +453,28 @@ def log_after(deps: Deps, ok: dict, draft: str, result: ToolResult) -> ToolResul
     room = deps.told if deps.told and deps.told.get("draft") == draft else {}
     told = ok.get("told") or room.get("items")
     if told:
-        argv = ["content", "log", "--date", deps.today, "--draft", draft]
-        for item in told:
-            argv += ["--item", item]
-        r = _step(deps, NOTING, "run content log", lambda: tools.run(deps, argv))
+        # in batches under tools.run's cap on a command's arguments: one log of a 40-minute session's 36 stories
+        # went over it and was refused whole, so nothing it told was recorded and the next day's retold it
+        # (2026-11-22)
+        batches = [told[i:i + LOG_BATCH] for i in range(0, len(told), LOG_BATCH)]
+
+        def log_all() -> ToolResult:
+            done = 0
+            for batch in batches:
+                argv = ["content", "log", "--date", deps.today, "--draft", draft]
+                for item in batch:
+                    argv += ["--item", item]
+                r = tools.run(deps, argv)
+                if r.code != 0:
+                    return r.model_copy(update={"output": f"{done} of {len(told)} logged before this. " + r.output})
+                done += len(batch)
+            return r
+        r = _step(deps, NOTING, "run content log", log_all)
         notes.append(f"The site logged the {len(told)} stories the writers told (content log): don't log them again."
                      if r.code == 0 else
                      f"The site's content log of the writers' stories was refused (exit {r.code}): "
-                     f"{(r.output + ' ' + r.error).strip()[:600]}. Run content log yourself, fixed.")
+                     f"{(r.output + ' ' + r.error).strip()[:600]}. Run content log yourself for the ones not logged, "
+                     "fixed.")
     pending = ok.get("log") or deps.pending_log
     if pending and tools._flag(pending, "--draft") == draft and deps.logged != draft:
         r = _step(deps, LOGGING, "run log-session", lambda: tools.run(deps, pending))

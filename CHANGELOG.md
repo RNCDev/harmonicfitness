@@ -2,6 +2,15 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.90.3] - 2026-11-22
+
+### Fixed
+- **Every story a long session tells is recorded again** (web app, `agent.log_after`): the site logged the writers' stories in one `content log` with an `--item` per story, and a session with more than 27 (a 40-minute one tells about 36) went over the cap on a command's arguments and was refused whole. Nothing it told was recorded, so the next day's researcher, not seeing it, told much of it again. The site now logs them in batches under the cap.
+- **`web/env-sync.ps1` runs in Windows PowerShell 5.1:** the Fly CLI's "Connecting to..." line on stderr stopped the script before it read anything.
+
+### For forks
+- Nothing to migrate. Stories told before this release by sessions over 27 stories weren't recorded, so they may come round once more.
+
 ## [0.90.2] - 2026-11-22
 
 ### Added

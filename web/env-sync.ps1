@@ -25,8 +25,11 @@ if ($LASTEXITCODE -ne 0) { Fail "not signed in to Fly: run fly auth login" }
 git -C $Root check-ignore -q .env
 if ($LASTEXITCODE -ne 0) { Fail ".env isn't git-ignored here: refusing to write keys into it" }
 
-# the machine's whole environment, held in memory only and filtered here
+# the machine's whole environment, held in memory only and filtered here; fly's progress lines on stderr would stop
+# the script under "Stop" in Windows PowerShell 5.1, so they're let through to $null for this one call
+$ErrorActionPreference = "Continue"
 $Remote = fly ssh console -a $App -C env 2>$null
+$ErrorActionPreference = "Stop"
 if ($LASTEXITCODE -ne 0 -or -not $Remote) { Fail "couldn't reach a running machine of $App" }
 $Remote = @($Remote | ForEach-Object { $_.TrimEnd("`r") })
 
