@@ -1,7 +1,7 @@
 // The ready-made workouts: five thirty-minute sessions recorded once (full body, strength, cardio, mobility, core),
 // to play before the listener's own coach is ready: on the sign-in page with no account (`panel`, its own sheet
-// beside the demos), on the welcome card before any key, and on a new listener's first screen. Each is made for no
-// one, so the list says plainly that it isn't adapted to any injury.
+// beside the demos), and on a new listener's first screen. Each is made for no one, so the list says plainly that
+// it isn't adapted to any injury.
 // ready.json is written by `./harmonicfitness ready upload` from docs/demos/ready.toml; the MP3s are on the media
 // bucket. Until the set is published it's empty, and this shows nothing.
 import data from "../ready.json";

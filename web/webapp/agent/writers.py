@@ -461,7 +461,7 @@ def _tokens(result) -> tuple[int, int]:
 
 
 def base_model(model):
-    """The provider's own model under any wrappers (the turn's Narrated, the hosted site's costs.Metered), so a
+    """The provider's own model under any wrappers (the turn's Narrated, the site's costs.Metered), so a
     check on its kind sees the model that answers, never the wrapper."""
     seen = 0
     while hasattr(model, "wrapped") and seen < 8:

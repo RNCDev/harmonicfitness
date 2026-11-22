@@ -31,8 +31,8 @@ __all__ = ["AGENT", "Deps", "LIMITS", "audition_open", "prefetch", "wants_coach"
            "run_turn"]
 
 LIMITS = UsageLimits(request_limit=60, tool_calls_limit=120, total_tokens_limit=3_000_000)
-# The writer's own web search (Gemini's Google Search, Claude's, ChatGPT's, OpenRouter's), billed by its provider
-# on the listener's key: research for the topics due and what's on near them. Low context keeps each search
+# The writer's own web search (OpenRouter's; Gemini's Google Search, Claude's or ChatGPT's on the bench), billed
+# on the site's key: research for the topics due and what's on near them. Low context keeps each search
 # quick; Claude stops at max_uses a turn, and the instructions ask every writer for about six.
 SEARCH = WebSearchTool(search_context_size="low", max_uses=8)
 TURN_SECONDS = 900   # a turn's wall-clock cap, longer while a recording runs (tools.build_timeout): past it the run
@@ -256,8 +256,8 @@ def _now(ctx: RunContext[Deps]) -> str:
     return f"Now: {ctx.deps.now} (today is {ctx.deps.today})."
 
 
-# The hosted site (webapp.hosted): said last, so it wins over what the instructions and the skills say about keys
-# and prices, which are written for a site run on its listeners' own keys.
+# The site runs on minutes (webapp.hosted): said last, so it wins over what the instructions and the skills say about
+# keys and prices, which are written for HarmonicFitness on a listener's own computer, on their own keys.
 HOSTED_NOTE = (
     "## This site runs on minutes\n"
     "On this site the listener has no keys and pays no voice or model service: the site writes and speaks every "
@@ -275,7 +275,7 @@ HOSTED_NOTE = (
 
 @AGENT.instructions
 def _hosted(ctx: RunContext[Deps]) -> str:
-    return HOSTED_NOTE if ctx.deps.hosted else ""
+    return HOSTED_NOTE
 
 
 # What the listener sees while a tool runs: what it means for them, never a command or a file's name.
@@ -871,7 +871,7 @@ def schedule_workout(ctx: RunContext[Deps], minutes: int, coach: str) -> ToolRes
         if not (isinstance(minutes, int) and 5 <= minutes <= 120 and isinstance(coach, str) and coach.strip()):
             return tools._refuse("give the workout's minutes (5 to 120) and the coach's name")
         chars, cap = minutes * CHARS_A_MINUTE, minutes * CEILING_A_MINUTE
-        if deps.hosted and tools.hosted_coach(deps, coach)[1]:
+        if tools.hosted_coach(deps, coach)[1]:
             return tools._refuse(tools.hosted_coach(deps, coach)[1])
         usd, cap_usd = _cost(deps, coach, chars), _cost(deps, coach, cap)
         if usd is None or cap_usd is None:
@@ -879,17 +879,11 @@ def schedule_workout(ctx: RunContext[Deps], minutes: int, coach: str) -> ToolRes
         deps.schedule = {"minutes": minutes, "coach": coach, "chars": chars, "usd": round(usd, 2),
                          "ceiling_chars": cap, "ceiling_usd": round(cap_usd, 2)}
         when = (deps.later or {}).get("local", "their time")
-        if deps.hosted:
-            return tools._result(0, (
-                f"Ready to schedule for {when}, with {coach}: it takes {minutes} of the listener's minutes when it's "
-                "recorded. The page now shows the listener a Schedule it button with that, below your reply. End "
-                "your turn: the plan in one line and the time, and that Schedule it starts the writing fifteen "
-                "minutes before. Don't say what it costs (the button shows it), and run nothing else."))
         return tools._result(0, (
-            f"Ready to schedule for {when}: about ${usd:.2f} with {coach}, never more than ${cap_usd:.2f}. The page "
-            "now shows the listener a Schedule it button with those, below your reply. End your turn: the plan in one line and the "
-            "time, and that Schedule it starts the writing fifteen minutes before. Don't say the prices (the button "
-            "shows them), and run nothing else."))
+            f"Ready to schedule for {when}, with {coach}: it takes {minutes} of the listener's minutes when it's "
+            "recorded. The page now shows the listener a Schedule it button with that, below your reply. End "
+            "your turn: the plan in one line and the time, and that Schedule it starts the writing fifteen "
+            "minutes before. Don't say what it costs (the button shows it), and run nothing else."))
     return _step(deps, "Working out what it costs", "schedule_workout", work)
 
 
@@ -938,7 +932,7 @@ def _coaches(r: ToolResult) -> ToolResult:
     lines.append("Local coaches don't speak on this site.")
     return ToolResult(code=r.code, output="\n".join(lines))
 def _hosted_listing(deps: Deps, r: ToolResult) -> ToolResult:
-    """`coaches list --json` as the hosted site's coaches alone (hosted.coaches), kept for the turn's own checks
+    """`coaches list --json` as the site's coaches alone (hosted.coaches), kept for the turn's own checks
     (tools.hosted_coach). The raw result when it can't be read."""
     try:
         rows = tools.hosted.coaches(json.loads(r.output)["coaches"])
@@ -1020,8 +1014,8 @@ def prefetch(deps: Deps, line: str | None = None) -> str:
             deps.untrusted = True   # a research sheet quotes the pages it came from
         results = [(f"./harmonicfitness {' '.join(a)}", f.result()) for a, f in zip(commands, runs)]
         results += [(f"read {p}", f.result()) for p, f in zip(FIRST_READS + extra, reads)]
-    if deps.hosted:   # only the site's coaches speak here, each ready whatever the listing says of a key
-        results[3] = (results[3][0], _hosted_listing(deps, results[3][1]))
+    # only the site's coaches speak here, each ready whatever the listing says of a key
+    results[3] = (results[3][0], _hosted_listing(deps, results[3][1]))
     picked = _picked(deps, results[3][1])
     results[3] = ("./harmonicfitness coaches list", _coaches(results[3][1]))
     coach = results[2][1]
@@ -1033,7 +1027,7 @@ def prefetch(deps: Deps, line: str | None = None) -> str:
             f"{picked}: the listener chose this coach in the page's Settings or its sentence. Use {picked} for "
             f"this workout unless they name another; `get coach` above is only the coach used last."))))
         name = picked
-    if deps.hosted and deps.hosted_rows:
+    if deps.hosted_rows:
         here = tools.hosted.find(deps.hosted_rows, name)
         if here is None:   # the coach used last was on a key of their own, or there is none yet
             name = deps.hosted_rows[0]["name"]

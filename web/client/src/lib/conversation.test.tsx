@@ -132,7 +132,7 @@ describe("useConversation", () => {
     const asked = [{ role: "user" as const, text: "hi" }, { role: "agent" as const, text: "Which kit?" }];
     expect(resumable(conv({ state: "working", job_id: 1 }))).toBe(true);
     expect(resumable(conv({ lines: asked }))).toBe(true);
-    expect(resumable(conv({ offer: { name: "Legs", coach: "Coach Reed", chars: 100, usd: 0.1, service: "fish" } }))).toBe(true);
+    expect(resumable(conv({ offer: { name: "Legs", coach: "Coach Reed", service: "fish" } }))).toBe(true);
     expect(resumable(conv({}))).toBe(false);   // the listener spoke last, nothing pending
     expect(resumable(conv({ state: "failed", lines: asked }))).toBe(false);
     expect(resumable(conv({ lines: asked, updated_at: yesterday() }))).toBe(false);
@@ -214,37 +214,6 @@ describe("useConversation", () => {
     expect(result.current.error).toBeTruthy();
   });
 
-  it("sets noKey, offering Settings, when a key is missing or refused, and only then", async () => {
-    m.latest.mockResolvedValue(undefined);
-    m.start.mockRejectedValue(new ApiError(409, "Add a key for Claude in Settings first.", undefined, "no_model_key"));
-    const missing = renderHook(() => useConversation());
-    await act(async () => { expect(await missing.result.current.send("a workout")).toBe(false); });
-    expect(missing.result.current.noKey).toBe(true);
-    expect(missing.result.current.error).toBe("Add a key for Claude in Settings first.");
-    expect(missing.result.current.working).toBe(false);
-    missing.unmount();
-
-    fresh();
-    m.latest.mockResolvedValue(conv({ state: "working", job_id: 42 }));
-    m.conversation.mockResolvedValue(conv({ state: "failed" }));
-    const refused = renderHook(() => useConversation());
-    await waitFor(() => expect(m.watch).toHaveBeenCalledWith(42));
-    act(() => m.endJob!("failed", "Claude refused the key. Replace it in Settings.", "key_refused"));
-    await waitFor(() => expect(refused.result.current.error).toBe("Claude refused the key. Replace it in Settings."));
-    expect(refused.result.current.noKey).toBe(true);
-    refused.unmount();
-
-    fresh();
-    m.latest.mockResolvedValue(conv({ state: "working", job_id: 42 }));
-    m.conversation.mockResolvedValue(conv({ state: "failed" }));
-    const { result } = renderHook(() => useConversation());
-    await waitFor(() => expect(m.watch).toHaveBeenCalledWith(42));
-    // the wording mentions Settings, but without a code nothing is offered: the page reads codes, not words
-    act(() => m.endJob!("failed", "Something in Settings went wrong; try again"));
-    await waitFor(() => expect(result.current.error).toBeTruthy());
-    expect(result.current.noKey).toBe(false);
-  });
-
   it("sets noMinutes, offering more, when a recording finds too few minutes, and clears it on the next turn", async () => {
     m.latest.mockResolvedValue(conv({ state: "working", job_id: 42 }));
     m.conversation.mockResolvedValue(conv({ state: "failed" }));
@@ -252,11 +221,20 @@ describe("useConversation", () => {
     await waitFor(() => expect(m.watch).toHaveBeenCalledWith(42));
     act(() => m.endJob!("failed", "This workout takes 30 minutes, and you have 12.", "no_minutes"));
     await waitFor(() => expect(result.current.noMinutes).toBe(true));
-    expect(result.current.noKey).toBe(false);
     expect(result.current.error).toBe("This workout takes 30 minutes, and you have 12.");
 
     m.send.mockResolvedValue({ job_id: 43 });
     await act(async () => { await result.current.send("make it ten minutes"); });
+    expect(result.current.noMinutes).toBe(false);
+  });
+
+  it("offers more minutes only on the refusal's code, never on its words", async () => {
+    m.latest.mockResolvedValue(conv({ state: "working", job_id: 42 }));
+    m.conversation.mockResolvedValue(conv({ state: "failed" }));
+    const { result } = renderHook(() => useConversation());
+    await waitFor(() => expect(m.watch).toHaveBeenCalledWith(42));
+    act(() => m.endJob!("failed", "Out of minutes? Something went wrong; try again"));
+    await waitFor(() => expect(result.current.error).toBeTruthy());
     expect(result.current.noMinutes).toBe(false);
   });
 });

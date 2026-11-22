@@ -139,7 +139,7 @@
   }
 }
 
-/* the ready-made workouts (Ready.tsx): on the welcome card before any key, and on a new listener's first screen */
+/* the ready-made workouts (Ready.tsx): on the sign-in page and on a new listener's first screen */
 .ready { margin-top: var(--s-6); display: grid; gap: var(--s-2); max-width: 40em }
 .ready-h { margin: 0 }
 .ready-note { margin: 0 }

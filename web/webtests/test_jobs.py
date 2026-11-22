@@ -12,7 +12,7 @@ import psycopg
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
-from webapp import config, db, folder, jobs, keystore, store, worker  # noqa: E402
+from webapp import config, db, folder, hosted, jobs, minutes, prefs, store, worker  # noqa: E402
 from webtests import dbcase  # noqa: E402
 from webtests.dbcase import MASTER, DBCase, enqueue  # noqa: E402
 
@@ -29,10 +29,16 @@ def now() -> str:
     return datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %A %H:%M")
 
 
+SITE_KEY = "sk-or-site-0123456789abcdef"   # the site's own OpenRouter key: the only key there is
+COACH = "Coach Ana"   # a stock coach that speaks on the site (hosted.speaks)
+PRICED = json.dumps({"service": "openrouter", "model": hosted.VOICE_MODEL, "usd": 0.03, "pending_design": False})
+
+
 class JobsCase(DBCase):
     def setUp(self):
         self.settings = config.Settings(database_url=dbcase.URL, master_key=MASTER,
-                                        base_url="http://localhost", role="worker", engine_root=ROOT)
+                                        base_url="http://localhost", role="worker", engine_root=ROOT,
+                                        openrouter_key=SITE_KEY)
         self.conn.rollback()
         self.conn.execute("delete from jobs")   # each test starts with an empty queue
         self.conn.commit()
@@ -130,31 +136,6 @@ class Queue(JobsCase):
 
 
 class Worker(JobsCase):
-    def test_balances_job_keeps_only_what_the_page_shows(self):
-        _, uk = self.seeded_user()
-        keystore.put(self.conn, uk, "fish", "sk-abcdefghijklmnop")
-        self.conn.commit()
-        before = store.read_all(self.conn, uk)
-        seen = []
-        out = json.dumps({"fish": {"name": "Fish Audio", "billing_page": "https://x", "set": True, "reports": True,
-                                   "ok": True, "usd": 12.50},
-                          "elevenlabs": {"name": "ElevenLabs", "set": True, "reports": True, "ok": False,
-                                         "kind": "auth", "message": "the service's own words"},
-                          "inworld": {"name": "Inworld", "set": False, "reports": False}})
-
-        def record(root, home, argv, extra_env={}, timeout=120, cancel=None):
-            seen.append((argv, dict(extra_env)))
-            return worker.engine.Result(0, out, "")
-        job = enqueue(self.conn, uk, "balances", {})
-        with mock.patch.object(worker.engine, "run", side_effect=record):
-            self.assertTrue(self.run_one("quick"))
-        self.assertEqual(self.state(job), ("done", None))
-        self.assertEqual(seen, [(["balances", "--json"], {"FISH_AUDIO_API_KEY": "sk-abcdefghijklmnop"})])
-        self.assertEqual(jobs.result(self.conn, uk, job), {"balances": {"fish": {"ok": True, "usd": 12.50},
-                                                                        "elevenlabs": {"ok": False, "kind": "auth"}}})
-        self.assertEqual(store.read_all(self.conn, uk), before)   # no file touched
-        self.conn.rollback()
-
     def test_bad_args_never_run_the_engine(self):
         """Every job kind refuses arguments it can't use before the engine or the model runs; an unknown kind fails."""
         _, uk = self.seeded_user()
@@ -164,7 +145,6 @@ class Worker(JobsCase):
                ("brief", "main", self.brief_args(today="2001-01-01")),
                ("brief", "main", self.brief_args(today="not a date")),
                ("brief", "main", {"goal": "strength"}),
-               ("balances", "quick", {"x": 1}),
                ("turn", "main", {"conversation_id": "1"}),
                ("enrich", "enrich", {"ref": "../x", "text": "hi", "today": today()}),
                ("enrich", "enrich", {"ref": "ccc333", "text": " ", "today": today()}),
@@ -184,12 +164,9 @@ class Worker(JobsCase):
             self.assertEqual(self.state(job), ("failed", "unknown job kind"))
         self.conn.rollback()
 
-    def test_brief_gets_the_users_keys_and_an_engine_failure_writes_nothing(self):
+    def test_brief_gets_the_sites_key_and_an_engine_failure_writes_nothing(self):
         _, uk = self.seeded_user()
         _, other = self.seeded_user()
-        keystore.put(self.conn, uk, "fish", "sk-abcdefghijklmnop")
-        keystore.put(self.conn, uk, "retired-service", "sk-zzzzzzzzzzzz")
-        self.conn.commit()
         before = store.read_all(self.conn, uk)
         seen = []
 
@@ -201,7 +178,7 @@ class Worker(JobsCase):
             self.run_one()
             enqueue(self.conn, other, "brief", self.brief_args())
             self.run_one()
-        self.assertEqual(seen, [{"FISH_AUDIO_API_KEY": "sk-abcdefghijklmnop"}, {}])
+        self.assertEqual(seen, [{"OPENROUTER_API_KEY": SITE_KEY}] * 2)
         self.assertEqual(self.state(job), ("failed", "the engine stopped (exit 1)"))
         self.assertEqual(jobs.result(self.conn, uk, job), {"stderr": "something about the listener\n"})
         self.assertEqual(store.read_all(self.conn, uk), before)
@@ -210,11 +187,9 @@ class Worker(JobsCase):
     def test_key_in_engine_output_is_scrubbed(self):
         # engine_root stays the real engine, so the request validates; only the run is pointed at a fake root
         from webtests.test_engine import stub
-        fake = stub('echo "$FISH_AUDIO_API_KEY" >&2; exit 1')
+        fake = stub('echo "$OPENROUTER_API_KEY" >&2; exit 1')
         real_run = worker.engine.run
         _, uk = self.seeded_user()
-        keystore.put(self.conn, uk, "fish", "sk-abcdefghijklmnop")
-        self.conn.commit()
         job = enqueue(self.conn, uk, "brief", self.brief_args())
         with mock.patch.object(worker.engine, "run",
                                side_effect=lambda root, *a, **k: real_run(fake, *a, **k)):
@@ -222,7 +197,7 @@ class Worker(JobsCase):
         self.assertEqual(self.state(job)[0], "failed")
         detail = jobs.result(self.conn, uk, job)
         self.assertIn("<key>", detail["stderr"])
-        self.assertNotIn("sk-abcdefghijklmnop", detail["stderr"])
+        self.assertNotIn(SITE_KEY, detail["stderr"])
         self.conn.rollback()
 
     def test_folder_is_removed(self):
@@ -459,7 +434,6 @@ from pydantic_ai.models.function import FunctionModel  # noqa: E402
 
 from webapp import conversations, providers  # noqa: E402
 
-MODEL_KEY = "sk-ant-test-model-key-0123456789"
 STEM = f"{today()}-strength-20"
 BRIEF_ARGV = ["brief", "--goal", "strength", "--minutes", "20", "--preset", "bodyweight",
               "--save", f"me/workouts/{STEM}/{STEM}.draft.txt"]
@@ -482,11 +456,11 @@ class Turn(JobsCase):
         patcher.start()
         self.addCleanup(patcher.stop)
 
-    def user(self, key=True):
-        _, uk = self.seeded_user()
-        if key:
-            keystore.put(self.conn, uk, "anthropic", MODEL_KEY)
-            self.conn.commit()
+    def user(self):
+        """A listener with minutes to record with."""
+        user_id, uk = self.seeded_user()
+        minutes.grant(self.conn, user_id, 500, "gift")
+        self.conn.commit()
         return uk
 
     def start(self, uk, line="a 20-minute strength workout"):
@@ -527,7 +501,7 @@ class Turn(JobsCase):
 
         def engine_run(root, home, argv, extra_env={}, timeout=120, cancel=None):
             if argv[:2] == ["get", "cost"]:
-                return worker.engine.Result(0, '{"service": "fish", "usd": 0.03, "pending_design": false}', "")
+                return worker.engine.Result(0, PRICED, "")
             if argv and argv[0] == "build":
                 if "--max-chars" in argv and argv[argv.index("--max-chars") + 1] == "1":
                     return worker.engine.Result(64, "the script speaks 2,000 characters; at most 1", "")
@@ -545,7 +519,7 @@ class Turn(JobsCase):
                 return worker.engine.Result(0, "built", "")
             return real(root, home, argv, extra_env=extra_env, timeout=timeout)
 
-        BUILD = ["build", "me/workouts/w/w.draft.txt", "Workout 5 min", "--coach", "Coach Reed"]
+        BUILD = ["build", "me/workouts/w/w.draft.txt", "Workout 5 min", "--coach", COACH]
 
         def script(messages, info):
             if not [p for m in messages[-1:] for p in m.parts if isinstance(p, ToolReturnPart)]:
@@ -574,8 +548,8 @@ class Turn(JobsCase):
         self.conn.rollback()
 
     def test_record_without_asking_records_within_the_allowance_and_offers_record_past_it(self):
-        from webapp import keystore, media, spend
-        BUILD = ["build", "me/workouts/w/w.draft.txt", "Workout 5 min", "--coach", "Coach Reed"]
+        from webapp import media, spend
+        BUILD = ["build", "me/workouts/w/w.draft.txt", "Workout 5 min", "--coach", COACH]
 
         def script(messages, info):
             if not [p for m in messages[-1:] for p in m.parts if isinstance(p, ToolReturnPart)]:
@@ -590,7 +564,7 @@ class Turn(JobsCase):
         for name, chars, past in (("within the allowance", 2000, False), ("past the allowance", 900, True)):
             with self.subTest(name):
                 uk = self.user()
-                keystore.set_auto_record(self.conn, uk, True)
+                prefs.set_auto_record(self.conn, uk, True)
                 if past:
                     self.assertTrue(spend.reserve(self.conn, uk, today(), self.settings.daily_chars - 1000,
                                                   self.settings.daily_chars))
@@ -601,7 +575,7 @@ class Turn(JobsCase):
 
                 def engine_run(root, home, argv, extra_env={}, timeout=120, cancel=None):
                     if argv[:2] == ["get", "cost"]:
-                        return worker.engine.Result(0, '{"service": "fish", "usd": 0.03, "pending_design": false}', "")
+                        return worker.engine.Result(0, PRICED, "")
                     if argv and argv[0] == "build":
                         if "--lint-only" in argv:
                             return worker.engine.Result(0, f"ok\nSends {chars:,} characters to the voice service", "")
@@ -640,7 +614,7 @@ class Turn(JobsCase):
 
         def engine_run(root, home, argv, extra_env={}, timeout=120, cancel=None):
             if argv[:2] == ["get", "cost"]:
-                return worker.engine.Result(0, '{"service": "fish", "usd": 0.03, "pending_design": false}', "")
+                return worker.engine.Result(0, PRICED, "")
             if argv and argv[0] == "build":
                 if "--lint-only" in argv:
                     return worker.engine.Result(0, "ok\nSends 1,500 characters to the voice service", "")
@@ -651,7 +625,7 @@ class Turn(JobsCase):
                 return worker.engine.Result(0, "built", "")
             return real(root, home, argv, extra_env=extra_env, timeout=timeout)
 
-        BUILD = ["build", "me/workouts/w/w.draft.txt", "Workout 10 min", "--coach", "Coach Reed"]
+        BUILD = ["build", "me/workouts/w/w.draft.txt", "Workout 10 min", "--coach", COACH]
 
         def script(messages, info):
             if not [p for m in messages[-1:] for p in m.parts if isinstance(p, ToolReturnPart)]:
@@ -682,16 +656,12 @@ class Turn(JobsCase):
 
         def engine_run(root, home, argv, extra_env={}, timeout=120, cancel=None):
             if argv[:2] == ["get", "cost"]:
-                return worker.engine.Result(0, '{"service": "inworld", "usd": 0.03, "pending_design": true}', "")
+                return worker.engine.Result(0, PRICED, "")
             if argv and argv[0] == "build":
                 if "--max-chars" in argv and argv[argv.index("--max-chars") + 1] == "1":
                     return worker.engine.Result(64, "the script speaks 2,000 characters; at most 1", "")
                 if "--lint-only" in argv:
                     return worker.engine.Result(0, "ok", "")
-                coach = os.path.join(home, "coaches", "coach-owen-inworld")   # designed in this build
-                os.makedirs(coach, exist_ok=True)
-                with open(os.path.join(coach, "persona.md"), "w", encoding="utf-8") as f:
-                    f.write('+++\nname = "Coach Owen"\n+++\n')
                 os.makedirs(os.path.join(home, "workouts", "w"), exist_ok=True)
                 with open(os.path.join(home, "workouts", "w", "Workout 5 min.mp3"), "wb") as f:
                     f.write(b"ID3fake-mp3")
@@ -704,7 +674,7 @@ class Turn(JobsCase):
                 return worker.engine.Result(2, "built, a little off plan", "")
             return real(root, home, argv, extra_env=extra_env, timeout=timeout)
 
-        BUILD = ["build", "me/workouts/w/w.draft.txt", "Workout 5 min", "--coach", "Coach Owen"]
+        BUILD = ["build", "me/workouts/w/w.draft.txt", "Workout 5 min", "--coach", COACH]
 
         def price(messages, info):
             if not [p for m in messages[-1:] for p in m.parts if isinstance(p, ToolReturnPart)]:
@@ -727,8 +697,6 @@ class Turn(JobsCase):
         self.assertEqual([a["name"] for a in audio], ["Workout 5 min"])
         self.assertEqual(media.get(self.conn, uk, audio[0]["id"])[1], b"ID3fake-mp3")
         self.assertEqual(media.by_build(self.conn, uk), {"b0123": audio[0]})   # the Logs page can play it
-        self.conn.rollback()
-        self.assertIn("coaches/coach-owen-inworld/persona.md", store.read_all(self.conn, uk))   # the paid design
         self.conn.rollback()
         home = self.homes[-1]
         os.makedirs(home, exist_ok=True)
@@ -770,39 +738,23 @@ class Turn(JobsCase):
         self.conn.execute("delete from jobs")
         self.conn.commit()
 
-    def test_a_turn_fails_plainly_without_a_model_key_or_when_the_key_is_refused(self):
+    def test_a_turn_says_only_that_the_service_is_down_when_the_sites_key_is_refused(self):
+        from webapp import hosted
+
         def refuse(messages, info):
-            raise ModelHTTPError(status_code=401, model_name="claude-test",
-                                 body={"error": f"invalid x-api-key {MODEL_KEY}"})
-        for name in ("no model key", "the key refused"):
-            with self.subTest(name):
-                self.fresh_queue()
-                if name == "no model key":
-                    uk = self.user(key=False)
-                    keystore.put(self.conn, uk, "fish", "sk-abcdefghijklmnop")   # a voice key is no model key
-                    self.conn.commit()
-                    cid = self.start(uk)
-                    job, conv = self.run_turn(uk, lambda m, i: self.fail("the model ran"), cid, line="go")
-                    self.assertEqual(self.state(job), ("failed", "add a language-model key in Settings"))
-                    self.model_for.assert_not_called()
-                    self.assertEqual(conv.state, "failed")
-                    self.assertEqual(conv.lines[-1], {"role": "agent",
-                                                      "text": "That didn't work: add a language-model key in Settings"})
-                else:
-                    uk = self.user()
-                    cid = self.start(uk)
-                    with mock.patch("sys.stderr") as err:
-                        job, conv = self.run_turn(uk, refuse, cid, line="go")
-                    state, error = self.state(job)
-                    self.assertEqual(state, "failed")
-                    self.assertIn("Claude refused the key", error)
-                    self.assertEqual(jobs.status(self.conn, uk, job)["code"], "key_refused")   # beside the words
-                    self.assertEqual(conv.state, "failed")
-                    self.assertIn("Claude refused the key", conv.lines[-1]["text"])
-                    stored = repr((error, conv.lines, jobs.result(self.conn, uk, job), err.mock_calls))
-                    self.assertNotIn(MODEL_KEY, stored)
-                    self.assertNotIn("x-api-key", stored)
-                self.conn.rollback()
+            raise ModelHTTPError(status_code=401, model_name="gemini-test",
+                                 body={"error": f"invalid key {SITE_KEY}"})
+        uk = self.user()
+        cid = self.start(uk)
+        with mock.patch("sys.stderr") as err:
+            job, conv = self.run_turn(uk, refuse, cid, line="go")
+        self.assertEqual(self.state(job), ("failed", hosted.DOWN))   # nothing the listener can fix: no key talk
+        self.assertIsNone(jobs.status(self.conn, uk, job)["code"])
+        self.assertEqual(conv.state, "failed")
+        self.assertEqual(conv.lines[-1], {"role": "agent", "text": f"That didn't work: {hosted.DOWN}"})
+        stored = repr((conv.lines, jobs.result(self.conn, uk, job), err.mock_calls))
+        self.assertNotIn(SITE_KEY, stored)
+        self.conn.rollback()
 
     def test_a_turn_that_runs_too_long_stops_at_its_usage_limit_or_its_time(self):
         import asyncio
@@ -847,10 +799,8 @@ class Turn(JobsCase):
                     self.assertEqual(len(calls), 1)   # nothing retried
                 self.conn.rollback()
 
-    def test_model_key_never_in_engine_env(self):
+    def test_the_engine_gets_the_sites_key_and_a_fetcher_none(self):
         uk = self.user()
-        keystore.put(self.conn, uk, "fish", "sk-abcdefghijklmnop")
-        self.conn.commit()
         cid = self.start(uk)
         seen = []
         real = worker.engine.run
@@ -873,13 +823,12 @@ class Turn(JobsCase):
         # is saved (its content plan and feeds), when it gets that far before the turn ends
         self.assertGreaterEqual(len(seen), 2 + 6)
         from webapp.agent import tools as agent_tools
-        for command, env in seen:   # the voice key, and the listener's clock (TZ): never the model's key
+        for command, env in seen:   # the site's key, and the listener's clock (TZ)
             # and no key at all for a command that fetches pages (0.76.0)
-            want = {} if command in agent_tools.FETCHERS else {"FISH_AUDIO_API_KEY": "sk-abcdefghijklmnop"}
+            want = {} if command in agent_tools.FETCHERS else {"OPENROUTER_API_KEY": SITE_KEY}
             self.assertIn("TZ", env, command)
             self.assertEqual({k: v for k, v in env.items() if k != "TZ"}, want, command)
             self.assertRegex(env.get("TZ", ""), r"^LCL[+-]\d+(:\d\d)?$")
-            self.assertNotIn(MODEL_KEY, env.values())
         self.conn.rollback()
 
     def test_conversation_not_working_is_left_alone(self):
@@ -1017,42 +966,33 @@ class Turn(JobsCase):
 
 
 class Lanes(JobsCase):
-    """An enrichment and a balance check (0.77.0) each run in a lane of their own, beside a turn, one at a time."""
+    """An enrichment runs in a lane of its own (0.77.0), beside a turn, one at a time; the quick lane has no job kind
+    of its own since 0.88.0 and claims nothing."""
 
-    def test_enrichment_and_a_balance_check_run_beside_a_turn_one_at_a_time(self):
+    def test_enrichment_runs_beside_a_turn_one_at_a_time(self):
         _, uk = self.make_user()
         turn = enqueue(self.conn, uk, "turn", {})
         first = enqueue(self.conn, uk, "enrich", {})
         second = enqueue(self.conn, uk, "enrich", {})
-        balances = enqueue(self.conn, uk, "balances", {})
-        again = enqueue(self.conn, uk, "balances", {})
         self.assertEqual(jobs.claim(self.conn).id, turn)                # the main lane never takes the others
         self.assertIsNone(jobs.claim(self.conn))
         self.assertEqual(jobs.claim(self.conn, "enrich").id, first)     # beside the running turn
         self.assertIsNone(jobs.claim(self.conn, "enrich"))              # but one enrichment at a time
-        self.assertEqual(jobs.claim(self.conn, "quick").id, balances)   # beside the running turn
-        self.assertIsNone(jobs.claim(self.conn, "quick"))               # one quick job a listener at once
+        self.assertIsNone(jobs.claim(self.conn, "quick"))
         with self.assertRaises(ValueError):
             jobs.claim(self.conn, "side")
-        self.conn.execute("update jobs set state = 'done' where id = any(%s)", ([first, balances],))
+        self.conn.execute("update jobs set state = 'done' where id = %s", (first,))
         self.conn.commit()
         self.assertEqual(jobs.claim(self.conn, "enrich").id, second)
-        self.assertEqual(jobs.claim(self.conn, "quick").id, again)
 
-    def test_the_unique_indexes_hold_one_running_job_a_lane(self):
-        for kind, with_turn in (("enrich", False), ("balances", True)):
-            with self.subTest(kind):
-                self.conn.rollback()
-                self.conn.execute("delete from jobs")
-                self.conn.commit()
-                _, uk = self.make_user()
-                a, b = enqueue(self.conn, uk, kind, {}), enqueue(self.conn, uk, kind, {})
-                running = [a, enqueue(self.conn, uk, "turn", {})] if with_turn else [a]
-                self.conn.execute("update jobs set state = 'running' where id = any(%s)", (running,))
-                self.conn.commit()
-                with self.assertRaises(psycopg.errors.UniqueViolation):
-                    self.conn.execute("update jobs set state = 'running' where id = %s", (b,))
-                self.conn.rollback()
+    def test_the_unique_index_holds_one_running_enrichment(self):
+        _, uk = self.make_user()
+        a, b = enqueue(self.conn, uk, "enrich", {}), enqueue(self.conn, uk, "enrich", {})
+        self.conn.execute("update jobs set state = 'running' where id = %s", (a,))
+        self.conn.commit()
+        with self.assertRaises(psycopg.errors.UniqueViolation):
+            self.conn.execute("update jobs set state = 'running' where id = %s", (b,))
+        self.conn.rollback()
 
 
 class Slots(JobsCase):

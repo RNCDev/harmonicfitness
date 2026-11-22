@@ -11,7 +11,7 @@ from fastapi import APIRouter, Body, HTTPException, Request
 from fastapi.responses import FileResponse, RedirectResponse, Response
 from pydantic import BaseModel, ConfigDict, StrictStr, StringConstraints
 
-from .. import APP_NAME, auth, clerk, keystore, level, providers, start, store, workouts
+from .. import APP_NAME, auth, clerk, level, prefs, start, store, workouts
 from .logs import workout_call
 from .state import COOKIE, POST, St, User, confirming, is_admin, read, tx
 
@@ -51,13 +51,12 @@ def me(st: St, uk: User):
         name, pw, linked, have = conn.execute(
             "select username, password_hash is not null, clerk_id is not null, minutes from users "
             "where id = %s", (uk.user_id,)).fetchone()
-        sky = keystore.sky(conn, uk)
-        auto = keystore.auto_record(conn, uk)
-    # clerk: sign-in goes through Clerk here (no password to set or ask for); hosted: the site's own key writes and
-    # speaks, paid for in minutes (no keys to add), and `minutes` is the balance
+        sky = prefs.sky(conn, uk)
+        auto = prefs.auto_record(conn, uk)
+    # clerk: sign-in goes through Clerk here (no password to set or ask for); `minutes` is the balance
     return {"app_name": APP_NAME, "username": name, "has_password": pw, "version": st.version, "sky": sky,
             "auto_record": auto, "clerk": st.clerk is not None, "clerk_linked": linked,
-            "hosted": st.settings.hosted, "minutes": have if st.settings.hosted else None,
+            "minutes": have,
             "admin": is_admin(st, uk)}
 
 
@@ -99,22 +98,17 @@ def coach_sample(st: St, uk: User, slug: str, request: Request):
 async def start_screen(st: St, uk: User):
     """What the first screen's sentence is filled in with: the web coaches (current first), the kits,
     the usual length, today's limits, a suggestion from the log, and whether setup is still quick. Kept
-    per listener until a file, a key, the chosen coach or the day changes (start.cached)."""
+    per listener until a file, the chosen coach or the day changes (start.cached)."""
     def work() -> dict:
         with read(st) as conn:
             mark = store.fingerprint(conn, uk)
-            have = keystore.listing(conn, uk)
-            chosen = keystore.coach(conn, uk)
-            # as in GET /api/keys: a model key stored under a provider's own id voices its shared service too
-            keyed = {s for s in st.services
-                     if s in have or any(p in have for p, t in providers.SHARED_KEY.items() if t == s)}
-            paid = st.settings.hosted   # the site's own coaches, whatever keys were stored before
-            made_from = (mark, frozenset(keyed), chosen, datetime.date.today().isoformat(), paid)
+            chosen = prefs.coach(conn, uk)
+            made_from = (mark, chosen, datetime.date.today().isoformat())
             kept = start.cached(uk.user_id, made_from)
             if kept is not None:
                 return kept
             files = {p: body for p, (_, body) in store.read_all(conn, uk).items()}
-        answer = start.gather(st.settings.engine_root, files, keyed, chosen, paid)
+        answer = start.gather(st.settings.engine_root, files, chosen)
         start.remember(uk.user_id, made_from, answer)
         return answer
     return await anyio.to_thread.run_sync(work)

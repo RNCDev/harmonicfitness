@@ -1,7 +1,7 @@
 # The web client on Fly.io: the root Dockerfile's one image runs as two process groups, web (the API and
 # client, behind Fly's proxy) and worker (the jobs), told apart by HARMONICFITNESS_ROLE (web/entrypoint.sh).
 # Secrets (fly secrets): DATABASE_URL (the shared managed Postgres cluster's direct address, not PgBouncer:
-# the worker LISTENs), HARMONICFITNESS_MASTER_KEY, HARMONICFITNESS_BASE_URL, HARMONICFITNESS_PROVIDERS.
+# the worker LISTENs), HARMONICFITNESS_MASTER_KEY, HARMONICFITNESS_BASE_URL, OPENROUTER_API_KEY.
 # Deploy: fly deploy --build-arg GIT_COMMIT_SHA=$(git rev-parse --short HEAD)   (web/README.md, Deploy)
 
 app = "harmonicfitness"

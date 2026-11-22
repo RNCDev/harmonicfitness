@@ -64,7 +64,7 @@ function DeleteBox({ onDeleted }: { onDeleted: () => void }) {
         <Button variant="text" danger onClick={() => setOpen(true)}>Delete my account</Button>
       ) : (
         <ConfirmInline question="Delete your account and everything in it?"
-          detail="Your files, keys, chats and audio. It can't be undone." confirm="Delete everything" keep="Keep my account"
+          detail="Your files, chats and audio. It can't be undone." confirm="Delete everything" keep="Keep my account"
           canConfirm={!!password} busy={remove.busy} onConfirm={() => void remove.run()}
           onKeep={() => { setOpen(false); setPassword(""); remove.clear(); }}
           field={<Field id="delete-password" label="Your password" error={remove.error}>

@@ -8,7 +8,7 @@ export const APP_NAME = "HarmonicFitness";
 export class NotSignedIn extends Error {}
 /** What the page offers for a refusal or a failed job, named by the server beside its words (0.71.0): the page reads
  * the code, never the wording. */
-export type ErrorCode = "no_model_key" | "key_refused" | "no_minutes";
+export type ErrorCode = "no_minutes";
 /** A refusal, in the server's words; `field` names the form's box it's about, and `code` what the page can offer for
  * it, when the server says. */
 export class ApiError extends Error {
@@ -25,8 +25,8 @@ export type Me = { app_name: string; username: string; has_password: boolean; ve
   /** Sign-in goes through Clerk here (no password to choose or change), and whether this account is one of
    * Clerk's; absent from a server older than 0.85.0, as the two below are. */
   clerk?: boolean; clerk_linked?: boolean;
-  /** The site's own key writes and speaks, paid for in minutes: no keys to add, and `minutes` is the balance. */
-  hosted?: boolean; minutes?: number | null;
+  /** The listener's balance of minutes. */
+  minutes?: number | null;
   /** One of the accounts HARMONICFITNESS_ADMINS names: the Admin page shows (the server checks again). */
   admin?: boolean };
 /** The listener's level (novice when none is set), and the three to choose from as a listener would say each. */
@@ -34,32 +34,20 @@ export type LevelState = { level: Level; set: boolean; choices: { level: Level; 
 export type Level = "novice" | "experienced" | "advanced";
 /** What the sign-in page offers. `clerk`: the Clerk instance's publishable key where sign-in goes through Clerk,
  * else null (or absent) and the page shows its own username and password form. */
-type AuthInfo = { app_name: string; registration: boolean; version: string; clerk?: string | null; hosted?: boolean };
+type AuthInfo = { app_name: string; registration: boolean; version: string; clerk?: string | null };
 /** A pack of minutes for sale, and a line of what happened to the balance (bought, used, given back). */
 export type Pack = { id: string; minutes: number; cents: number };
 type MinutesLine = { at: string; kind: string; minutes: number; what: string };
-/** `paid`: whether this site charges minutes at all; `can_buy`: whether packs are sold here. */
-export type MinutesState = { paid: boolean; minutes: number; can_buy: boolean; packs: Pack[]; history: MinutesLine[] };
+/** `can_buy`: whether packs are sold here. */
+export type MinutesState = { minutes: number; can_buy: boolean; packs: Pack[]; history: MinutesLine[] };
 export type DeviceLink = { url: string; expires_at: string };
-export type KeyState = {
-  service: string; name: string; key_page: string; set: boolean; updated_at: string | null;
-  kind: "voice" | "model";
-  /** On a model row: whether it's the one the listener chose to write their workouts. */
-  writer?: boolean;
-  /** Where the account's balance is seen, and whether a balance check can say it here (absent before 0.43.1). */
-  billing_page?: string;
-  reports?: boolean;
-};
-/** What a balance check says of one service: Fish Audio's credit in dollars, or ElevenLabs's credits this period. */
-export type Balance = { ok: boolean; usd?: number; used?: number; limit?: number; resets?: number | null;
-  kind?: string };
 export type Stage = { stage: string; [field: string]: unknown };
 type JobState = "queued" | "running" | "done" | "failed";
 type JobView = {
   id: number;
   state: JobState;
   error: string | null;
-  /** What the page can offer for the error (Open Settings), when there is something. */
+  /** What the page can offer for the error (Get minutes), when there is something. */
   code?: ErrorCode | null;
   stages: Stage[];
 };
@@ -73,14 +61,12 @@ export type ChatLine = { role: "user" | "agent"; text: string; audio?: Audio; ph
 type PlanRow = { what: string; kind: "movement" | "rest" | "talk"; segments: number; seconds: number };
 export type Plan = { rows: PlanRow[]; seconds: number };
 /** `first`: no script has gone to a voice service yet, so the card says where it goes. `minutes` is the workout's
- * length and `charge` what recording it takes from the balance where the site charges minutes (0 for the free
- * second take). */
-export type Offer = { name: string; coach: string; chars: number; usd: number; service: string; design?: boolean;
-  plan?: Plan | null; first?: boolean; minutes?: number; charge?: number };
-/** A workout for later: its time (UTC and the listener's), and once the check-in is done, its cost and ceiling;
- * `due` once it's scheduled (when the writing starts). */
-export type Later = { at: string; local: string; due?: string; done?: boolean; minutes?: number; coach?: string;
-  usd?: number; ceiling_usd?: number };
+ * length and `charge` what recording it takes from the balance (0 for the free second take). */
+export type Offer = { name: string; coach: string; service: string; plan?: Plan | null; first?: boolean;
+  minutes?: number; charge?: number };
+/** A workout for later: its time (UTC and the listener's), and once the check-in is done, its length; `due` once
+ * it's scheduled (when the writing starts). */
+export type Later = { at: string; local: string; due?: string; done?: boolean; minutes?: number; coach?: string };
 export type Conversation = {
   id: number; state: "working" | "waiting" | "idle" | "failed" | "scheduled"; job_id: number | null;
   later?: Later | null;
@@ -94,9 +80,8 @@ export type When = { today: string; now: string };
 /** What the first screen's sentence is filled in with (GET /api/start). */
 export type StartCoach = { slug: string; name: string; first: string; service: string; service_name: string;
   ready: boolean; own: boolean; current: boolean;
-  /** For the gallery: how the coach sounds and talks, whether a sample ships, about what a workout costs, and
-   * whether its voice is made the first time it's used. */
-  description?: string | null; tone?: string | null; sample?: boolean; usd_per_workout?: number | null; pending?: boolean;
+  /** For the gallery: how the coach sounds and talks, and whether a sample ships. */
+  description?: string | null; tone?: string | null; sample?: boolean;
   /** Who makes the voices, where the service is a go-between: OpenRouter's "ElevenLabs". */
   powered_by?: string | null;
   /** A stock voice heard as a woman's ("f") or a man's ("m"), where its service knows it. */
@@ -202,18 +187,12 @@ export const api = {
   feed: () => call<{ url: string | null }>("GET", "/api/feed"),
   makeFeed: () => call<{ url: string }>("POST", "/api/feed"),
   stopFeed: () => call<void>("DELETE", "/api/feed"),
-  keys: () => call<KeyState[]>("GET", "/api/keys"),
-  setKey: (service: string, key: string) =>
-    call<void>("PUT", `/api/keys/${encodeURIComponent(service)}`, { key }),
-  setWriter: (service: string) => call<void>("PUT", "/api/writer", { service }),
   setSky: (sky: "flow" | "field" | "waves" | "bloom" | "woven" | "garden") => call<void>("PUT", "/api/sky", { sky }),
   setAutoRecord: (on: boolean) => call<void>("PUT", "/api/auto-record", { on }),
   level: () => call<LevelState>("GET", "/api/level"),
   setLevel: (level: Level) => call<void>("PUT", "/api/level", { level }),
   /** `day` is the listener's own date (YYYY-MM-DD), as the log's are. */
   setCoach: (slug: string, day: string) => call<void>("PUT", "/api/coach", { slug, day }),
-  deleteKey: (service: string) =>
-    call<void>("DELETE", `/api/keys/${encodeURIComponent(service)}`),
   /** `startAt` (from `withOffset`) asks for the workout at that time: the check-in now, the writing before it. */
   startConversation: (line: string, w: When, startAt?: string, photos?: string[]) =>
     call<{ id: number; job_id: number }>("POST", "/api/conversations", { line, ...w, ...(startAt ? { start_at: startAt } : {}),
@@ -249,8 +228,6 @@ export const api = {
     }));
     return r.json();
   },
-  /** Starts a balance check (a worker job; one already waiting is returned), read with `jobResult`. */
-  balances: () => call<{ id: number }>("POST", "/api/balances"),
   jobResult,
   /** How a job ended (its result too, unread). */
   job: jobResult,
@@ -343,7 +320,7 @@ export function useJob() {
 type JobEnd = { state: "done"; result: unknown } | { state: "failed" | "timeout" | "gone" };
 
 /** Wait for a worker job, reading it every `every` ms for at most `within` ms, while `live()` holds. The one
- * polling loop on this side: the balance check and the feedback's summary both use it. A failed read ends it as
+ * polling loop on this side: the feedback's summary uses it. A failed read ends it as
  * failed. */
 export async function waitForJob(id: number, opts: { every?: number; within?: number; live?: () => boolean } = {})
   : Promise<JobEnd> {
@@ -357,14 +334,4 @@ export async function waitForJob(id: number, opts: { every?: number; within?: nu
     await new Promise((r) => setTimeout(r, every));
   }
   return { state: "gone" };
-}
-
-/** Each keyed service's balance, from a check the worker runs: null when it failed or took too long. */
-export async function checkBalances(opts: { every?: number; within?: number; live?: () => boolean } = {}):
-  Promise<Record<string, Balance> | null> {
-  const { id } = await api.balances();
-  const end = await waitForJob(id, opts);
-  if (end.state !== "done") return null;
-  const found = (end.result as { balances?: unknown } | null)?.balances;
-  return found && typeof found === "object" ? (found as Record<string, Balance>) : null;
 }

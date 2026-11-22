@@ -212,7 +212,7 @@ class Admin(DBCase):
         from webapp import admin
         env = {"DATABASE_URL": url or URL_FOR(self), "HARMONICFITNESS_BASE_URL": "https://wt.test",
                "HARMONICFITNESS_MASTER_KEY": __import__("base64").b64encode(MASTER).decode(),
-               "HARMONICFITNESS_ENGINE_ROOT": ROOT}
+               "HARMONICFITNESS_ENGINE_ROOT": ROOT, "OPENROUTER_API_KEY": "sk-or-site"}
         out, err = io.StringIO(), io.StringIO()
         with redirect_stdout(out), redirect_stderr(err):
             code = admin.main(list(argv), env)

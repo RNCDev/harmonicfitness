@@ -72,7 +72,9 @@ def add(conn, uk: UserKey, kind: str, args: dict, not_before=None) -> int:
 
 
 LANES = ("main", "enrich", "quick")   # enrich: enrichment's own lane, beside a turn; quick: QUICK; main: the rest
-QUICK = ("balances",)                # quick jobs, never behind a turn (0.77.0): the Settings balance check
+# quick jobs, never behind a turn (0.77.0). The one there was, the Settings balance check, went with listeners' own
+# keys (0.88.0); the lane's loop still reaps and sweeps (worker.lanes), and claims nothing while this is empty
+QUICK: tuple[str, ...] = ()
 _OWN_LANE = ("enrich", *QUICK)
 
 
@@ -80,7 +82,7 @@ def _in_lane(lane: str, alias: str) -> str:
     if lane == "enrich":
         return f"{alias}.kind = 'enrich'"
     if lane == "quick":
-        return f"{alias}.kind in ({', '.join(repr(k) for k in QUICK)})"
+        return f"{alias}.kind in ({', '.join(repr(k) for k in QUICK)})" if QUICK else "false"
     return f"{alias}.kind not in ({', '.join(repr(k) for k in _OWN_LANE)})"
 
 

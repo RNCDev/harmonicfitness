@@ -1,20 +1,16 @@
-// The Settings drawer, in three parts: tabs at the top, one per section (the keys, what's used most, or on a site
-// that sells minutes the minutes in their place; the listener's level; recording; the private podcast feed; the background behind the page, called the sky in the code, with its
-// credit; their files); the chosen section alone; and the account at the foot (Account.tsx). While it's open it
+// The Settings drawer, in three parts: tabs at the top, one per section (the minutes, what's used most; the
+// listener's level; recording; the private podcast feed; the background behind the page, called the sky in the code,
+// with its credit; their files); the chosen section alone; and the account at the foot (Account.tsx). While it's open it
 // holds the keyboard: Tab stays inside, Escape closes it, and the page behind can't be reached. Each section is a
 // file of its own beside this one.
 import { useEffect, useRef, useState, type RefObject } from "react";
-import type { KeyState } from "../../lib/api";
 import { useFocusTrap } from "../../lib/useFocusTrap";
-import { useKeyAsk } from "../../lib/keyAsk";
-import { useSite } from "../../lib/site";
 import type { Minutes } from "../../lib/useMinutes";
 import type { SkyKind } from "../../ui/Sky";
 import { Button } from "../../ui/Button";
 import { Account } from "./Account";
 import { FeedBox } from "./FeedBox";
 import { FilesBox } from "./FilesBox";
-import { KeysBox } from "./KeysBox";
 import { LevelBox } from "./LevelBox";
 import { MinutesBox } from "./MinutesBox";
 import { RecordBox } from "./RecordBox";
@@ -30,7 +26,6 @@ type Props = {
   onSignOut: () => void;
   /** The account is gone: back to the sign-in page. */
   onDeleted?: () => void;
-  onKeys?: (keys: KeyState[]) => void;
   /** The background behind the page (the sky), the choice of it, and why the last choice didn't hold. */
   sky?: SkyKind;
   onSky?: (sky: SkyKind) => void;
@@ -41,7 +36,7 @@ type Props = {
   autoRecordError?: string | null;
   /** Where focus goes when the drawer closes (the Settings button). */
   returnFocus?: RefObject<HTMLElement>;
-  /** The listener's minutes, where the site sells them; and how they just came back from the checkout page. */
+  /** The listener's minutes; and how they just came back from the checkout page. */
   minutes?: Minutes;
   back?: "bought" | "cancelled" | null;
   /** A section asked for from elsewhere (the header's minutes, "Get minutes"); `n` grows with each ask. */
@@ -50,18 +45,15 @@ type Props = {
   clerkLinked?: boolean;
 };
 
-export function Settings({ username, version, open, onClose, onSignOut, onDeleted = onSignOut, onKeys,
+export function Settings({ username, version, open, onClose, onSignOut, onDeleted = onSignOut,
   sky = "flow", onSky, skyError, autoRecord = false, onAutoRecord, autoRecordError, returnFocus, minutes, back = null, goTo = null,
   clerkLinked = false }: Props) {
-  // on a site that sells minutes no key is the listener's: Minutes stands where Keys does
-  const { hosted } = useSite();
   const drawer = useRef<HTMLElement>(null);
   useFocusTrap(drawer, open, { onEscape: onClose, returnFocus, inert: true });
   // the tabs: one per section, and only the chosen section shows (a button, not a link: the page's own address
   // already says which page is open)
   const sections = [
     ...(minutes ? [{ id: "cx-minutes", name: "Minutes" }] : []),
-    ...(hosted ? [] : [{ id: "cx-keys", name: "Keys" }]),
     { id: "cx-level", name: "Level" },
     ...(onAutoRecord ? [{ id: "cx-rec", name: "Recording" }] : []),
     { id: "cx-feed", name: "Podcast" },
@@ -69,9 +61,6 @@ export function Settings({ username, version, open, onClose, onSignOut, onDelete
     { id: "cx-files", name: "Files" },
   ];
   const [shown, setShown] = useState(sections[0].id);
-  // a key's row asked for from elsewhere (the welcome card, a coach that needs a key) is in Keys
-  const keyAsk = useKeyAsk();
-  useEffect(() => { if (keyAsk && !hosted) setShown("cx-keys"); }, [keyAsk, hosted]);
   const has = (id: string) => sections.some((x) => x.id === id);
   useEffect(() => { if (goTo && has(goTo.section)) setShown(goTo.section); }, [goTo]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
@@ -92,7 +81,6 @@ export function Settings({ username, version, open, onClose, onSignOut, onDelete
         </nav>
         <div className="cx-main" data-shown={shown}>
           {minutes && <MinutesBox minutes={minutes} back={back} />}
-          {!hosted && <KeysBox onKeys={onKeys} />}
           <LevelBox />
           {onAutoRecord && <RecordBox on={autoRecord} onChange={onAutoRecord} error={autoRecordError} />}
           {shown === "cx-feed" && <FeedBox />}{/* loaded when opened: most visits to Settings never need it */}

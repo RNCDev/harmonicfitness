@@ -1,7 +1,7 @@
-// The listener's minutes, on a site that sells them (GET /api/minutes): what's left, the packs and the history.
+// The listener's minutes (GET /api/minutes): what's left, the packs and the history.
 // Read once the page opens, again whenever a turn starts or ends (a recording holds minutes, then keeps or gives
 // them back), and a few times after coming back from the checkout page, since the payment's word can arrive a
-// moment after the listener does. Elsewhere nothing is asked and there is nothing to show.
+// moment after the listener does.
 import { useCallback, useEffect, useRef } from "react";
 import { api, type MinutesState } from "./api";
 import { SAID } from "./messages";
@@ -11,7 +11,7 @@ import { useResource } from "./useResource";
 const SETTLE_AFTER = [3000, 9000];
 
 export type Minutes = {
-  /** Null until it's in, and always where minutes aren't sold. */
+  /** Null until it's in. */
   state: MinutesState | null;
   error: string | null;
   reload: () => void;
@@ -19,14 +19,14 @@ export type Minutes = {
   settle: () => void;
 };
 
-export function useMinutes(on: boolean, working: boolean): Minutes {
-  const res = useResource<MinutesState | null>(() => (on ? api.minutes() : Promise.resolve(null)), SAID.minutes, [on]);
+export function useMinutes(working: boolean): Minutes {
+  const res = useResource<MinutesState>(() => api.minutes(), SAID.minutes, []);
   const { refresh } = res;
   const first = useRef(true);
   useEffect(() => {
     if (first.current) { first.current = false; return; }   // the first read is useResource's own
-    if (on) void refresh();
-  }, [on, working, refresh]);
+    void refresh();
+  }, [working, refresh]);
 
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   useEffect(() => () => timers.current.forEach(clearTimeout), []);

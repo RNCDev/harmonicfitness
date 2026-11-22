@@ -1,5 +1,4 @@
-"""What the site's own OpenRouter key is charged, for the admin screen's books (0.87.0). Only on the hosted site:
-elsewhere the key is the listener's and so is the bill.
+"""What the site's own OpenRouter key is charged, for the admin screen's books (0.87.0).
 
 The writing: every model reply carries OpenRouter's own charge (usage.cost, which pydantic-ai keeps in the reply's
 provider_details["cost"]); a job's model is wrapped once (`Metered`), so the conversation, the writers' room and the

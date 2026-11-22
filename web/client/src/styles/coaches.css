@@ -3,8 +3,6 @@
 .cg { display: grid; gap: var(--s-6) }
 .cg-roster { display: grid; gap: var(--s-6); min-width: 0 }
 .cg-group { display: grid; gap: var(--s-3) }
-.cg-group-h { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--s-1h) var(--s-4) }
-.cg-h { margin: 0; letter-spacing: var(--track-wide); font-weight: var(--w-regular) }
 
 /* the tiles: one grid, four across on a wide screen, every tile the same height in its row; a tile never moves */
 .cg-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--s-2) }
@@ -39,10 +37,8 @@
 .cg-play { min-width: 0; min-height: var(--control-lg); display: flex; align-items: center }
 .cg-play .player { flex: 1; flex-wrap: nowrap }
 .cg-act { justify-items: end; text-align: right }
-.cg-act-main { height: var(--control-lg); display: flex; align-items: center }   /* the button, Coaching you now or the key: one height */
+.cg-act-main { height: var(--control-lg); display: flex; align-items: center }   /* the button or Coaching you now: one height */
 .cg-now { margin: 0; font-size: var(--fs-md); font-weight: var(--w-strong); letter-spacing: var(--track-wide); text-transform: uppercase; color: var(--sample) }
-.cg-need { font-size: var(--fs-md); color: var(--text-muted) }
-.cg-more { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--s-1h) var(--s-4); margin: 0; font-size: var(--fs-md); color: var(--text-muted) }
 .cg-foot { margin: 0; font-size: var(--fs-sm); color: var(--text-muted) }
 
 /* narrower: three across, then two; on a phone the bar stacks into three rows (who, the sample, the button) and the

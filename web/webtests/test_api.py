@@ -13,7 +13,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 from webapp import routes  # noqa: E402
 import webapp.routes.account  # noqa: E402,F401
 import webapp.routes.auth  # noqa: E402,F401
-from webapp import api, auth, config, conversations, db, enginelib, feed, folder, jobs, keystore, spend, store, turns  # noqa: E402
+from webapp import api, auth, config, conversations, db, feed, folder, jobs, minutes, prefs, spend, store, turns  # noqa: E402
 from webtests import dbcase  # noqa: E402
 from webtests.dbcase import MASTER, DBCase, committed, enqueue  # noqa: E402
 
@@ -40,7 +40,7 @@ class ApiCase(DBCase):
 
     def setUp(self):
         self.settings = config.Settings(database_url=dbcase.URL, master_key=MASTER,
-                                        base_url=self.base_url, engine_root=ROOT)
+                                        base_url=self.base_url, engine_root=ROOT, openrouter_key="sk-or-site")
         self.conn.rollback()
         self.conn.execute("delete from jobs")
         self.conn.commit()
@@ -86,7 +86,7 @@ class SignIn(ApiCase):
         with self.subTest("the sign-in page's facts need none"):
             self.assertEqual(self.client.get("/api/auth").json(),
                              {"app_name": "HarmonicFitness", "registration": True, "version": VERSION,
-                              "clerk": None, "hosted": False})
+                              "clerk": None})
 
     def register(self, name="newbie", pw="long enough", client=None, **headers):
         client = client or self.client
@@ -103,7 +103,7 @@ class SignIn(ApiCase):
         self.assertEqual(self.client.get("/api/me").json(),
                          {"app_name": "HarmonicFitness", "username": "fresh.one",
                           "has_password": True, "version": VERSION, "sky": "flow", "auto_record": False,
-                          "clerk": False, "clerk_linked": False, "hosted": False, "minutes": None,
+                          "clerk": False, "clerk_linked": False, "minutes": 0,
                           "admin": False})
         self.assertIn("profile.md", [f["path"] for f in self.client.get("/api/sync").json()["files"]])
         r = self.register("FRESH.ONE", client=self.other_client())
@@ -363,142 +363,20 @@ class Api(ApiCase):
         self.assertEqual(self.client.get(f"/api/jobs/{2**70}").status_code, 422)
 
 
-class Keys(ApiCase):
-    def test_keys_and_balances_need_session_and_origin(self):
-        with self.subTest("keys"):
-            for m, p in (("get", "/api/keys"), ("put", "/api/keys/fish"), ("delete", "/api/keys/fish")):
-                kw = {"json": {"key": "abc"}} if m == "put" else {}
-                self.assertEqual(getattr(self.client, m)(p, headers=self.origin(), **kw).status_code, 401)
-            self.signed_in()
-            self.assertEqual(self.client.put("/api/keys/fish", json={"key": "abc123def456abcd"}).status_code, 403)
-            self.assertEqual(self.client.delete("/api/keys/fish").status_code, 403)
-        with self.subTest("balances: a job, one at a time"):
-            c = self.other_client()
-            self.assertEqual(c.post("/api/balances", headers=self.origin()).status_code, 401)
-            _, uk = self.signed_in(c)
-            self.assertEqual(c.post("/api/balances").status_code, 403)   # no origin: refused
-            first = c.post("/api/balances", headers=self.origin())
-            self.assertEqual(first.status_code, 202)
-            again = c.post("/api/balances", headers=self.origin())
-            self.assertEqual(again.json()["id"], first.json()["id"])   # the one waiting, not another
-            self.assertEqual(jobs.status(self.conn, uk, first.json()["id"])["kind"], "balances")
-            self.conn.rollback()
-
-    def test_unoffered_provider_is_404(self):
-        import dataclasses
-        self.signed_in()
-        c = TestClient(api.create_app(dataclasses.replace(self.settings, providers=("anthropic",)),
-                                      connect=self.connect, client_dist=self.dist), base_url=self.base_url)
-        c.cookies.update(self.client.cookies)
-        self.assertEqual(c.put("/api/keys/openai", json={"key": "abc123def456abcd"},
-                               headers=self.origin()).status_code, 404)
-        self.assertEqual(c.delete("/api/keys/openai", headers=self.origin()).status_code, 404)
-        self.assertEqual(c.put("/api/writer", json={"service": "openai"}, headers=self.origin()).status_code, 404)
-
+class Preferences(ApiCase):
     def test_record_without_asking_is_off_until_turned_on(self):
         _, uk = self.signed_in()
         self.assertIs(self.client.get("/api/me").json()["auto_record"], False)
         self.assertEqual(self.client.put("/api/auto-record", json={"on": True}, headers=self.origin()).status_code, 204)
-        self.assertTrue(keystore.auto_record(self.conn, uk))
+        self.assertTrue(prefs.auto_record(self.conn, uk))
         self.conn.rollback()
         self.assertIs(self.client.get("/api/me").json()["auto_record"], True)
         for bad in ({"on": "yes"}, {"on": 1}, {}, {"on": True, "more": 1}):
             self.assertEqual(self.client.put("/api/auto-record", json=bad, headers=self.origin()).status_code, 422, bad)
         self.assertEqual(self.client.put("/api/auto-record", json={"on": False}).status_code, 403)   # no Origin
         self.assertEqual(self.client.put("/api/auto-record", json={"on": False}, headers=self.origin()).status_code, 204)
-        self.assertFalse(keystore.auto_record(self.conn, uk))
+        self.assertFalse(prefs.auto_record(self.conn, uk))
         self.conn.rollback()
-
-    def test_put_key_strips_and_refuses(self):
-        user_id, uk = self.signed_in()
-        put = lambda svc, key: self.client.put(f"/api/keys/{svc}", json={"key": key},  # noqa: E731
-                                               headers=self.origin())
-        with self.subTest("listed as set, never shown"):
-            self.assertEqual(put("fish", "abc123def456abcd").status_code, 204)
-            r = self.client.get("/api/keys")
-            fish = next(k for k in r.json() if k["service"] == "fish")
-            self.assertTrue(fish["set"])
-            self.assertIsNotNone(fish["updated_at"])
-            self.assertNotIn("abc123def456abcd", r.text)
-        self.assertEqual(put("fish", "abc123def456abcd\n").status_code, 204)
-        self.assertEqual(keystore.open_all(self.conn, uk)["fish"], "abc123def456abcd")
-        self.conn.rollback()
-        r = put("fish", "abc 123")
-        self.assertEqual(r.status_code, 400)
-        self.assertIn("Fish Audio", r.json()["detail"])
-        self.assertNotIn("abc 123", r.text)
-        self.assertEqual(put("fish", "a" * 15).status_code, 400)
-        self.assertEqual(keystore.open_all(self.conn, uk)["fish"], "abc123def456abcd")   # nothing replaced
-        self.conn.rollback()
-        self.assertEqual(put("fish", "a" * 16).status_code, 204)
-        self.assertEqual(put("fish", "").status_code, 400)
-        self.assertEqual(put("fish", "  \n").status_code, 400)
-        long = "a" * 1025
-        r = put("fish", long)
-        self.assertEqual(r.status_code, 422)
-        self.assertNotIn(long, r.text)
-        r = self.client.put("/api/keys/fish", json={"key": "abc123def456abcd", "x": 1},
-                            headers=self.origin())
-        self.assertEqual(r.status_code, 422)
-        self.assertNotIn("abc123def456abcd", r.text)
-        self.assertEqual(put("nope", "abc123def456abcd").status_code, 404)
-
-    def test_keys_are_per_user_and_deleted(self):
-        with self.subTest("per user"):
-            _, uk_a = self.signed_in()
-            self.client.put("/api/keys/fish", json={"key": "abc123def456abcd"}, headers=self.origin())
-            b = self.other_client()
-            self.signed_in(b)
-            fish = next(k for k in b.get("/api/keys").json() if k["service"] == "fish")
-            self.assertFalse(fish["set"])
-            self.assertEqual(b.delete("/api/keys/fish", headers=self.origin()).status_code, 204)
-            self.assertIn("fish", keystore.open_all(self.conn, uk_a))
-            self.conn.rollback()
-        with self.subTest("delete"):
-            self.signed_in()
-            self.client.put("/api/keys/fish", json={"key": "abc123def456abcd"}, headers=self.origin())
-            self.assertEqual(self.client.delete("/api/keys/fish", headers=self.origin()).status_code, 204)
-            self.assertEqual(self.client.delete("/api/keys/fish", headers=self.origin()).status_code, 204)
-            self.assertEqual(self.client.delete("/api/keys/nope", headers=self.origin()).status_code, 404)
-            fish = next(k for k in self.client.get("/api/keys").json() if k["service"] == "fish")
-            self.assertFalse(fish["set"])
-
-    def test_engine_bug_is_a_500_and_stores_nothing(self):
-        _, uk = self.signed_in()
-        keys = enginelib.keys(ROOT)
-        quiet = TestClient(self.app, base_url=self.base_url, raise_server_exceptions=False)
-        quiet.cookies.update(self.client.cookies)
-        with mock.patch.object(keys, "clean_value", side_effect=RuntimeError("boom")):
-            r = quiet.put("/api/keys/fish", json={"key": "abc123def456abcd"}, headers=self.origin())
-        self.assertEqual(r.status_code, 500)
-        self.assertEqual(keystore.open_all(self.conn, uk), {})
-
-    def gemini_app(self):
-        """An app offering Gemini as the language model, whose key is also the Gemini voice's."""
-        import dataclasses
-        app = api.create_app(dataclasses.replace(self.settings, providers=("google",)), connect=self.connect,
-                             client_dist=self.dist)
-        c = TestClient(app, base_url=self.base_url)
-        c.cookies.update(self.client.cookies)
-        return c
-
-    def test_removing_gemini_removes_a_key_stored_before_the_merge(self):
-        _, uk = self.signed_in()
-        keystore.put(self.conn, uk, "google", "AIzaold123def456abcd")   # the model key, from before 0.25.2
-        self.conn.commit()
-        c = self.gemini_app()
-        self.assertTrue(all(k["set"] for k in c.get("/api/keys").json() if k["service"] == "gemini"))
-        self.assertEqual(c.delete("/api/keys/gemini", headers=self.origin()).status_code, 204)
-        self.assertEqual(keystore.open_all(self.conn, uk), {})
-        self.conn.rollback()
-        self.assertFalse(any(k["set"] for k in c.get("/api/keys").json()))
-
-    def test_api_never_opens_keys(self):
-        here = os.path.dirname(api.__file__)
-        for name in ["api.py"] + [os.path.join("routes", n) for n in os.listdir(os.path.join(here, "routes"))
-                                  if n.endswith(".py")]:
-            with open(os.path.join(here, name), encoding="utf-8") as f:
-                self.assertNotIn("open_all", f.read(), name)
 
 
 QUESTION = {"questions": [
@@ -510,9 +388,10 @@ QUESTION = {"questions": [
 
 
 class Conversations(ApiCase):
-    def keyed(self, client=None):
+    def funded(self, client=None):
+        """A listener with minutes: a conversation starts only with some to record with."""
         user_id, uk = self.signed_in(client)
-        keystore.put(self.conn, uk, "anthropic", "sk-ant-abc123def456abcd")
+        minutes.grant(self.conn, user_id, 500, "gift")
         self.conn.commit()
         return user_id, uk
 
@@ -548,7 +427,7 @@ class Conversations(ApiCase):
 
         def b64(raw):
             return base64.b64encode(raw).decode()
-        _, uk = self.keyed()
+        _, uk = self.funded()
         sent = [b64(jpeg(2400, 1800)), b64(jpeg(800, 600, gps=False))]
         r = self.client.post("/api/conversations", json=self.turn(line="Here's my garage.", photos=sent),
                              headers=self.origin())
@@ -577,7 +456,7 @@ class Conversations(ApiCase):
             self.assertEqual(r.status_code, 422, r.text)
 
     def offered(self, chars=2000):
-        user_id, uk = self.keyed()
+        user_id, uk = self.funded()
         cid = self.start()["id"]
         c = conversations.load(self.conn, uk, cid)
         self.conn.execute("update jobs set state = 'done', finished_at = now() where id = %s", (c.job_id,))
@@ -615,7 +494,7 @@ class Conversations(ApiCase):
 
     def planned_for_later(self):
         """A conversation for later whose check-in is done: its plan's estimate saved, as the worker saves it."""
-        user_id, uk = self.keyed()
+        user_id, uk = self.funded()
         at = self.later_at()
         r = self.client.post("/api/conversations", json=self.turn(line="a 15-minute workout, at 7:00 AM",
                                                                   start_at=at.isoformat()), headers=self.origin())
@@ -668,7 +547,7 @@ class Conversations(ApiCase):
         self.schedule(cid)   # the plan is kept: it can be scheduled again
 
     def test_a_time_inside_the_lead_runs_now_and_one_past_a_day_is_refused(self):
-        _, uk = self.keyed()
+        _, uk = self.funded()
         soon = self.later_at(hours=0.1)
         r = self.client.post("/api/conversations", json=self.turn(start_at=soon.isoformat(), line="a workout"),
                              headers=self.origin())
@@ -681,7 +560,7 @@ class Conversations(ApiCase):
         self.assertEqual(r.status_code, 422)
 
     def test_stop_asks_the_running_job_to_stop(self):
-        _, uk = self.keyed()
+        _, uk = self.funded()
         started = self.start()
         r = self.client.post(f"/api/conversations/{started['id']}/stop", headers=self.origin())
         self.assertEqual((r.status_code, r.json()), (202, {"stopping": True}))
@@ -696,12 +575,12 @@ class Conversations(ApiCase):
         for path in ("/api/conversations", "/api/conversations/1/messages"):
             self.assertEqual(self.client.post(path, json={}, headers=self.origin()).status_code,
                              401, path)
-        self.keyed()
+        self.funded()
         self.assertEqual(self.client.post("/api/conversations", json=self.turn(line="hi"))
                          .status_code, 403)
 
     def test_start_queue_cap(self):
-        user_id, uk = self.keyed()
+        user_id, uk = self.funded()
         for _ in range(3):
             self.start()
         r = self.client.post("/api/conversations", json=self.turn(line="hi"), headers=self.origin())
@@ -712,7 +591,7 @@ class Conversations(ApiCase):
         self.conn.rollback()
 
     def test_get_never_returns_history(self):
-        _, uk = self.keyed()
+        _, uk = self.funded()
         self.assertEqual(self.client.get("/api/conversations/latest").status_code, 204)
         body = self.start()
         c = conversations.load(self.conn, uk, body["id"])
@@ -739,7 +618,7 @@ class Conversations(ApiCase):
 
     def test_a_conversation_whose_job_died_is_healed(self):
         with self.subTest("read: failed, not left working"):
-            _, uk = self.keyed()
+            _, uk = self.funded()
             for how in ("failed", "done", "gone"):
                 with self.subTest(how=how):
                     body = self.start()
@@ -763,7 +642,7 @@ class Conversations(ApiCase):
                 self.assertEqual(self.client.get(f"/api/conversations/{live['id']}").json()["state"],
                                  "working")
         with self.subTest("a message heals it before it begins"):
-            user_id, uk = self.keyed()
+            user_id, uk = self.funded()
             body = self.start()
             self.conn.execute("update jobs set state = 'failed', error = 'interrupted' where id = %s",
                               (body["job_id"],))
@@ -784,7 +663,7 @@ class Conversations(ApiCase):
             self.assertEqual(self.client.get(f"/api/conversations/{cid}").json()["state"], "failed")
 
     def test_message_while_working_is_409(self):
-        user_id, uk = self.keyed()
+        user_id, uk = self.funded()
         body = self.start()
         r = self.client.post(f"/api/conversations/{body['id']}/messages",
                              json=self.turn(line="and also"), headers=self.origin())
@@ -808,7 +687,7 @@ class Conversations(ApiCase):
         self.conn.rollback()
 
     def test_the_model_history_is_its_owner_s_alone(self):
-        _, uk = self.keyed()
+        _, uk = self.funded()
         cid = self.start()["id"]
         self.assertEqual(self.client.get(f"/api/conversations/{cid}/history").json(), {"id": cid, "history": []})
         c = conversations.load(self.conn, uk, cid)
@@ -830,7 +709,7 @@ class Conversations(ApiCase):
         c.state, c.question = "waiting", QUESTION
         conversations.save(self.conn, uk_a, c, c.version)
         self.conn.commit()
-        user_id, _ = self.keyed()
+        user_id, _ = self.funded()
         self.assertEqual(self.client.get(f"/api/conversations/{cid}").status_code, 404)
         self.assertEqual(self.client.get("/api/conversations/latest").status_code, 204)
         for path, body in ((f"/api/conversations/{cid}/messages", self.turn(line="hi")),
@@ -946,14 +825,14 @@ class Errors(ApiCase):
                     self.assertIsInstance(body["error"]["message"], str)
         with self.subTest('a 500 says nothing it held'):
             self.signed_in()
-            with mock.patch.object(enginelib, "clean_key", side_effect=RuntimeError("sk-the-listener-key-1234")), \
+            with mock.patch.object(prefs, "set_sky", side_effect=RuntimeError("sk-the-site-key-1234")), \
                     mock.patch("sys.stderr") as err:
-                r = self.client.put("/api/keys/fish", json={"key": "abc123def456abcd"}, headers=self.origin())
+                r = self.client.put("/api/sky", json={"sky": "field"}, headers=self.origin())
             self.assertEqual(r.status_code, 500)
             self.assertEqual(r.json()["error"]["code"], "internal")
             logged = "".join(str(c) for c in err.mock_calls)
             self.assertIn("RuntimeError [", logged)
-            self.assertNotIn("sk-the-listener-key", logged + r.text)
+            self.assertNotIn("sk-the-site-key", logged + r.text)
             self.assertEqual(r.headers["x-content-type-options"], "nosniff")
 
 
@@ -1177,7 +1056,7 @@ class Account(ApiCase):
         self.assertEqual(wrong.status_code, 400)
         r = self.client.post("/api/account/delete", json={"password": "long enough"}, headers=self.origin())
         self.assertEqual(r.status_code, 204)
-        for table in ("users", "context_files", "user_keys", "conversations", "media", "clip_cache", "spend"):
+        for table in ("users", "context_files", "conversations", "media", "clip_cache", "spend"):
             column = "id" if table == "users" else "user_id"
             self.assertEqual(self.conn.execute(f"select count(*) from {table} where {column} = %s",
                                                (user_id,)).fetchone()[0], 0, table)

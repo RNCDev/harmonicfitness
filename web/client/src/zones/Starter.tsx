@@ -3,16 +3,15 @@
 // line says what to go easy on, picked from the body chart (BodyChart.tsx). "Plan my workout" sends the request
 // (lib/request.ts) as the first message; its answers stand in for the check-in. A new listener (no level yet) also
 // answers the setup's first questions here, in one go (AboutYou), so the chat asks none of them, and their first
-// workout records as soon as it's written: the form says where the script goes and that it's charged to their key
-// (or, on a site that sells minutes, taken from their minutes).
+// workout records as soon as it's written: the form says where the script goes and that its length is taken from
+// their minutes.
 import { useRef, useState } from "react";
 import type { Level as Experience, StartInfo } from "../lib/api";
 import { dayPart } from "../lib/format";
-import { privacyNote } from "../lib/keys";
 import { LEVEL_SAID, LEVELS } from "../lib/levels";
 import { aboutMe, areaName, kitWords, MINUTES, requestParts, sentence, suggested, TYPES, whenWords, type About,
   type Level, type SlotKey } from "../lib/request";
-import { useSite } from "../lib/site";
+import { privacyNote } from "../lib/site";
 import { Quiet, useAction } from "../lib/useAction";
 import { ahead, slots, withOffset } from "../lib/when";
 import { Button } from "../ui/Button";
@@ -57,7 +56,6 @@ function AboutYou({ name, level, home, service, onName, onLevel, onHome }: {
   name: string; level: Experience; home: string; service?: string;
   onName: (v: string) => void; onLevel: (v: Experience) => void; onHome: (v: string) => void;
 }) {
-  const { hosted } = useSite();
   return (
     <fieldset className="about">
       <legend className="label">First, about you</legend>
@@ -72,10 +70,9 @@ function AboutYou({ name, level, home, service, onName, onLevel, onHome }: {
         hint="Dumbbells, bands, a bench… Leave it empty for none: your workouts use bodyweight until you say.">
         <input className="input" type="text" maxLength={200} value={home} onChange={(e) => onHome(e.target.value)} />
       </Field>
-      <p className="start-note about-note">{hosted
-        ? "Your first workout records as soon as it's written, and takes its length in minutes from your balance."
-        : "Your first workout records as soon as it's written, charged to your own key (usually less than 1 USD)."}
-        {service ? " " + privacyNote(service, hosted) : ""}</p>
+      <p className="start-note about-note">
+        Your first workout records as soon as it's written, and takes its length in minutes from your balance.
+        {service ? " " + privacyNote(service) : ""}</p>
     </fieldset>
   );
 }
@@ -87,8 +84,6 @@ type Props = {
   /** The coach the listener picked: made the current coach (and saved) by the page, which updates `info`.
    * Without it, the pick stays in the sentence alone. */
   onCoach?: (slug: string) => void;
-  /** Opens the Coaches page: to switch coach, or, with no coach that can speak yet, to choose one. */
-  onOpenCoaches?: () => void;
   /** Why the last coach picked didn't hold (the server refused it). */
   coachError?: string | null;
   /** Why the coaches couldn't be loaded (`info` then holds plain defaults), and asking again. */
@@ -96,8 +91,7 @@ type Props = {
   onRetry?: () => void;
 };
 
-export function Starter({ info, onStart, onCoach, onOpenCoaches, coachError = null, loadError = null, onRetry }: Props) {
-  const { hosted } = useSite();
+export function Starter({ info, onStart, onCoach, coachError = null, loadError = null, onRetry }: Props) {
   const ready = (info?.coaches ?? []).filter((c) => c.ready);
   const kits = info?.kits ?? [];
   const floor: Record<string, Level> = {};
@@ -176,8 +170,8 @@ export function Starter({ info, onStart, onCoach, onOpenCoaches, coachError = nu
   const shownCoach = ready.find((c) => c.first === v.coach);
 
   // no coach can speak: choose one, unless the answer never came, which says so with Try again instead
-  if (ready.length === 0 && info && !loadError && hosted) {
-    // no key is the listener's here, so there is nothing of theirs to add: the site's coaches are away
+  if (ready.length === 0 && info && !loadError) {
+    // nothing the listener can do about it: the site's coaches are away
     return (
       <section className="starter" aria-label="Plan a workout">
         <p className="label eyebrow">Not just now</p>
@@ -187,20 +181,6 @@ export function Starter({ info, onStart, onCoach, onOpenCoaches, coachError = nu
       </section>
     );
   }
-  if (ready.length === 0 && info && !loadError && onOpenCoaches) {
-    return (
-      <section className="starter" aria-label="Plan a workout">
-        <p className="label eyebrow">One more step</p>
-        <p className="mad">Choose your coach.</p>
-        <p className="start-note step-note">Your key writes the workouts; a coach needs a voice. Hear the coaches, then
-          add the key the one you like needs.</p>
-        <div className="start-row">
-          <Button variant="primary" size="lg" onClick={onOpenCoaches}>Choose a coach</Button>
-        </div>
-      </section>
-    );
-  }
-
   return (
     <section className="starter" ref={wrap} aria-label="Plan a workout" aria-busy={!info}>
       {isNew && <AboutYou name={aboutName} level={aboutLevel} home={aboutHome} service={shownCoach?.service}
@@ -213,7 +193,6 @@ export function Starter({ info, onStart, onCoach, onOpenCoaches, coachError = nu
       <div className="start-row">
         <Button variant="primary" size="lg" onClick={() => void begin.run()} busy={begin.busy} busyLabel="Planning…"
           disabled={ready.length === 0}>{at ? "Plan it for later" : "Plan my workout"}</Button>
-        {ready.length === 0 && info && !loadError && <span className="start-note">Add a voice key in Settings first.</span>}
       </div>
       {loadError && <Failed error={loadError} onRetry={onRetry} />}
       <Notice tone="error">{coachError}</Notice>

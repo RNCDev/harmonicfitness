@@ -38,7 +38,7 @@ COMMANDS = {
     "log-session": ("context", "log-session", "add a checked session line to me/log.md"),
     "workouts":    ("workoutlog", None, "the workouts logged: list them, add feedback on one, or delete one (its log line, stories told and threads)"),
     "show":        ("player", None, "open the folder holding a file (a workout's MP3), with it selected"),
-    "keys":        ("keys", None, "which web voice services have a key in me/.env (never the key), paste (from the clipboard), init, open, and upload to the web app"),
+    "keys":        ("keys", None, "which web voice services have a key in me/.env (never the key), paste (from the clipboard), init and open"),
     "balances":    ("balances", None, "what's left on each web voice service's account (Fish Audio and ElevenLabs say; the others link their billing page)"),
     "pull":        ("webpull", None, "bring the web app's files, latest conversation and its MP3s into me/web/ (signs in with HARMONIC_USERNAME and HARMONIC_PASSWORD from me/.env)"),
     "sync":        ("websync", None, "keep me/ in step with your files on the web app, both ways (signs in with HARMONIC_USERNAME and HARMONIC_PASSWORD from me/.env)"),
@@ -148,8 +148,6 @@ def main(argv=None):
                               cwd=ROOT, env=env)
         return code or web
     module, sub, _ = COMMANDS[cmd]
-    if cmd == "keys" and rest[:1] == ["upload"]:   # its own module, above keys and webpull
-        module, cmd, rest = "webkeys", "keys upload", rest[1:]
     sys.argv = [f"harmonicfitness {cmd}", *([sub] if sub else []), *rest]
     if sub:
         sys.argv[0] = "harmonicfitness"   # context's own parser names the subcommand

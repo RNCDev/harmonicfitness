@@ -153,7 +153,7 @@ describe("the starter", () => {
 
   it("something else: each sends at once, coaches and feedback have their own pages, and an unfinished setup comes first", async () => {
     const onStart = vi.fn().mockResolvedValue(false);   // refused, so the asks come back
-    render(<Starter info={info} onStart={onStart} onOpenCoaches={vi.fn()} />);
+    render(<Starter info={info} onStart={onStart} />);
     fireEvent.click(screen.getByRole("button", { name: /^Update an injury or pain/ }));
     expect(onStart).toHaveBeenCalledWith("I'd like to update an injury.");
     await waitFor(() => expect(screen.getByRole("button", { name: /^Update my interests/ })).toBeEnabled());
@@ -174,57 +174,19 @@ describe("the starter", () => {
 
   it("an ask on its way keeps the others from sending a second", () => {
     const onStart = vi.fn(() => new Promise<boolean>(() => {}));
-    render(<Starter info={info} onStart={onStart} onOpenCoaches={vi.fn()} />);
+    render(<Starter info={info} onStart={onStart} />);
     fireEvent.click(screen.getByRole("button", { name: /^Update an injury or pain/ }));
     expect(screen.getByRole("button", { name: /^Update my interests/ })).toBeDisabled();
     expect(screen.getByRole("button", { name: /^Update an injury or pain/ })).toHaveAttribute("aria-busy", "true");
   });
 
-  it("with no voice key, it waits and says why; with a key that only writes, it asks for a coach first", () => {
+  it("with no coach that can speak, it waits with Try again and no sentence to a coach", () => {
     const silent = { ...info, coaches: info.coaches.map((c) => ({ ...c, ready: false })) };
-    render(<Starter info={silent} onStart={vi.fn()} />);
-    expect(screen.getByRole("button", { name: "Plan my workout" })).toBeDisabled();   // no Coaches page to send to
-    expect(screen.getByText("Add a voice key in Settings first.")).toBeInTheDocument();
-    cleanup();
-
-    const onOpenCoaches = vi.fn();
-    render(<Starter info={silent} onStart={vi.fn()} onOpenCoaches={onOpenCoaches} />);
+    const onRetry = vi.fn();
+    render(<Starter info={silent} onStart={vi.fn()} onRetry={onRetry} />);
     expect(screen.queryByRole("button", { name: "Plan my workout" })).toBeNull();
-    expect(screen.queryByRole("button", { name: /^Coach:/ })).toBeNull();   // no sentence to a coach with no voice
-    expect(screen.getByText("One more step")).toBeInTheDocument();
-    expect(screen.getByText("Choose your coach.")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Choose a coach" }));
-    expect(onOpenCoaches).toHaveBeenCalled();
-  });
-});
-
-describe("a new listener's first screen", () => {
-  const fresh: StartInfo = { ...info, minutes: 10, limits: [], suggest: null, setup_quick: true, new: true };
-
-  it("asks the setup's first questions with the request and sends the answers after it, never once they have a level", async () => {
-    const onStart = vi.fn().mockResolvedValue(true);
-    render(<Starter info={fresh} onStart={onStart} />);
-    fireEvent.change(screen.getByLabelText("What should your coach call you?"), { target: { value: " Sam " } });
-    fireEvent.click(screen.getByRole("radio", { name: /I've trained before/ }));
-    fireEvent.change(screen.getByLabelText("What do you have at home to train with?"),
-      { target: { value: "two dumbbells and a bench." } });
-    expect(screen.getByText(/records as soon as it's written/)).toHaveTextContent("Recording sends the script to Fish Audio");
-    fireEvent.click(screen.getByRole("button", { name: "Plan my workout" }));
-    await waitFor(() => expect(onStart).toHaveBeenCalled());
-    expect(onStart.mock.calls[0][0]).toMatch(/today\. About me: call me Sam\. I've trained before and know the basic moves, but I'm no expert\. At home I have two dumbbells and a bench\.$/);
-    cleanup();
-
-    // left as it is: no name, novice, bodyweight
-    const asIs = vi.fn().mockResolvedValue(true);
-    render(<Starter info={fresh} onStart={asIs} />);
-    expect(screen.getByRole("radio", { name: /I'm new to this/ })).toHaveAttribute("aria-checked", "true");
-    fireEvent.click(screen.getByRole("button", { name: "Plan my workout" }));
-    await waitFor(() => expect(asIs).toHaveBeenCalled());
-    expect(asIs.mock.calls[0][0]).toContain(
-      "About me: no name, please. I'm new to this, or it's been a long while. At home I have no equipment: bodyweight only.");
-    cleanup();
-
-    render(<Starter info={info} onStart={vi.fn()} />);
-    expect(screen.queryByText("First, about you")).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Coach:/ })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(onRetry).toHaveBeenCalled();
   });
 });

@@ -53,55 +53,6 @@
 .cx-sec.cx-box { gap: var(--s-4) }
 .cx-sec code { font-size: .95em }
 
-/* the keys: two lists of one-line rows, the writer's chosen row tinted */
-.keys-group { margin-top: var(--s-2) }
-.keys-group:first-of-type { margin-top: 0 }
-.keys-group > [role=radiogroup], .keys-group > div { margin-top: var(--s-2); border-top: 1px solid var(--border) }
-.keys-h { margin: 0 0 var(--s-1); font-size: var(--fs-sm); font-weight: var(--w-strong); line-height: var(--lh-head); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--text-muted) }
-.keys-row {
-  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--s-1) var(--s-5);
-  padding: var(--s-2h) var(--s-3); border-bottom: 1px solid var(--border);
-}
-.keys-row > * { grid-column: 1 / -1 }
-.keys-row > .keys-id { grid-column: 1; grid-row: 1; display: flex; align-items: center; gap: var(--s-2h); min-width: 0; min-height: var(--badge) }
-.keys-label { flex: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 2px var(--s-2h); min-width: 0 }
-/* what's left sits at the row's right, before its buttons, so the balances line up */
-.keys-label > :is(.keys-bal, .keys-bill) { margin-left: auto }
-.keys-row > .keys-actions:not(.confirm) { grid-column: 2; grid-row: 1; justify-self: end }
-.keys-row > .confirm { margin-top: 2px }
-.keys-row .keys-name { font-weight: var(--w-strong) }
-.keys-bal { font-size: var(--fs-md); color: var(--text-muted); text-decoration: none; white-space: nowrap; font-variant-numeric: tabular-nums }
-a.keys-bal:hover { color: var(--text); text-decoration: underline }
-.keys-bill { display: inline-flex; align-items: center; padding: var(--s-1); margin: -4px 0; color: var(--text-muted) }
-.keys-bill:hover, .keys-bill:focus-visible { color: var(--text) }
-.keys-actions { display: flex; flex-wrap: wrap; gap: var(--s-3h); align-items: center }
-.keys-actions .quiet { font-size: var(--fs-md) }
-.keys-note { margin: 0 }
-.keys-tag { font-size: var(--fs-sm); color: var(--text-muted); white-space: nowrap }
-/* the writer in use: tinted, with a mark of the brand at its edge and in its tag */
-.keys-row.writer.on { color: var(--text); background: var(--surface-selected); box-shadow: var(--mark-left) var(--accent) }
-.keys-use {
-  font-size: var(--fs-sm); font-weight: var(--w-strong); letter-spacing: var(--track-head); padding: 0 var(--s-1h); color: var(--accent);
-  box-shadow: var(--ring) var(--accent); white-space: nowrap
-}
-/* a writer to pick: the whole row is its button (the name's, stretched), its links and buttons on top */
-.keys-row.writer { position: relative }
-.keys-pick { text-align: left }
-.keys-pick::after { content: ""; position: absolute; inset: 0 }
-.keys-pick:focus-visible { outline: none }
-.keys-pick:focus-visible::after { box-shadow: var(--focus-ring-inset) }
-.keys-row.writer :is(.keys-bal, .keys-bill, .keys-actions, .keys-edit, .notice) { position: relative; z-index: var(--z-raised) }
-.keys-row:has(.keys-pick:hover:not(:disabled)) { background: var(--hover) }
-.keys-more { margin-top: calc(var(--s-2) * -1) }   /* the note under the writers sits with them */
-.keys-edit { display: flex; flex-direction: column; gap: var(--s-2); margin-top: var(--s-1h) }
-/* where to get a key: a link out (its icon says it opens the service's site), at the row's far end */
-.keys-get {
-  display: inline-flex; align-items: center; gap: var(--s-1); margin-left: auto; font-size: var(--fs-md); color: var(--text-2);
-  text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--border-strong)
-}
-a.keys-get:hover { color: var(--text-strong); text-decoration-color: currentColor }
-.keys-edit .label { font-size: var(--fs-md); font-weight: var(--w-regular); letter-spacing: 0; text-transform: none; color: var(--text-2) }
-
 /* asking before something goes: the question, then the brick button and the way back */
 .confirm { display: inline-flex; flex-wrap: wrap; gap: var(--s-2h) var(--s-3h); align-items: center }
 .confirm-q { margin: 0; font-size: var(--fs-md); color: var(--danger) }
@@ -142,18 +93,30 @@ a.keys-get:hover { color: var(--text-strong); text-decoration-color: currentColo
 .sky-credit { margin-top: 2px; font-size: var(--fs-sm); color: var(--text-muted) }
 .sky-credit a { color: inherit; text-decoration: underline; text-underline-offset: 2px }
 
-/* minutes, where the site sells them: what's left in the display face, a row per pack (how many, what each
-   minute comes to, the button), then what was added and used, newest first */
+/* minutes, where the site sells them: what's left in the display face, then the packs as three cards side by side
+   (stacked on a phone), the best value ringed in the brand's ember, then what was added and used, newest first */
 .min-left { margin: 0; color: var(--text-2) }
 .min-left strong { font: var(--w-bold) var(--fs-d4)/var(--lh-solid) var(--display); color: var(--text); font-variant-numeric: tabular-nums }
-.min-packs, .min-log { list-style: none; margin: var(--s-2) 0 0; padding: 0; border-top: 1px solid var(--border) }
+.min-packs { list-style: none; margin: var(--s-3) 0 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-2) }
 .min-pack {
-  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 0 var(--s-3); padding: var(--s-2h) 0;
-  border-bottom: 1px solid var(--border)
+  position: relative; display: grid; align-content: start; justify-items: start; gap: var(--s-1); min-width: 0;
+  padding: var(--s-4) var(--s-3h) var(--s-3h); box-shadow: var(--ring) var(--border-strong); background: var(--surface)
 }
-.min-pack-n { font-weight: var(--w-strong); color: var(--text) }
-.min-pack-each { grid-column: 1; font-size: var(--fs-sm); color: var(--text-muted) }
-.min-pack .act { grid-column: 2; grid-row: 1 / span 2 }
+.min-pack[data-best] { background: var(--surface-selected); box-shadow: var(--ring-strong) var(--accent) }
+.min-pack-tag {
+  position: absolute; top: 0; right: 0; padding: 2px var(--s-2); background: var(--accent); color: var(--on-action);
+  font-size: var(--fs-sm); font-weight: var(--w-strong); letter-spacing: .06em; text-transform: uppercase
+}
+.min-pack-n { color: var(--text-2); font-size: var(--fs-md) }
+.min-pack-n strong { font: var(--w-bold) var(--fs-d3)/var(--lh-solid) var(--display); color: var(--text); font-variant-numeric: tabular-nums }
+.min-pack-use { font-size: var(--fs-sm); color: var(--text-muted) }
+.min-pack-price { margin-top: var(--s-2); font-size: var(--fs-d1); font-weight: var(--w-strong); color: var(--text); font-variant-numeric: tabular-nums }
+.min-pack-each { font-size: var(--fs-sm); color: var(--text-muted) }
+.min-pack-each em { font-style: normal; color: var(--accent); font-weight: var(--w-strong) }
+.min-pack .act { margin-top: var(--s-2h); width: 100%; justify-content: center }
+.min-pack[data-best] .act:not(:disabled) { background: var(--action); color: var(--on-action); box-shadow: none }
+@media (max-width: 640px) { .min-packs { grid-template-columns: minmax(0, 1fr) } }
+.min-log { list-style: none; margin: var(--s-2) 0 0; padding: 0; border-top: 1px solid var(--border) }
 .min-h { margin: var(--s-3) 0 0 }
 .min-log li {
   display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: var(--s-3); padding: var(--s-1h) 0;

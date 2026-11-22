@@ -5,11 +5,11 @@
 `gather` writes the listener's files to a temporary folder and runs two read-only engine commands there
 (`coaches list --json`, `coverage --json`), side by side, each in its own process, so HARMONICFITNESS_HOME is
 never set in this one. `shape` turns the files and those two answers into the response; it is pure (no
-database, no paths) and is what the tests exercise. Nothing here opens a key: `keyed` is only which services
-have one.
+database, no paths) and is what the tests exercise. Only the site's own coaches speak (hosted.coaches), each
+ready, on the site's key.
 
 The answer is kept a while per listener (`cached`, `remember`), under what it was made from: the files'
-versions (`store.fingerprint`), the keyed services, the chosen coach and the day. Any change to one of those
+versions (`store.fingerprint`), the chosen coach and the day. Any change to one of those
 makes a fresh answer, so a page load usually skips the files and the engine altogether.
 """
 import json
@@ -193,7 +193,7 @@ def _coaches(listed: list, keyed, used: list[tuple[str, str]], services: list[st
                 "usd_per_workout": c.get("usd_per_workout") if isinstance(c.get("usd_per_workout"), (int, float))
                 and not isinstance(c.get("usd_per_workout"), bool) else None,
                 "pending": bool(c.get("pending")), "powered_by": _words(c.get("powered_by")),
-                # a stock voice's "f" or "m", for the hosted Coaches page's Women and Men
+                # a stock voice's "f" or "m", for the Coaches page's Women and Men
                 "gender": c.get("gender") if c.get("gender") in ("f", "m") else None}
                for c in web]
     if not coaches:
@@ -250,17 +250,16 @@ def _modules(engine_root: str) -> list:
     return _mods[engine_root]
 
 
-def shape(files: dict[str, bytes], keyed, coaches: list, coverage: dict | None, *, engine_root: str,
-          presets, goals, services: list[str], chosen: tuple[str, str] | None = None, paid: bool = False) -> dict:
-    """The response, from the listener's files (path -> bytes), the services with a stored key, `coaches
-    list --json`'s coaches and `coverage --json` (None when it didn't run); `presets`, `goals` and
-    `services` are the engine's lists (enginelib.lists, enginelib.services); `chosen` is the coach
-    picked on the web app, as (slug, day), or None. `paid`: the hosted site, where only its own coaches speak
-    (hosted.coaches), every one ready, and a workout costs minutes, so no coach carries a price."""
+def shape(files: dict[str, bytes], coaches: list, coverage: dict | None, *, engine_root: str,
+          presets, goals, services: list[str], chosen: tuple[str, str] | None = None) -> dict:
+    """The response, from the listener's files (path -> bytes), `coaches list --json`'s coaches and
+    `coverage --json` (None when it didn't run); `presets`, `goals` and `services` are the engine's lists
+    (enginelib.lists, enginelib.services); `chosen` is the coach picked on the web app, as (slug, day), or None.
+    Only the site's own coaches speak (hosted.coaches), every one ready, and a workout costs minutes, so no coach
+    carries a price."""
     fm, ctx, _ = _modules(engine_root)
-    if paid:
-        keyed = {hosted.SERVICE}
-        coaches = [{**c, "usd_per_workout": None} for c in hosted.coaches(coaches)]
+    keyed = {hosted.SERVICE}
+    coaches = [{**c, "usd_per_workout": None} for c in hosted.coaches(coaches)]
     profile, _ = _front(fm, _text(files, "profile.md"))
     training, training_prose = _front(fm, _text(files, "training.md"))
     health, _ = _front(fm, _text(files, "health.md"))
@@ -295,8 +294,7 @@ def _json(r: engine.Result) -> dict | None:
     return out if isinstance(out, dict) else None
 
 
-def gather(engine_root: str, files: dict[str, bytes], keyed, chosen: tuple[str, str] | None = None,
-           paid: bool = False) -> dict:
+def gather(engine_root: str, files: dict[str, bytes], chosen: tuple[str, str] | None = None) -> dict:
     """Blocking: the listener's files (over the starter template, so the engine always sees a whole folder)
     in a temporary folder, the two engine reads (side by side: both only read), then `shape`. Neither
     command's output leaves here."""
@@ -310,6 +308,6 @@ def gather(engine_root: str, files: dict[str, bytes], keyed, chosen: tuple[str, 
                      for argv in (["coaches", "list", "--json"], ["coverage", "--json"])]
             listed, coverage = (_json(r.result()) for r in reads)
     coaches = listed.get("coaches") if listed else None
-    return shape(files, keyed, coaches if isinstance(coaches, list) else [], coverage,
+    return shape(files, coaches if isinstance(coaches, list) else [], coverage,
                  engine_root=engine_root, presets=presets, goals=goals,
-                 services=list(enginelib.services(engine_root)), chosen=chosen, paid=paid)
+                 services=list(enginelib.services(engine_root)), chosen=chosen)

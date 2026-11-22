@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { api, ApiError, call, checkBalances, NotSignedIn, setAuthLost } from "./api";
+import { api, ApiError, call, NotSignedIn, setAuthLost, waitForJob } from "./api";
 
 function answer(status: number, body: string | null) {
   vi.stubGlobal("fetch", vi.fn(async () => new Response(body, { status })));
@@ -20,23 +20,23 @@ describe("call", () => {
   });
 });
 
-describe("checkBalances", () => {
+describe("waitForJob", () => {
   function answers(...bodies: unknown[]) {
     const f = vi.fn(async () => new Response(JSON.stringify(bodies.shift()), { status: 200 }));
     vi.stubGlobal("fetch", f);
     return f;
   }
 
-  it("starts a check and reads its result once the job is done, else gives up", async () => {
-    const f = answers({ id: 7 }, { id: 7, state: "queued", error: null, result: null },
-      { id: 7, state: "done", error: null, result: { balances: { fish: { ok: true, usd: 3 } } } });
-    await expect(checkBalances({ every: 1 })).resolves.toEqual({ fish: { ok: true, usd: 3 } });
-    expect(f.mock.calls.map((c) => (c as unknown[])[0])).toEqual(["/api/balances", "/api/jobs/7", "/api/jobs/7"]);
+  it("reads the job until it's done and gives its result, else says why there is none", async () => {
+    const f = answers({ id: 7, state: "queued", error: null, result: null },
+      { id: 7, state: "done", error: null, result: { summary: "ok" } });
+    await expect(waitForJob(7, { every: 1 })).resolves.toEqual({ state: "done", result: { summary: "ok" } });
+    expect(f.mock.calls.map((c) => (c as unknown[])[0])).toEqual(["/api/jobs/7", "/api/jobs/7"]);
     // and gives up on a failed job, or one that takes too long
-    answers({ id: 1 }, { id: 1, state: "failed", error: "x", result: null });
-    await expect(checkBalances({ every: 1 })).resolves.toBeNull();
-    answers({ id: 2 }, { id: 2, state: "queued", error: null, result: null });
-    await expect(checkBalances({ every: 1, within: 0 })).resolves.toBeNull();
+    answers({ id: 1, state: "failed", error: "x", result: null });
+    await expect(waitForJob(1, { every: 1 })).resolves.toEqual({ state: "failed" });
+    answers({ id: 2, state: "queued", error: null, result: null });
+    await expect(waitForJob(2, { every: 1, within: 0 })).resolves.toEqual({ state: "timeout" });
   });
 });
 

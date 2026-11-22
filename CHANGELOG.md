@@ -2,6 +2,28 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.88.0] - 2026-11-22
+
+The web app runs only one way now: the site's own key writes and speaks every workout, and listeners pay in minutes. The "bring your own keys" mode is gone. Minutes cost half what they did, and Settings' Minutes tab is easier to read.
+
+### Changed
+- **Minutes cost half as much** (`minutes.PACKS`): 120 minutes for $5, 280 for $10, 640 for $20. The dollar prices and the Stripe lookup keys are unchanged, so a checkout opened before the release, a refund and the books still find their pack.
+- **The Minutes tab** (`zones/settings/MinutesBox.tsx`): the packs are three cards side by side (stacked on a phone), each with its minutes, how many half-hour workouts that is, the price, the price a minute and the saving, with the best value marked. Its wording is shorter.
+- **`stripe_setup` updates a pack's product** in Stripe when its name or description no longer says its minutes, as well as its tax code.
+- **`OPENROUTER_API_KEY` is required** (`webapp/config.py`): the site's own key, which writes and speaks every workout. The server won't start without it.
+
+### Removed
+- **Listeners' own keys:** the Keys tab, the first screen's "add one key" welcome, the key, writer and balance routes (`/api/keys`, `/api/writer`, `/api/balances`) and the balance job, the choice of Claude, ChatGPT or Gemini to write with, and prices in dollars on the Record and Schedule cards. `webapp/keystore.py` is now `webapp/prefs.py` and keeps only the listener's coach, background and Record without asking.
+- **`./harmonicfitness keys upload`** (`tools/webkeys.py`), which sent keys from `me/.env` to the web app.
+- **`HARMONICFITNESS_HOSTED` and `HARMONICFITNESS_PROVIDERS`** are no longer read.
+
+### For forks
+- Set `OPENROUTER_API_KEY` on the web and worker services before deploying; `HARMONICFITNESS_HOSTED` and `HARMONICFITNESS_PROVIDERS` can be unset.
+- Migration 027 runs at start and **deletes the keys listeners stored** (`user_keys`) and their choice of writer (`users.writer`). It can't be undone.
+- Run `cd web && python -m webapp.stripe_setup --site <address> --env ../.env` once so each pack's product in Stripe names its new minutes.
+- `web/dev.sh` needs `OPENROUTER_API_KEY` in the repo's `.env`.
+- Anything calling `keys upload` must stop: the command is gone.
+
 ## [0.87.0] - 2026-11-22
 
 An admin screen for the hosted site: how it's used, what it earns and what it costs. Revenue is the minute packs sold through Stripe; the cost of goods is OpenRouter (the writing and the voices) and Fly (the machines). Costs are captured from this release on, and anything not yet tracked says so instead of reading as $0.

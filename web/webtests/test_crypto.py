@@ -15,7 +15,7 @@ def b64(n):
 
 def env(**over):
     base = {"DATABASE_URL": "postgresql://x/y", "HARMONICFITNESS_MASTER_KEY": b64(32),
-            "HARMONICFITNESS_BASE_URL": "https://example.test"}
+            "HARMONICFITNESS_BASE_URL": "https://example.test", "OPENROUTER_API_KEY": "sk-or-site-key-1234"}
     base.update(over)
     return base
 
@@ -95,6 +95,12 @@ class Config(unittest.TestCase):
         self.assertNotIn(e["HARMONICFITNESS_MASTER_KEY"], r)
         self.assertNotIn(repr(raw), r)
         self.assertNotIn("hunter2pw", r)
+        self.assertNotIn("sk-or-site-key-1234", r)
+
+    def test_the_site_key_is_required(self):
+        with self.assertRaises(config.ConfigError) as cm:
+            config.load(env(OPENROUTER_API_KEY=""))
+        self.assertIn("OPENROUTER_API_KEY", str(cm.exception))
 
 
 if __name__ == "__main__":

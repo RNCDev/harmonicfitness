@@ -19,7 +19,7 @@ export function useFocusTrap(ref: RefObject<HTMLElement>, active: boolean, opts:
     const root = ref.current;
     if (!active || !root) return;
     const before = document.activeElement as HTMLElement | null;
-    // focus moves in, unless something inside already has it (a key's box opened from the welcome card)
+    // focus moves in, unless something inside already has it
     if (!root.contains(document.activeElement)) focusables(root)[0]?.focus();
     // the rest of the page sleeps: every sibling but the panel and its scrim
     const slept: Element[] = [];

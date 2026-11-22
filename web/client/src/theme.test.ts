@@ -122,7 +122,7 @@ describe("theme.css", () => {
   });
 
   it("never gives a disabled control a hover look, and lifts on hover only where a pointer hovers", () => {
-    const LINKS = /^(a|a\.[\w-]+|\.keys-bill)$/;   // links can't be disabled
+    const LINKS = /^(a|a\.[\w-]+)$/;   // links can't be disabled
     expect(broken((css) => {
       const outside = css.replace(/@media \(hover: hover\)\s*\{(?:[^{}]*\{[^{}]*\})*\s*\}/g, "");
       return (outside.match(/[^{},]*:hover[^{,]*/g) ?? []).map((s) => s.trim())

@@ -82,8 +82,7 @@ def auth_info(st: St):
     """What the sign-in page offers: `clerk` is the instance's publishable key (public by design) when sign-in
     goes through Clerk, else null and the page shows its own username and password form."""
     return {"app_name": APP_NAME, "registration": st.settings.registration, "version": st.version,
-            "clerk": st.settings.clerk_publishable_key if st.clerk is not None else None,
-            "hosted": st.settings.hosted}
+            "clerk": st.settings.clerk_publishable_key if st.clerk is not None else None}
 
 
 def _passwords(st: AppState) -> None:

@@ -4,18 +4,20 @@ import { useState } from "react";
 import { api, type Pack } from "../../lib/api";
 import { price, shortDay } from "../../lib/format";
 import { SAID } from "../../lib/messages";
-import { minutesSaid } from "../../lib/site";
 import { useAction } from "../../lib/useAction";
 import type { Minutes } from "../../lib/useMinutes";
 import { Button } from "../../ui/Button";
 import { Loadable, Notice } from "../../ui/Notice";
 import { Section } from "../../ui/Section";
 
-/** "8¢ a minute": what a pack comes to, rounded to the cent. */
-const each = (p: Pack) => `${Math.round(p.cents / p.minutes)}¢ a minute`;
+/** "4.2¢ a minute": what a pack comes to, to a tenth of a cent. */
+const each = (p: Pack) => `${(Math.round((p.cents / p.minutes) * 10) / 10).toFixed(1)}¢ a minute`;
 
 /** "+60", "−25": minutes added or used, with a true minus sign. */
 const signed = (n: number) => (n > 0 ? `+${n}` : n < 0 ? `−${-n}` : "0");
+
+/** What a pack saves on the smallest one's price a minute, in whole percent; 0 for the smallest itself. */
+const saving = (p: Pack, base: Pack) => Math.max(0, Math.round((1 - (p.cents / p.minutes) / (base.cents / base.minutes)) * 100));
 
 function Packs({ packs }: { packs: Pack[] }) {
   /** The pack whose checkout page is being opened. */
@@ -25,20 +27,31 @@ function Packs({ packs }: { packs: Pack[] }) {
     const { url } = await api.checkout(pack);
     window.location.assign(url);
   }, { fallback: SAID.checkout, hold: true });
+  const base = packs.reduce((a, b) => (b.cents / b.minutes > a.cents / a.minutes ? b : a));
+  const best = packs.reduce((a, b) => (b.cents / b.minutes < a.cents / a.minutes ? b : a));
   return (
     <>
       <ul className="min-packs" aria-label="Minutes to buy">
-        {packs.map((p) => (
-          <li key={p.id} className="min-pack">
-            <span className="min-pack-n">{minutesSaid(p.minutes)}</span>
-            <span className="min-pack-each">{each(p)}</span>
-            <Button busy={buy.busy && going === p.id} busyLabel="Opening checkout…" disabled={buy.busy}
-              onClick={() => void buy.run(p.id)}>{`Buy for ${price(p.cents)}`}</Button>
-          </li>
-        ))}
+        {packs.map((p) => {
+          const off = saving(p, base);
+          const top = packs.length > 1 && p.id === best.id;
+          const workouts = Math.floor(p.minutes / 30);
+          return (
+            <li key={p.id} className="min-pack" data-best={top || undefined}>
+              {top && <span className="min-pack-tag">Best value</span>}
+              <span className="min-pack-n"><strong>{p.minutes}</strong> minutes</span>
+              {workouts > 0 && <span className="min-pack-use">{workouts} half-hour {workouts === 1 ? "workout" : "workouts"}</span>}
+              <span className="min-pack-price">{price(p.cents)}</span>
+              <span className="min-pack-each">{each(p)}{off > 0 && <> · <em>save {off}%</em></>}</span>
+              <Button busy={buy.busy && going === p.id}
+                busyLabel="Opening…" disabled={buy.busy} onClick={() => void buy.run(p.id)}>
+                {`Buy for ${price(p.cents)}`}</Button>
+            </li>
+          );
+        })}
       </ul>
       <Notice tone="error">{buy.error}</Notice>
-      <p className="cx-s">You pay on Stripe's page, and come back here. Your card never reaches this site.</p>
+      <p className="cx-s">Paid securely on Stripe. Minutes never expire.</p>
     </>
   );
 }
@@ -51,15 +64,14 @@ export function MinutesBox({ minutes, back = null }: {
   return (
     <Section id="cx-minutes" title="Minutes">
       <Notice tone="done">{back === "bought"
-        && "Thank you. Your minutes show here once the payment clears, usually within a few seconds."}</Notice>
-      <Notice>{back === "cancelled" && "The checkout was closed, and nothing was charged."}</Notice>
+        && "Thanks! Your minutes appear here in a few seconds."}</Notice>
+      <Notice>{back === "cancelled" && "Checkout closed. Nothing was charged."}</Notice>
       <Loadable value={minutes.state} error={minutes.error} onRetry={minutes.reload} what="your minutes" room={160}>
         {(m) => (
           <>
             <p className="min-left"><strong>{m.minutes}</strong> {m.minutes === 1 ? "minute" : "minutes"} left</p>
-            <p className="cx-s">A workout takes its length in minutes when it's recorded: thirty for a thirty-minute
-              workout. Talking a workout over with your coach is free, a second take of the same script is free, and
-              the minutes come back if a recording fails.</p>
+            <p className="cx-s">A recording uses its length in minutes. Planning with your coach is free, so is
+              one re-record, and a failed recording gives its minutes back.</p>
             {m.can_buy && m.packs.length > 0 ? <Packs packs={m.packs} />
               : <p className="cx-s">Minutes aren't on sale here just now.</p>}
             {m.history.length > 0 && (

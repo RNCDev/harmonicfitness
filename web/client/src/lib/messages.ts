@@ -7,7 +7,6 @@ export const SAID = {
 
   // loading
   coaches: "Couldn't load your coaches.",
-  keys: "Couldn't load your keys.",
   level: "Couldn't load your level.",
   feed: "Couldn't load your podcast link.",
   workouts: "Couldn't load your workouts.",
@@ -19,7 +18,6 @@ export const SAID = {
   coach: "That coach couldn't be chosen just now. Try again.",
   sky: "That background didn't save. Try again.",
   levelNotSaved: "Couldn't save your level. Try again.",
-  writer: "Couldn't save that. Try again.",
   link: "Couldn't make a link. Try again.",
   qr: "Couldn't draw the code; the link below still works.",
   feedOff: "Couldn't turn it off. Try again.",

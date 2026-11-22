@@ -1,4 +1,4 @@
-"""Minutes: what a listener on the hosted site pays for a recording with (0.85.0).
+"""Minutes: what a listener pays for a recording with (0.85.0).
 
 The balance is users.minutes, never below zero; every change is a row in minute_ledger written in the same
 transaction, and (user, kind, ref) is unique, so each thing happens once however often it's asked for: a Stripe
@@ -17,7 +17,7 @@ from dataclasses import dataclass
 WELCOME = 20            # minutes a new account starts with, once
 FREE_AGAIN = 1          # recordings of an already-paid script that cost nothing
 STALE_MINUTES = 10      # a hold younger than this is never swept: its turn may be about to start
-DAILY_TURNS = 40        # turns a listener may start in 24 hours on the hosted site (the site pays for each)
+DAILY_TURNS = 40        # turns a listener may start in 24 hours (the site pays for each)
 
 
 @dataclass(frozen=True)
@@ -31,10 +31,11 @@ class Pack:
         return f"{self.minutes} minutes"
 
 
-# Priced from what a recorded minute costs the site (about 3 cents: the voice at 1.3 to 1.6, the writing at 1.1 to
-# 1.4 and rising in 2027), Stripe's 30 cents and 2.9 percent, and the minutes given away. webapp.stripe_setup
-# makes the same three in Stripe, by these lookup keys.
-PACKS = (Pack("hf_minutes_60", 60, 500), Pack("hf_minutes_140", 140, 1000), Pack("hf_minutes_320", 320, 2000))
+# A recorded minute costs the site about 3 cents (the voice at 1.3 to 1.6, the writing at 1.1 to 1.4 and rising in
+# 2027), and Stripe takes 30 cents and 2.9 percent: since 0.88.0 the packs sell close to that, at half their first
+# price. The lookup keys are the packs' first ones, kept so a checkout opened before a change, a refund and the
+# books still find their pack; the minutes are the pack's. webapp.stripe_setup makes the same three in Stripe.
+PACKS = (Pack("hf_minutes_60", 120, 500), Pack("hf_minutes_140", 280, 1000), Pack("hf_minutes_320", 640, 2000))
 
 
 def pack(pack_id: str) -> Pack | None:

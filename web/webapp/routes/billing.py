@@ -31,12 +31,11 @@ class PackBody(BaseModel):
 
 @router.get("/api/minutes")
 def get_minutes(st: St, uk: User):
-    """The balance, what's for sale and what happened lately. `paid` says whether this site charges minutes at
-    all (the hosted site does; a site run on its listeners' own keys doesn't)."""
+    """The balance, what's for sale and what happened lately."""
     with read(st) as conn:
         have = minutes.balance(conn, uk.user_id)
         rows = minutes.history(conn, uk.user_id)
-    return {"paid": st.settings.hosted, "minutes": have, "can_buy": st.billing is not None,
+    return {"minutes": have, "can_buy": st.billing is not None,
             "packs": [{"id": p.id, "minutes": p.minutes, "cents": p.cents} for p in minutes.PACKS],
             "history": rows}
 

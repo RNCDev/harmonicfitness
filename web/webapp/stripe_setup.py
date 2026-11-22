@@ -64,16 +64,18 @@ def _ok(what: str, status: int, body) -> dict:
 
 
 def pack_product(api, pack: minutes.Pack) -> None:
-    """The pack's product, made unless it's there, and carrying TAX_CODE (an older one without it gets it)."""
+    """The pack's product, made unless it's there, with TAX_CODE and the pack's minutes in its name (an older one is brought up to date)."""
+    want = {"name": f"HarmonicFitness: {pack.label}", "tax_code": TAX_CODE,
+            "description": f"{pack.minutes} minutes of recorded workouts. They don't expire."}
     status, body = api("GET", f"/products/{pack.id}")
     if status == 404:
-        _ok("making a product", *api("POST", "/products", [
-            ("id", pack.id), ("name", f"HarmonicFitness: {pack.label}"), ("tax_code", TAX_CODE),
-            ("description", f"{pack.minutes} minutes of recorded workouts. They don't expire.")]))
+        _ok("making a product", *api("POST", "/products", [("id", pack.id), *want.items()]))
         return
     product = _ok("looking up a product", status, body)
-    if product.get("tax_code") != TAX_CODE:
-        _ok("setting the product's tax code", *api("POST", f"/products/{pack.id}", [("tax_code", TAX_CODE)]))
+    # an older product gets what changed since: the tax code, or the minutes its name and description give
+    stale = [(k, v) for k, v in want.items() if product.get(k) != v]
+    if stale:
+        _ok("updating the product", *api("POST", f"/products/{pack.id}", stale))
 
 
 def pack_price(api, pack: minutes.Pack, say) -> None:

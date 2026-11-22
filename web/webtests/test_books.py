@@ -16,7 +16,6 @@ NO_FLY = books.Fly(None, why="no token")
 
 
 class Books(SiteCase):
-    hosted = True
 
     def setUp(self):
         super().setUp()

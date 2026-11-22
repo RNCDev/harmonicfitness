@@ -69,12 +69,3 @@ def keys(engine_root: str):
     """The engine's keys module (imported under the guard)."""
     return modules(engine_root, "keys")[0]
 
-
-def clean_key(engine_root: str, var: str, value: str) -> str | None:
-    """The engine's keys.clean_value (stripped); None when it refuses the value as a key (BadKey).
-    Anything else it raises is a bug and propagates."""
-    keys_mod = keys(engine_root)
-    try:
-        return keys_mod.clean_value(var, value)
-    except keys_mod.BadKey:
-        return None

@@ -6,11 +6,10 @@ from contextlib import contextmanager
 from typing import Annotated
 
 from fastapi import APIRouter, Body, HTTPException
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import Response
 from pydantic import BaseModel, ConfigDict, Field, StrictStr, StringConstraints
 
-from .. import codes, conversations, jobs, keystore, media, minutes, photos, providers, spend, store, turns
-from ..api import error_body
+from .. import conversations, jobs, media, minutes, photos, spend, store, turns
 from .billing import NoMinutes
 from .state import JOB_ID, MAX_QUEUED, POST, AppState, Day, St, User, read, tx
 
@@ -101,8 +100,8 @@ def turn_transaction(st: AppState, uk: store.UserKey):
                               "and (not_before is null or not_before <= now())", (uk.user_id,)).fetchone()[0]
         if queued >= MAX_QUEUED:
             raise HTTPException(429, "too many jobs waiting")
-        # the hosted site pays for every turn's writing, so a day's turns have a ceiling well above any real use
-        if st.settings.hosted and minutes.turns_today(conn, uk.user_id) >= minutes.DAILY_TURNS:
+        # the site pays for every turn's writing, so a day's turns have a ceiling well above any real use
+        if minutes.turns_today(conn, uk.user_id) >= minutes.DAILY_TURNS:
             raise HTTPException(429, "That's a lot of messages for one day. Come back tomorrow.")
         yield conn
 
@@ -124,7 +123,7 @@ def kit_photos(body: TurnLine) -> list[bytes]:
 
 
 def offer_minutes(offer: dict) -> int:
-    """The minutes a priced recording costs on the hosted site: its planned length, rounded up."""
+    """The minutes a priced recording costs: its planned length, rounded up."""
     return int(offer.get("minutes") or 0) or minutes.needed((offer.get("plan") or {}).get("seconds"))
 
 
@@ -146,7 +145,7 @@ def shown(conn, uk: store.UserKey, c: conversations.Conversation) -> dict:
     if c.offer and c.state in ("idle", "failed"):
         offer = {k: c.offer[k] for k in ("name", "coach", "chars", "usd", "service", "design", "plan", "first")
                  if k in c.offer}
-        # what Record would take from the balance on the hosted site (nothing, the first time a paid script is
+        # what Record would take from the balance (nothing, the first time a paid script is
         # recorded again), beside its length in minutes
         offer["minutes"] = offer_minutes(c.offer)
         offer["charge"] = minutes.owed(conn, uk.user_id, offer_tag(uk, c.offer), offer["minutes"])
@@ -168,15 +167,9 @@ def healed(conn, uk: store.UserKey, cid: int) -> conversations.Conversation:
 def start_conversation(st: St, uk: User, body: Annotated[TurnLine, Body()]):
     turn_args(0, body.line, None, body.today, body.now)
     with read(st) as conn:
-        have = keystore.listing(conn, uk)
-        chosen = keystore.writer(conn, uk)
         left = minutes.balance(conn, uk.user_id)
-    if st.settings.hosted:
-        if left < 1:    # the site's key writes it, so a conversation starts only with minutes to record it with
-            raise NoMinutes(1, left)
-    elif providers.pick(st.settings.providers, have, chosen) is None:
-        name = providers.PROVIDERS[chosen if chosen in st.settings.providers else st.settings.providers[0]].name
-        return JSONResponse(error_body(409, f"Add a key for {name} in Settings first.", code=codes.NO_KEY_CODE), 409)
+    if left < 1:    # the site's key writes it, so a conversation starts only with minutes to record it with
+        raise NoMinutes(1, left)
     later = later_from(body.start_at)
     if later and body.photos:   # the turn that would read them runs at the picked time, after they're swept
         raise HTTPException(422, "Photos go with a workout for now, not one for later.")
@@ -225,7 +218,7 @@ def conversation_history(st: St, uk: User, cid: Annotated[int, JOB_ID]):
 @router.post("/api/conversations/{cid}/record", status_code=202, **POST)
 def record_offer(st: St, uk: User, cid: Annotated[int, JOB_ID], body: Annotated[TurnWhen, Body()]):
     """The listener approves the priced recording: its characters are reserved from today's allowance,
-    then a turn records it, within that price. On the hosted site its minutes are held too, as that turn's hold:
+    then a turn records it, within that price. Its minutes are held too, as that turn's hold:
     kept once the recording is made, handed back if it isn't (the worker settles it)."""
     args = turn_args(cid, RECORD_LINE, None, body.today, body.now, record=True)
     with turn_transaction(st, uk) as conn:
@@ -239,10 +232,9 @@ def record_offer(st: St, uk: User, cid: Annotated[int, JOB_ID], body: Annotated[
         if not conversations.begin_turn(conn, uk, cid, RECORD_LINE, None):
             raise HTTPException(409, STILL_WORKING)
         job_id = queue_turn(conn, uk, args)
-        if st.settings.hosted:
-            need = offer_minutes(c.offer)
-            if not minutes.hold(conn, uk.user_id, job_id, need, offer_tag(uk, c.offer)):
-                raise NoMinutes(need, minutes.balance(conn, uk.user_id))   # and nothing above is kept
+        need = offer_minutes(c.offer)
+        if not minutes.hold(conn, uk.user_id, job_id, need, offer_tag(uk, c.offer)):
+            raise NoMinutes(need, minutes.balance(conn, uk.user_id))   # and nothing above is kept
     return {"job_id": job_id}
 
 
@@ -262,10 +254,10 @@ def schedule_later(st: St, uk: User, cid: Annotated[int, JOB_ID], body: Annotate
         at = datetime.datetime.fromisoformat(later["at"])
         if at <= now:
             raise HTTPException(409, "That time has passed: ask for the workout again.")
-        if st.settings.hosted:      # held when it records; here, only that the balance covers what was asked for
-            need, left = max(1, int(later.get("minutes") or 0)), minutes.balance(conn, uk.user_id)
-            if left < need:
-                raise NoMinutes(need, left)
+        # held when it records; here, only that the balance covers what was asked for
+        need, left = max(1, int(later.get("minutes") or 0)), minutes.balance(conn, uk.user_id)
+        if left < need:
+            raise NoMinutes(need, left)
         due = max(now, at - LEAD)
         when = turns.said_when(later.get("local", ""))
         today, local_now = turns.local_clock(int(later.get("offset") or 0), now)

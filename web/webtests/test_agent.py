@@ -1,3 +1,4 @@
+import json
 import os
 import shutil
 import sys
@@ -12,7 +13,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 from pydantic_ai.messages import ModelResponse, TextPart, ToolCallPart, ToolReturnPart  # noqa: E402
 from pydantic_ai.models.function import FunctionModel  # noqa: E402
 
-from webapp import folder  # noqa: E402
+from webapp import folder, hosted  # noqa: E402
 from webapp import agent  # noqa: E402
 from webapp.agent import tools  # noqa: E402
 
@@ -40,8 +41,10 @@ class AgentCase(unittest.TestCase):
         self.deps = self.fresh_deps()
 
     def fresh_deps(self):
+        # as the worker sets it; the site's coach listing already read, and empty, so it refuses no coach by name
+        # (the price's own check, on the voice, is what these tests meet)
         return tools.Deps(engine_root=ROOT, home=self.home, keys={}, today=TODAY,
-                          now=f"{TODAY} Wednesday 08:00", writers="three")   # as the worker sets it
+                          now=f"{TODAY} Wednesday 08:00", writers="three", hosted_rows=[])
 
 
 class Run(AgentCase):
@@ -75,8 +78,8 @@ class Run(AgentCase):
         def run(root, home, argv, extra_env={}, timeout=120, cancel=None):
             calls.append((argv, timeout))
             if argv[:2] == ["get", "cost"]:
-                return tools.engine.Result(0, '{"service": "fish", "chars": %d, "usd": 0.045, "pending_design": '
-                                              'true, "design_usd": 0.01}' % speaks, "")
+                return tools.engine.Result(0, json.dumps({"service": "openrouter", "model": hosted.VOICE_MODEL,
+                                                          "chars": speaks, "usd": 0.045}), "")
             if "--max-chars" in argv and argv[argv.index("--max-chars") + 1] == "1":
                 return tools.engine.Result(64, f"  the script speaks {speaks:,} characters; this build may send at most 1", "")
             if "--lint-only" in argv:
@@ -96,10 +99,9 @@ class Run(AgentCase):
                 with patch:
                     r = tools.run(self.deps, list(self.BUILD))
                 self.assertIn("Not recorded yet", r.output)
-                self.assertIn("$0.06", r.output)   # the voice design included
                 self.assertEqual(self.deps.offer, {"draft": "me/workouts/a/a.draft.txt", "name": "Workout A",
-                                                   "coach": "Coach Reed", "chars": 3000, "usd": 0.055,
-                                                   "service": "fish", "design": True})
+                                                   "coach": "Coach Reed", "chars": 3000, "usd": 0.045,
+                                                   "service": "openrouter", "design": False, "minutes": 5})
                 self.assertFalse(any("--lint-only" not in a and a[0] == "build" for a, _ in calls))   # nothing recorded
 
     def test_nothing_is_offered_after_a_lint_problem_or_over_todays_allowance(self):
@@ -290,7 +292,8 @@ class DraftCase(AgentCase):
         def run(root, home, argv, extra_env={}, timeout=120, cancel=None):
             calls.append(argv)
             if argv[:2] == ["get", "cost"]:
-                return tools.engine.Result(0, '{"service": "gemini", "chars": 3000, "usd": 0.05}', "")
+                return tools.engine.Result(0, json.dumps({"service": "openrouter", "model": hosted.VOICE_MODEL,
+                                                          "chars": 3000, "usd": 0.05}), "")
             if "--max-chars" in argv and argv[argv.index("--max-chars") + 1] == "1":
                 return tools.engine.Result(1, "  the script speaks 3,000 characters; this build may send at most 1", "")
             if "--lint-only" in argv:
@@ -427,7 +430,7 @@ class Faster(DraftCase):
                 else:
                     self.assertEqual((reserved, self.deps.recorded), ([], None))
                     self.assertEqual(self.deps.offer["chars"], 3000)   # the Record button, with its real price
-                    self.assertIn("over the 2,500 the listener approved", out.history_json)
+                    self.assertIn("longer than the listener approved", out.history_json)
 
     def test_record_without_asking_past_the_allowance_waits_for_record(self):
         self.draft()

@@ -11,7 +11,7 @@ from webtests import test_api  # noqa: E402
 
 
 class Routes(test_api.ApiCase):
-    keyed = test_api.Conversations.keyed
+    funded = test_api.Conversations.funded
     turn = test_api.Conversations.turn
     start = test_api.Conversations.start
     offered = test_api.Conversations.offered

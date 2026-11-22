@@ -1,4 +1,4 @@
-/* The chat: lines, the coach's progress, offers, the welcome, a workout's MP3, the box to write in. Part of theme.css, which imports every part in order. */
+/* The chat: lines, the coach's progress, offers, a workout's MP3, the box to write in. Part of theme.css, which imports every part in order. */
 /* ---------- chat ---------- */
 .chat-log { flex: 1; min-height: 0; overflow-y: auto; padding: var(--s-5) 0 var(--s-4); display: flex; flex-direction: column; gap: var(--s-4h);
   scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent }
@@ -40,27 +40,19 @@
 /* a table in the chat: the coach's Markdown, and the plan on a Record card */
 .m.md :is(th, td), .m:is(.offer, .thinking) .plan :is(th, td) { border-bottom: 1px solid var(--border); padding: var(--s-1h) var(--s-3) var(--s-1h) 0; text-align: left; vertical-align: top }
 .m.md th { font-weight: var(--w-strong); color: var(--text-2) }
-.m.offer, .m.audio, .welcome {
+.m.offer, .m.audio {
   display: grid; gap: var(--s-1h); padding: var(--s-5) var(--s-5); border-radius: var(--radius-sheet); background: var(--surface-raised); width: 100%; max-width: 40em;
   box-shadow: var(--ring) var(--border), var(--lift);
 }
-.m.offer p, .welcome p { margin: 0 }
-.welcome p + p { margin-top: var(--s-1h) }
-.m.offer .go, .welcome .go { justify-self: start; margin-top: var(--s-3) }
+.m.offer p { margin: 0 }
+.m.offer .go { justify-self: start; margin-top: var(--s-3) }
 .m.offer { box-shadow: var(--ring) var(--border-strong), var(--lift) }
 .m:is(.offer, .thinking) table.plan { border-collapse: collapse; margin: var(--s-2) 0; font-size: var(--fs-md); width: 100%; max-width: 28em }
 .m:is(.offer, .thinking) .plan thead th { font-weight: var(--w-strong); color: var(--text-2) }
 .m:is(.offer, .thinking) .plan :is(td, th):nth-child(n+2) { text-align: right; font-variant-numeric: tabular-nums; width: 4.5em }
 .m.thinking .plan caption { caption-side: top; text-align: left; font-size: var(--fs-sm); color: var(--text-2); padding-bottom: var(--s-1h) }
 .m:is(.offer, .thinking) .plan tfoot :is(th, td) { border-bottom: 0; font-weight: var(--w-strong) }
-.welcome h2 { margin: 0 0 var(--s-2); font: var(--w-bold) var(--fs-welcome)/var(--lh-solid) var(--display); letter-spacing: var(--track-head); text-transform: uppercase }
-.welcome { margin: auto 0 0 }
-.welcome-picks { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: var(--s-2h); margin-top: var(--s-4) }
 .step-note { display: block; max-width: 46ch; margin: var(--s-1) 0 var(--s-4h); font-size: var(--fs-body) }
-.welcome-pick { display: grid; gap: var(--s-1); text-align: left; padding: var(--s-4) var(--s-4h); border-radius: var(--radius-control) }
-.welcome-pick:hover:not(:disabled) { background: var(--surface-selected) }
-.welcome-pick-name { font-size: var(--fs-d2); line-height: var(--lh-tight) }
-.welcome-pick-note { font-size: var(--fs-md); color: var(--text-2); line-height: var(--lh-ui) }
 
 /* ---------- a workout's MP3, in the chat and on the Logs page ---------- */
 .audio-name { margin-bottom: var(--s-1h); font-size: var(--fs-d2); line-height: var(--lh-tight) }

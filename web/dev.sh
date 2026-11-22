@@ -7,9 +7,10 @@
 #   web/dev.sh reset    delete the local database and key: the next run starts with no accounts
 #
 # The database is harmonicfitness_dev (HARMONICFITNESS_DEV_DB changes it); the master key is made once and kept
-# in .cache/webdev/ (git-ignored). Your shell's HARMONICFITNESS_PROVIDERS, if set, passes through. The site's own
-# keys (Clerk for sign-in, Stripe for minute packs, OpenRouter and HARMONICFITNESS_HOSTED for a site run on
-# minutes) are read from the repo's .env when it's there (git-ignored); what your shell sets wins.
+# in .cache/webdev/ (git-ignored). The site's own keys are read from the repo's .env when it's there (git-ignored);
+# what your shell sets wins. OPENROUTER_API_KEY is needed (the site's own key writes and speaks every workout);
+# Clerk's keys (sign-in) and Stripe's test keys (minute packs) are optional: without them the page has its own
+# sign-in form, and Settings shows the minutes but sells none.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -61,12 +62,13 @@ up() {
     while IFS='=' read -r name value || [ -n "$name" ]; do
       case "$name" in
         CLERK_PUBLISHABLE_KEY|NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY|CLERK_SECRET_KEY|STRIPE_SECRET_KEY|\
-        STRIPE_API_SECRET_KEY|STRIPE_WEBHOOK_SECRET|OPENROUTER_API_KEY|HARMONICFITNESS_HOSTED)
+        STRIPE_API_SECRET_KEY|STRIPE_WEBHOOK_SECRET|OPENROUTER_API_KEY)
           value="${value%$'\r'}"; value="${value%\"}"; value="${value#\"}"
           [ -n "${!name:-}" ] || export "$name=$value" ;;
       esac
     done < "$ROOT/.env"
   fi
+  [ -n "${OPENROUTER_API_KEY:-}" ] || die "no OPENROUTER_API_KEY: add OPENROUTER_API_KEY=<the site's key> to $ROOT/.env (the site's own key writes and speaks every workout)."
   export DATABASE_URL="postgresql://localhost/$DB"
   export HARMONICFITNESS_BASE_URL="http://localhost:$PORT"
   export HARMONICFITNESS_MASTER_KEY="$(cat "$STATE/master_key")"

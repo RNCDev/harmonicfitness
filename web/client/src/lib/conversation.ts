@@ -33,9 +33,7 @@ export function resumable(c: Conversation, today: Date = new Date()): boolean {
   return !!c.offer || c.lines[c.lines.length - 1]?.role === "agent";
 }
 
-/** A refusal Settings answers: no language-model key, or one its service refused. */
-const needsKeys = (code: ErrorCode | null | undefined) => code === "no_model_key" || code === "key_refused";
-/** A refusal more minutes answer, on a site that sells them. */
+/** A refusal more minutes answer. */
 const needsMinutes = (code: ErrorCode | null | undefined) => code === "no_minutes";
 
 /** The listener's line as the chat shows it at once: with how many photos it carried, as the server keeps it. */
@@ -47,7 +45,6 @@ export function useConversation() {
   /** Today's conversation waiting on the listener, offered on the first screen rather than reopened. */
   const [waiting, setWaiting] = useState<Conversation | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [noKey, setNoKey] = useState(false);
   const [noMinutes, setNoMinutes] = useState(false);
   const [posting, setPosting] = useState(false);
   const { job, watch, stop } = useJob();
@@ -60,7 +57,6 @@ export function useConversation() {
 
   const fail = useCallback((e: unknown) => {
     if (e instanceof NotSignedIn) return;   // api.ts has sent the page to sign-in
-    setNoKey(e instanceof ApiError && needsKeys(e.code));
     setNoMinutes(e instanceof ApiError && needsMinutes(e.code));
     setError(plainError(e));
   }, []);
@@ -94,7 +90,6 @@ export function useConversation() {
     if (!job || id === undefined) return;
     if (job.state === "failed" && job.error) {
       setError(plainError(new ApiError(0, job.error)));
-      setNoKey(needsKeys(job.code));
       setNoMinutes(needsMinutes(job.code));
     }
     if (job.state !== "done" && job.state !== "failed") return;
@@ -139,7 +134,6 @@ export function useConversation() {
 
   const turn = useCallback(async (run: () => Promise<{ job_id: number }>, show: (c: Conversation) => Conversation) => {
     setError(null);
-    setNoKey(false);
     setNoMinutes(false);
     setPosting(true);
     try {
@@ -161,7 +155,6 @@ export function useConversation() {
   /** A new conversation, whatever is open; `startAt`, for a workout at a time the listener picked. */
   const start = useCallback(async (line: string, startAt?: string, photos?: string[]) => {
     setError(null);
-    setNoKey(false);
     setNoMinutes(false);
     setPosting(true);
     try {
@@ -246,7 +239,6 @@ export function useConversation() {
     setWaiting(null);
     setPosting(false);
     setError(null);
-    setNoKey(false);
     setNoMinutes(false);
   }, [conv, fail, stop]);
 
@@ -256,9 +248,8 @@ export function useConversation() {
     stop();
     setConv(null);
     setError(null);
-    setNoKey(false);
     setNoMinutes(false);
   }, [working, stop]);
 
-  return { conv, history, working, error, noKey, noMinutes, send, record, schedule, cancel, halt, reset, job, stop, waiting, resume };
+  return { conv, history, working, error, noMinutes, send, record, schedule, cancel, halt, reset, job, stop, waiting, resume };
 }

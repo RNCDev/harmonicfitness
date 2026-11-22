@@ -149,7 +149,7 @@ case "$OS" in mac) SYSTEM="macOS" ;; linux) SYSTEM="Linux" ;; windows) SYSTEM="W
 UV_INSTALL="$(uv_install_for "$OS")"
 
 if [ "$WEB" = yes ]; then
-  echo "This is the HarmonicFitness web client: it speaks with web coaches, through your own keys."
+  echo "This is the HarmonicFitness web client: it speaks with web coaches, on the site's own key."
   echo
 fi
 if [ "$REMOTE" = yes ]; then

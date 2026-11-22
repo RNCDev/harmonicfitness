@@ -8,7 +8,7 @@ from fastapi import Path as PathParam
 from fastapi.responses import Response
 from pydantic import BaseModel, ConfigDict, Field
 
-from .. import jobs, keystore, media, providers, store, workouts
+from .. import jobs, media, store, workouts
 from .state import MAX_QUEUED, POST, AppState, St, User, read, tx
 
 router = APIRouter()
@@ -76,14 +76,12 @@ async def workout_script(st: St, uk: User, ref: Annotated[str, PathParam(max_len
 async def workout_feedback(st: St, uk: User, ref: Annotated[str, PathParam(max_length=40)],
                            body: Annotated[FeedbackBody, Body()]):
     """The feedback line, saved; then an enrich job, in its own lane, works out what it teaches (interests the
-    next workouts lean on) on the listener's writer key. {"job_id"}: poll /api/jobs/{id} for its summary."""
+    next workouts lean on), on the site's own key. {"job_id"}: poll /api/jobs/{id} for its summary."""
     await anyio.to_thread.run_sync(lambda: workout_call(st, uk, workouts.add_feedback, ref, body.text,
                                                          change=True))
 
     def queue() -> int | None:
-        with tx(st) as conn:   # without a writer key there's no one to work it out: nothing queued
-            if providers.pick(st.settings.providers, keystore.listing(conn, uk), keystore.writer(conn, uk)) is None:
-                return None
+        with tx(st) as conn:
             # within the queued-jobs cap, as every other job is (0.76.0): the feedback itself is saved either way
             conn.execute("select 1 from users where id = %s for update", (uk.user_id,))
             if conn.execute("select count(*) from jobs where user_id = %s and state = 'queued' and kind = 'enrich'",

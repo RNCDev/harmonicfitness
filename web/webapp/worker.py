@@ -26,9 +26,8 @@ from typing import Any, Callable
 
 import psycopg
 
-from . import clipcache, codes, config, conversations, costs, db, engine, enginelib, folder, hosted, jobs, keystore, log, media, \
-    minutes, \
-    photos, providers, retention, spend, store, turns
+from . import clipcache, codes, config, conversations, costs, db, engine, enginelib, folder, hosted, jobs, log, media, \
+    minutes, photos, prefs, providers, retention, spend, store, turns
 
 HEARTBEAT_EVERY = 15      # seconds; jobs.reap fails a job silent for 120
 HEARTBEAT_TRIES = 3       # a heartbeat that fails is tried again on a new connection, this many tries in all
@@ -85,7 +84,7 @@ class Ctx:
     opened: list = field(default_factory=list, repr=False)   # connections this job opened, closed by close()
     lost: threading.Event = field(default_factory=threading.Event)      # the heartbeat lost the job: it was stopped
     drained: threading.Event = field(default_factory=threading.Event)   # the worker's own stop stopped it
-    meter: Any = field(default=None, repr=False)   # the hosted site: what OpenRouter charged this job's replies
+    meter: Any = field(default=None, repr=False)   # what OpenRouter charged this job's replies
     builds_before: int | None = None   # builds.jsonl's lines as the job began: its renders are the ones after
 
     def why_stopped(self) -> str:
@@ -144,18 +143,8 @@ class Ctx:
         self.events_conn = None
 
     def key_env(self) -> dict[str, str]:
-        """{key_var: value} for each of the user's keys whose service the engine knows, for a job's
-        extra_env only. Commits, so no transaction stays open across the engine run. On the hosted site it's the
-        site's own OpenRouter key and nothing else: a listener's stored keys are never opened there."""
-        if self.settings.hosted:
-            return {hosted.KEY_VAR: self.settings.openrouter_key}
-        stored = keystore.open_all(self.conn, self.uk)
-        self.conn.commit()
-        services = enginelib.services(self.settings.engine_root)
-        for legacy, shared in providers.SHARED_KEY.items():   # a model key stored before 0.25.2 voices too
-            if legacy in stored and shared not in stored:
-                stored[shared] = stored[legacy]
-        return {services[s]["key_var"]: v for s, v in stored.items() if s in services}
+        """The engine's keys for a job's extra_env: the site's own OpenRouter key, and nothing else."""
+        return {hosted.KEY_VAR: self.settings.openrouter_key}
 
     def save(self, changes: dict[str, bytes | None], base: dict[str, int]) -> None:
         """Files to write back to the store: run_one writes them in the same transaction that marks the
@@ -163,22 +152,21 @@ class Ctx:
         self.pending = (changes, base)
 
 
-def _writer(ctx: "Ctx") -> tuple[dict, str | None]:
-    """(the keys a turn may write with, the provider the listener chose). On the hosted site, the site's own
-    OpenRouter key and no choice. Commits."""
-    if ctx.settings.hosted:
-        return {hosted.SERVICE: ctx.settings.openrouter_key}, hosted.SERVICE
-    stored = keystore.open_all(ctx.conn, ctx.uk)
-    chosen = keystore.writer(ctx.conn, ctx.uk)
-    ctx.conn.commit()
-    return stored, chosen
+def _model(ctx: "Ctx"):
+    """The language model a job writes with: OpenRouter on the site's own key, metered, so what each reply costs
+    goes in the books (ctx.meter, recorded as the job ends however it ends)."""
+    try:
+        model = providers.model_for(hosted.SERVICE, ctx.settings.openrouter_key)
+    except Exception as e:  # noqa: BLE001 - the client's own words may hold the key
+        log.failure(f"job {ctx.job_id} model client failed", e)
+        raise _writer_stop(ctx, e) from None
+    ctx.meter = costs.Metered(model)
+    return ctx.meter
 
 
 def _settle(ctx: "Ctx") -> None:
-    """The hosted site, as a turn ends: the minutes held for its recording go back unless the recording was
-    kept (minutes.keep, with the MP3). A failure here is left to the sweep, which hands back the same hold."""
-    if not ctx.settings.hosted:
-        return
+    """As a turn ends: the minutes held for its recording go back unless the recording was kept (minutes.keep,
+    with the MP3). A failure here is left to the sweep, which hands back the same hold."""
     _record_costs(ctx)
     try:
         with ctx.db_lock:
@@ -193,7 +181,7 @@ def _settle(ctx: "Ctx") -> None:
 
 
 def _record_costs(ctx: "Ctx") -> None:
-    """The hosted site, as a job ends however it ends: what OpenRouter charged for its writing (every reply, as
+    """As a job ends however it ends: what OpenRouter charged for its writing (every reply, as
     OpenRouter reported it) and its recordings (the engine's estimate), into the books. Once: the meter is let go."""
     meter, ctx.meter = ctx.meter, None
     before, ctx.builds_before = ctx.builds_before, None
@@ -277,31 +265,6 @@ def brief(ctx: Ctx) -> dict:
     return {"brief_md": r.stdout, "stem": stem}
 
 
-BALANCES_TIMEOUT = 90     # seconds: the engine's cold start, then one GET a service
-BALANCE_FIELDS = ("ok", "usd", "used", "limit", "resets", "kind")   # never the message: it's the service's words
-
-
-def balances(ctx: Ctx) -> dict:
-    """What's left on each keyed voice service's account (`./harmonicfitness balances --json`): {"balances":
-    {service: row}} with only the fields the page shows. Needs none of the listener's files."""
-    if ctx.args:
-        raise JobFailed("invalid request: a balance check takes nothing")
-    if ctx.settings.hosted:   # the one account there is the site's own: never a listener's to read
-        return {"balances": {}}
-    r = engine.run(ctx.settings.engine_root, ctx.home, ["balances", "--json"], extra_env=ctx.keys,
-                   timeout=BALANCES_TIMEOUT, cancel=ctx.cancel)
-    if r.code != 0:
-        raise JobFailed(f"the engine stopped (exit {r.code})", {"stderr": r.stderr})
-    try:
-        rows = json.loads(r.stdout)
-    except ValueError:
-        rows = None
-    if not isinstance(rows, dict):
-        raise JobFailed("the engine's answer couldn't be read")
-    return {"balances": {s: {f: row[f] for f in BALANCE_FIELDS if f in row}
-                         for s, row in rows.items() if isinstance(row, dict) and "ok" in row}}
-
-
 def listener_zone(now: str, utc: datetime.datetime | None = None) -> str | None:
     """A POSIX TZ for the listener's clock, from the "YYYY-MM-DD Weekday HH:MM" their page sent and the server's
     UTC (to the quarter hour), so every engine command in the turn (the brief's time, the menu's day, the build's)
@@ -329,7 +292,7 @@ def enrich(ctx: Ctx) -> dict:
     """What a listener's feedback on one workout teaches (agent.enrich), recorded through `interests add` and
     saved at once, in enrichment's own lane. A write that conflicts with a turn saving the same moment is
     applied again on the files as they now stand (the same signals, no second model call), so no evidence is
-    lost. {"summary": what was noted, "signals": how many}; nothing to note without a writer key."""
+    lost. {"summary": what was noted, "signals": how many}."""
     from . import agent
     from .agent import enrich as enricher
     args = ctx.args if isinstance(ctx.args, dict) else {}
@@ -337,15 +300,6 @@ def enrich(ctx: Ctx) -> dict:
     if not (isinstance(ref, str) and ENRICH_REF.fullmatch(ref) and isinstance(text, str) and text.strip()
             and isinstance(today, str) and _date_ok(today)):
         raise JobFailed("invalid request: needs ref, text and today")
-    stored, chosen = _writer(ctx)
-    provider = providers.pick(ctx.settings.providers, stored, chosen)
-    if provider is None:
-        return {"summary": "", "signals": 0}
-    try:
-        model = providers.model_for(provider, providers.stored_key(stored, provider))
-    except Exception as e:  # noqa: BLE001 - the client's own words may hold the key
-        raise JobFailed(providers.explain(provider, e).message) from None
-    del stored
     files, base, written = _materialize(ctx)
     r = engine.run(ctx.settings.engine_root, ctx.home, ["workouts", "context", ref], extra_env=ctx.keys,
                    timeout=ENRICH_TIMEOUT, cancel=ctx.cancel)
@@ -355,16 +309,16 @@ def enrich(ctx: Ctx) -> dict:
         facts = json.loads(r.stdout)
     except ValueError:
         raise JobFailed("the engine's answer couldn't be read") from None
-    if ctx.settings.hosted:   # the site's own key: what the enrichment costs goes in the books, however it ends
-        model = ctx.meter = costs.Metered(model)
     try:
+        model = _model(ctx)
         found = enricher.enrich(model, facts, text.strip()[:1000], agent.native_tools(model))
-    except Exception as e:  # noqa: BLE001 - a provider's failure; only explain's words go anywhere
+    except _Stop as e:
+        raise JobFailed(e.message) from None
+    except Exception as e:  # noqa: BLE001 - the site's own account failed; the listener is told only that it's down
         log.failure(f"job {ctx.job_id} enrich stopped", e)
-        raise JobFailed(providers.explain(provider, e).message) from None
+        raise JobFailed(hosted.DOWN) from None
     finally:
-        if ctx.settings.hosted:
-            _record_costs(ctx)
+        _record_costs(ctx)
     argv = enricher.signal_args(found.signals)
     if not argv:
         return {"summary": found.summary if found.signals else "", "signals": 0}
@@ -410,7 +364,6 @@ def _date_ok(day: str) -> bool:
         return False
 
 
-NO_MODEL_KEY = codes.NO_MODEL_KEY
 TOO_LONG = "this turn ran too long; try again with less to do"
 ANSWER_NOT_OPEN = "that answer didn't match the open question; send a message instead"
 CANT_FINISH = "the coach stopped on a step it can't finish here; send a message to carry on"
@@ -456,18 +409,10 @@ def _save_clips(ctx: Ctx, clips: dict) -> None:
         raise
 
 
-def _provider_stop(provider: str, e: Exception) -> "_Stop":
-    """A provider's failure, in explain's words; a refused key carries the code that offers Settings."""
-    failed = providers.explain(provider, e)
-    return _Stop(failed.message, codes.KEY_REFUSED_CODE if failed.kind == "auth" else None)
-
-
-def _writer_stop(ctx: "Ctx", provider: str, e: Exception) -> "_Stop":
-    """_provider_stop; on the hosted site the account that failed is the site's, so the listener is told only
-    that it's down (the log has the kind, for the maintainer)."""
-    if not ctx.settings.hosted:
-        return _provider_stop(provider, e)
-    print(f"worker: job {ctx.job_id} the site's own account failed: {providers.explain(provider, e).kind}",
+def _writer_stop(ctx: "Ctx", e: Exception) -> "_Stop":
+    """The writer's failure: the account that failed is the site's own, so the listener is told only that it's
+    down (the log has the kind, for the maintainer)."""
+    print(f"worker: job {ctx.job_id} the site's own account failed: {providers.explain(hosted.SERVICE, e).kind}",
           file=sys.stderr, flush=True)
     return _Stop(hosted.DOWN)
 
@@ -597,7 +542,7 @@ def _keep_audio(ctx: Ctx, written: dict[str, str], done: set[str] | None = None)
                 kept.append(media.put(ctx.conn, ctx.uk, name, body, build))
             except ValueError:
                 continue
-            if build and ctx.settings.hosted:   # a workout's recording, made and stored: its minutes are spent
+            if build:   # a workout's recording, made and stored: its minutes are spent
                 minutes.keep(ctx.conn, ctx.uk.user_id, ctx.job_id)
         if kept:
             ctx.conn.commit()
@@ -682,36 +627,23 @@ def _turn(ctx: Ctx, conv: conversations.Conversation, kept: list[dict] | None = 
     line, answer, today, now = _turn_request(ctx.args)
     # the kit photos the line carried, deleted as they're read: from here they live only in this turn's memory
     kit = photos.take(ctx.conn, ctx.uk, ctx.job_id)
-    stored, chosen = _writer(ctx)
-    picked = keystore.coach(ctx.conn, ctx.uk)
-    auto = keystore.auto_record(ctx.conn, ctx.uk)
+    picked = prefs.coach(ctx.conn, ctx.uk)
+    auto = prefs.auto_record(ctx.conn, ctx.uk)
     ctx.conn.commit()
-    provider = providers.pick(ctx.settings.providers, stored, chosen)
-    if provider is None:
-        raise _Stop(NO_MODEL_KEY, codes.NO_KEY_CODE)
-    try:
-        model = providers.model_for(provider, providers.stored_key(stored, provider))
-    except Exception as e:  # noqa: BLE001 - the client's own words may hold the key
-        log.failure(f"job {ctx.job_id} model client failed", e)
-        raise _writer_stop(ctx, provider, e) from None
-    del stored   # the model key lives only in the model client from here on
-    if ctx.settings.hosted:   # the site's own key: what each reply costs goes in the books
-        model = ctx.meter = costs.Metered(model)
+    model = _model(ctx)
 
     ctx.say("folder")
     files = store.read_all(ctx.conn, ctx.uk)
     ctx.conn.commit()
     base = {path: version for path, (version, _) in files.items()}
     written = folder.materialize({path: body for path, (_, body) in files.items()}, ctx.home)
-    if ctx.settings.hosted:
-        ctx.builds_before = costs.builds_lines(ctx.home)
+    ctx.builds_before = costs.builds_lines(ctx.home)
     zone = listener_zone(now)   # the engine's clock is the listener's: the brief's time, today's date for the menu
     deps = agent.Deps(engine_root=ctx.settings.engine_root, home=ctx.home, writers=ctx.settings.writers,
                       keys=dict(ctx.keys, **({"TZ": zone} if zone else {})), today=today,
                       now=now, say=lambda text, tool, code, step=None, think=False: _step(ctx, text, tool, code, step, think),
                       cancel=ctx.cancel, picked=picked, event=lambda stage, **fields: ctx.say(stage, **fields),
-                      log=lambda text: print(f"worker: job {ctx.job_id} {text}", file=sys.stderr, flush=True),
-                      hosted=ctx.settings.hosted)
+                      log=lambda text: print(f"worker: job {ctx.job_id} {text}", file=sys.stderr, flush=True))
     deps.setup = agent.needs_setup(ctx.home) or agent.wants_setup(line)   # the setup skill comes too
     opening = next((x.get("text") for x in conv.lines if x.get("role") == "user"), None)
     # a topics job (topics add, or trending ideas): a light turn, with no workout skill, web search or feeds
@@ -735,12 +667,12 @@ def _turn(ctx: Ctx, conv: conversations.Conversation, kept: list[dict] | None = 
         deps.ceiling = int((conv.later or {}).get("ceiling_chars") or 0) or None
 
     def reserve(chars: int) -> bool:
-        """Today's allowance, reserved for a recording made without the Record button (as its endpoint does); on
-        the hosted site its minutes are held with it, both or neither."""
+        """Today's allowance, reserved for a recording made without the Record button (as its endpoint does), and
+        its minutes held with it, both or neither."""
         with ctx.db_lock:
             try:
                 fits = spend.reserve(ctx.conn, ctx.uk, today, chars, ctx.settings.daily_chars)
-                if fits and ctx.settings.hosted:
+                if fits:
                     offer = deps.offer or {}
                     parts = str(offer.get("draft") or "").replace("\\", "/").split("/")
                     tag = minutes.tag(ctx.uk, parts[-2] if len(parts) >= 2 else None)
@@ -857,7 +789,7 @@ def _turn(ctx: Ctx, conv: conversations.Conversation, kept: list[dict] | None = 
     except Exception as e:  # noqa: BLE001 - a provider's failure; only explain's words go anywhere
         log.failure(f"job {ctx.job_id} turn stopped", e)
         keep_clips()
-        raise _writer_stop(ctx, provider, e) from None
+        raise _writer_stop(ctx, e) from None
     finally:
         background.shutdown(wait=True)   # feeds writes into the folder: done before it's harvested or removed
 
@@ -887,7 +819,7 @@ def _turn(ctx: Ctx, conv: conversations.Conversation, kept: list[dict] | None = 
     return {"conversation_id": conv.id, "state": done.state}
 
 
-HANDLERS: dict[str, Callable[[Ctx], dict]] = {"brief": brief, "turn": turn, "balances": balances, "enrich": enrich}
+HANDLERS: dict[str, Callable[[Ctx], dict]] = {"brief": brief, "turn": turn, "enrich": enrich}
 
 
 # ---- the loop ---------------------------------------------------------------------------------
@@ -970,7 +902,7 @@ class _Heartbeat(threading.Thread):
 
 
 SWEEP_EVERY = 60   # seconds between the main lane's sweeps of expired media, unused clips and finished jobs
-SPEND_EVERY = 600  # seconds between readings of OpenRouter's own count of the site key's spend (the hosted site)
+SPEND_EVERY = 600  # seconds between readings of OpenRouter's own count of the site key's spend
 _last_spend = [float("-inf")]
 _last_sweep = [float("-inf")]
 
@@ -999,7 +931,7 @@ def run_one(conn, settings: config.Settings, connect: Callable[[], Any] | None =
             clipcache.prune(conn)
             if minutes.sweep(conn):   # holds a dead turn left: handed back
                 conn.commit()
-            if settings.hosted and time.monotonic() - _last_spend[0] >= SPEND_EVERY:
+            if time.monotonic() - _last_spend[0] >= SPEND_EVERY:
                 _last_spend[0] = time.monotonic()
                 try:
                     if costs.read_spend(conn, settings.openrouter_key) is not None:
@@ -1152,8 +1084,8 @@ def main() -> int:
 
 
 def lanes(settings: config.Settings) -> list[tuple[str, str, bool]]:
-    """(thread name, lane, whether it reaps and sweeps) of each loop the worker runs: the quick lane (balance
-    checks), enrichment's own, and settings.worker_slots main-lane loops (0.77.0), so one listener's
+    """(thread name, lane, whether it reaps and sweeps) of each loop the worker runs: the quick lane (no job kind
+    of its own just now: it reaps and sweeps), enrichment's own, and settings.worker_slots main-lane loops (0.77.0), so one listener's
     recording never holds up another's turn."""
     return [("quick-lane", "quick", True), ("enrich-lane", "enrich", False),
             *((f"main-{n}", "main", False) for n in range(1, settings.worker_slots + 1))]

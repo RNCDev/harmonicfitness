@@ -13,7 +13,7 @@ from fastapi import APIRouter, Body, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, StrictInt, StrictStr, StringConstraints
 
-from .. import codes, hosted, jobs, store
+from .. import codes, jobs, store
 from .state import JOB_ID, MAX_QUEUED, POST, AppState, St, User, read, tx
 
 router = APIRouter()
@@ -47,27 +47,6 @@ def post_job(st: St, uk: User, body: Annotated[BriefJob, Body()]):
         job_id = jobs.add(conn, uk, body.kind, args)
     return {"id": job_id, "job_id": job_id}   # job_id as every other route names it; id kept for older pages
 
-
-@router.post("/api/balances", status_code=202, **POST)
-def post_balances(st: St, uk: User):
-    """Ask what's left on each keyed voice service's account: a worker job (only the worker opens a key),
-    read with GET /api/jobs/{id}. One at a time: a check already waiting or running is returned as it is. Not on
-    the hosted site, whose one account is its own: its balance is nobody else's to read."""
-    if st.settings.hosted:
-        raise HTTPException(404, hosted.NO_KEYS)
-    with tx(st) as conn:   # commits the job, releasing the lock
-        conn.execute("select 1 from users where id = %s for update", (uk.user_id,))
-        row = conn.execute("select id from jobs where user_id = %s and kind = 'balances' and "
-                           "state in ('queued', 'running') order by id desc limit 1",
-                           (uk.user_id,)).fetchone()
-        if row is not None:
-            return {"id": row[0]}
-        queued = conn.execute("select count(*) from jobs where user_id = %s and "
-                              "state = 'queued'", (uk.user_id,)).fetchone()[0]
-        if queued >= MAX_QUEUED:
-            raise HTTPException(429, "too many jobs waiting")
-        job_id = jobs.add(conn, uk, "balances", {})
-    return {"id": job_id}
 
 
 @router.get("/api/jobs/{job_id}")

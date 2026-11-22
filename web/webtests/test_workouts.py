@@ -50,16 +50,14 @@ class Calls(unittest.TestCase):
 
 
 class Routes(test_api.ApiCase):
-    def test_feedback_without_a_writer_key_queues_nothing(self):
+    def test_feedback_is_saved_and_queues_one_enrichment(self):
         _, uk = self.signed_in()
-        from webapp import keystore
-        for service in list(keystore.listing(self.conn, uk)):
-            keystore.delete(self.conn, uk, service)
         store.write_back(self.conn, uk, listener_files(), {})
         self.conn.commit()
         r = self.client.post("/api/workouts/ccc333/feedback", json={"text": "too long"}, headers=self.origin())
-        self.assertEqual((r.status_code, r.json()), (202, {"job_id": None}))
-        self.assertEqual(self.conn.execute("select count(*) from jobs where kind = 'enrich'").fetchone()[0], 0)
+        self.assertEqual(r.status_code, 202)
+        self.assertIsInstance(r.json()["job_id"], int)
+        self.assertEqual(self.conn.execute("select count(*) from jobs where kind = 'enrich'").fetchone()[0], 1)
         self.conn.rollback()
 
     def test_the_logs_routes_need_a_session_and_same_origin(self):

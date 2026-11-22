@@ -3,15 +3,14 @@ import { act, cleanup, fireEvent, render, screen, within } from "@testing-librar
 import { Chat } from "./Chat";
 import { planOf, stepsOf } from "../../lib/steps";
 import type { Offer } from "../../lib/api";
-import { SiteContext } from "../../lib/site";
 
 // a photo is shrunk by drawing it on a canvas, which jsdom has none of: each comes back named for its file
 vi.mock("../../lib/photos", () => ({ MOST_PHOTOS: 3, shrink: vi.fn(async (f: File) => `jpeg-of-${f.name}`) }));
 
-const base = { lines: [], working: false, error: null, noKey: false, onSend: () => {}, onOpenKeys: () => {} };
+const base = { lines: [], working: false, error: null, onSend: () => {} };
 
 const offer: Offer = {
-  name: "Workout 10 min", coach: "Coach Fraser", chars: 6951, usd: 0.1, service: "gemini",
+  name: "Workout 10 min", coach: "Coach Fraser", service: "gemini", minutes: 10, charge: 10,
   plan: { rows: [{ what: "Air squat", kind: "movement", segments: 2, seconds: 100 },
                  { what: "Rests", kind: "rest", segments: 5, seconds: 150 },
                  { what: "Talk and changeovers", kind: "talk", segments: 2, seconds: 80 }], seconds: 330 },
@@ -170,24 +169,14 @@ describe("the chat", () => {
     expect(screen.getByText(/three newest workouts/)).toBeInTheDocument();
   });
 
-  it("offers the priced recording with its price and plan, and records on the button", () => {
+  it("offers the recording in minutes with its plan, never dollars, and more minutes when they've run out", () => {
     const onRecord = vi.fn();
-    render(<Chat {...base} offers={{ offer: { ...offer, coach: "Coach Reed", chars: 3000, usd: 0.045, service: "fish" },
-      onRecord }} />);
-    expect(screen.getByText(/3,000 characters on Fish Audio, about \$0.05/)).toBeInTheDocument();
+    const onGetMinutes = vi.fn();
+    render(<Chat {...base} offers={{ offer, onRecord }} />);
     const table = screen.getByRole("table");
     expect(within(table).getByText("Air squat")).toBeInTheDocument();
     expect(within(table).getByText("1:40")).toBeInTheDocument();
     expect(within(table).getByText("5:30")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Record it (about $0.05)" }));
-    expect(onRecord).toHaveBeenCalled();
-  });
-
-  it("on a site that sells minutes, offers the recording in minutes, never dollars, and more minutes when they've run out", () => {
-    const onRecord = vi.fn();
-    const onGetMinutes = vi.fn();
-    const sold = (chat: JSX.Element) => <SiteContext.Provider value={{ hosted: true, clerk: true }}>{chat}</SiteContext.Provider>;
-    render(sold(<Chat {...base} offers={{ offer: { ...offer, minutes: 10, charge: 10 }, onRecord }} />));
     expect(screen.getByText(/takes 10 minutes from your balance/)).toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(/\$|your own key/);
     expect(screen.queryByRole("button", { name: "Get minutes" })).toBeNull();
@@ -197,22 +186,22 @@ describe("the chat", () => {
     cleanup();
 
     // a second take of a script already paid for
-    render(sold(<Chat {...base} offers={{ offer: { ...offer, minutes: 10, charge: 0 }, onRecord }} />));
+    render(<Chat {...base} offers={{ offer: { ...offer, charge: 0 }, onRecord }} />);
     expect(screen.getByRole("button", { name: "Record it (free)" })).toBeInTheDocument();
     cleanup();
 
-    render(sold(<Chat {...base} noMinutes error="This workout takes 10 minutes, and you have 4." onGetMinutes={onGetMinutes} />));
+    render(<Chat {...base} noMinutes error="This workout takes 10 minutes, and you have 4." onGetMinutes={onGetMinutes} />);
     fireEvent.click(screen.getByRole("button", { name: "Get minutes" }));
     expect(onGetMinutes).toHaveBeenCalled();
   });
 
-  it("a workout for later is scheduled with its cost and ceiling, then waits with Cancel", () => {
+  it("a workout for later is scheduled with its minutes, then waits with Cancel", () => {
     const at = new Date(Date.now() + 3 * 3600000).toISOString();
-    const later = { at, local: "x", minutes: 15, coach: "Coach Freya", usd: 0.124, ceiling_usd: 0.151 };
+    const later = { at, local: "x", minutes: 15, coach: "Coach Freya" };
     const onSchedule = vi.fn();
     const { rerender } = render(<Chat {...base} lines={[{ role: "agent", text: "Planned." }]} offers={{ later, onSchedule }} />);
-    expect(screen.getByText(/About \$0.13, and never more than \$0.16/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Schedule it (up to $0.16)" }));
+    expect(screen.getByText(/takes 15 minutes from your balance/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Schedule it (15 minutes)" }));
     expect(onSchedule).toHaveBeenCalled();
     const onCancel = vi.fn();
     rerender(<Chat {...base} lines={[{ role: "agent", text: "Planned." }]} offers={{ scheduled: true, onCancel,
@@ -257,35 +246,11 @@ describe("the chat", () => {
     expect(screen.getByText("**not bold**")).toBeInTheDocument();
   });
 
-  it("with no key, says so and offers the four keys, voicing ones first; with one, the starter once it's known", () => {
-    const onOpenKeys = vi.fn();
-    const { unmount } = render(<Chat {...base} noKey error="Add a key for Claude in Settings first." onOpenKeys={onOpenKeys} />);
-    expect(screen.getByRole("alert")).toHaveTextContent("Add a key for Claude in Settings first.");
-    fireEvent.click(screen.getByRole("button", { name: "Open Settings" }));
-    expect(onOpenKeys).toHaveBeenCalled();
-    unmount();
-
-    const onAddKey = vi.fn();
-    const need = [{ name: "Claude", service: "anthropic", voice: false }, { name: "ChatGPT", service: "openai", voice: false },
-      { name: "Gemini", service: "gemini", voice: true }, { name: "OpenRouter", service: "openrouter", voice: true }];
-    const { rerender } = render(<Chat {...base} first={{ needsKey: need, onAddKey }} />);
-    expect(screen.getByRole("heading", { name: "Welcome to HarmonicFitness" })).toBeInTheDocument();
-    const picks = screen.getAllByRole("button").filter((b) => b.classList.contains("welcome-pick"));
-    expect(picks.map((b) => b.querySelector(".welcome-pick-name")?.textContent)).toEqual(["OpenRouter", "Gemini", "Claude", "ChatGPT"]);
-    expect(picks[1]).toHaveTextContent("six coaches to choose from. The cheapest; Google asks for 5 USD of prepaid credit");
-    expect(picks[0]).toHaveTextContent("six coaches with ElevenLabs voices");
-    expect(picks[2]).toHaveTextContent("then choose a coach");
+  it("shows the starter once what it's filled in with is known, and the box stays open", () => {
+    const { rerender } = render(<Chat {...base} first={{}} />);
     expect(screen.queryByRole("region", { name: "Plan a workout" })).toBeNull();
-    expect(screen.getByRole("textbox", { name: "Message" })).toBeDisabled();
-    expect(screen.getByRole("textbox", { name: "Message" })).toHaveAttribute("placeholder", "Add a key in Settings first");
-    fireEvent.click(picks[3]);
-    expect(onAddKey).toHaveBeenCalledWith("openai");
-
-    rerender(<Chat {...base} first={{ needsKey: null }} />);
-    expect(screen.queryByRole("region", { name: "Plan a workout" })).toBeNull();
-    rerender(<Chat {...base} first={{ needsKey: null, start: { coaches: [], kits: [], minutes: 25, limits: [], suggest: null, setup_quick: false } }} />);
+    rerender(<Chat {...base} first={{ start: { coaches: [], kits: [], minutes: 25, limits: [], suggest: null, setup_quick: false } }} />);
     expect(screen.getByRole("region", { name: "Plan a workout" })).toBeInTheDocument();
-    expect(screen.queryByText("Welcome to HarmonicFitness")).toBeNull();
     expect(screen.getByRole("textbox", { name: "Message" })).toBeEnabled();
   });
 

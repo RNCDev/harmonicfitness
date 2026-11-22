@@ -1,7 +1,7 @@
 """Minutes, Clerk and Stripe (0.85.0): the money and sign-in rules. A purchase is credited once; a recording's
 minutes are held with its Record, kept with its MP3 and handed back once without one; nothing records without
-them; a sign-in is this instance's token for this site's page; and on the hosted site no listener's key is opened
-and no dearer voice records."""
+them; a sign-in is this instance's token for this site's page; and only the site's own key is used, and no dearer
+voice records."""
 import base64
 import dataclasses
 import hashlib
@@ -21,7 +21,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 from cryptography.hazmat.primitives import hashes  # noqa: E402
 from cryptography.hazmat.primitives.asymmetric import padding, rsa  # noqa: E402
 
-from webapp import api, billing, clerk, conversations, hosted, jobs, keystore, minutes, spend  # noqa: E402
+from webapp import api, billing, clerk, conversations, hosted, jobs, minutes, spend  # noqa: E402
 from webapp.agent import tools  # noqa: E402
 from webtests import test_api  # noqa: E402
 from webtests.dbcase import MASTER, DBCase, committed  # noqa: E402
@@ -263,16 +263,14 @@ class Webhook(unittest.TestCase):
 
 
 class SiteCase(test_api.ApiCase):
-    """The app with Clerk and Stripe set up, both faked; `hosted` as the class says."""
-    hosted = False
+    """The app with Clerk and Stripe set up, both faked."""
 
     def setUp(self):
         super().setUp()
         self.fake_clerk, self.fake_stripe = FakeClerk(), FakeStripe()
         self.settings = dataclasses.replace(
             self.settings, clerk_publishable_key=PUBLISHABLE, clerk_secret_key="sk_test_x",
-            stripe_secret_key="sk_test_y", stripe_webhook_secret=WEBHOOK_SECRET, hosted=self.hosted,
-            openrouter_key="sk-or-site" if self.hosted else "")
+            stripe_secret_key="sk_test_y", stripe_webhook_secret=WEBHOOK_SECRET)
         self.app = api.create_app(self.settings, connect=self.connect, client_dist=self.dist,
                                   clerk_send=self.fake_clerk, stripe_send=self.fake_stripe)
         self.client = self.other_client()
@@ -384,9 +382,10 @@ class Packs(SiteCase):
         with self.subTest("credited once, though Stripe sends it twice"):
             for _ in range(2):
                 self.assertEqual(self.webhook(paid_event(user_id)).status_code, 200)
-            self.assertEqual(self.have(user_id), 60)
+            n = minutes.PACKS[0].minutes
+            self.assertEqual(self.have(user_id), n)
             got = self.client.get("/api/minutes").json()
-            self.assertEqual((got["minutes"], got["can_buy"], [h["minutes"] for h in got["history"]]), (60, True, [60]))
+            self.assertEqual((got["minutes"], got["can_buy"], [h["minutes"] for h in got["history"]]), (n, True, [n]))
         with self.subTest("a refund takes them back, once"):
             refund = {"type": "charge.refunded", "data": {"object": {
                 "refunded": True, "metadata": {"user": str(user_id), "pack": "hf_minutes_60", "ref": "ref1"}}}}
@@ -400,7 +399,6 @@ class Packs(SiteCase):
 
 
 class Hosted(SiteCase):
-    hosted = True
     turn = test_api.Conversations.turn
 
     def listener(self, has=0):
@@ -423,21 +421,16 @@ class Hosted(SiteCase):
         self.conn.commit()
         return user_id, uk, cid
 
-    def test_no_keys_and_no_balances_and_no_conversation_without_minutes(self):
+    def test_no_conversation_without_minutes(self):
         user_id, uk = self.listener()
-        with self.subTest("a stored key is never listed, added or checked"):
-            keystore.put(self.conn, uk, "fish", "f" * 32)
-            self.conn.commit()
-            self.assertEqual(self.client.get("/api/keys").json(), [])
-            r = self.client.put("/api/keys/fish", json={"key": "f" * 32}, headers=self.origin())
-            self.assertEqual(r.status_code, 404, r.text)
-            self.assertEqual(self.client.post("/api/balances", json={}, headers=self.origin()).status_code, 404)
+        for path in ("/api/keys", "/api/keys/fish", "/api/writer", "/api/balances"):   # gone with listeners' keys
+            self.assertIn(self.client.put(path, json={}, headers=self.origin()).status_code, (404, 405), path)
         with self.subTest("nothing is written without a minute to record it with"):
             r = self.client.post("/api/conversations", json=self.turn(line="a workout"), headers=self.origin())
             self.assertEqual((r.status_code, r.json()["error"]["code"]), (402, "no_minutes"))
             self.assertIsNone(self.conn.execute("select 1 from jobs where user_id = %s", (user_id,)).fetchone())
             self.conn.rollback()
-        with self.subTest("with one, it starts, though no key of theirs could write it"):
+        with self.subTest("with one, it starts"):
             committed(minutes.grant, self.conn, user_id, 1, "gift")
             r = self.client.post("/api/conversations", json=self.turn(line="a workout"), headers=self.origin())
             self.assertEqual(r.status_code, 202, r.text)
@@ -482,17 +475,14 @@ class Hosted(SiteCase):
 
 
 class HostedWorker(unittest.TestCase):
-    def test_the_sites_key_is_the_only_one_a_job_gets_and_no_listeners_is_opened(self):
+    def test_the_sites_key_is_the_only_one_a_job_gets(self):
         from webapp import worker
-        settings = types.SimpleNamespace(hosted=True, openrouter_key="sk-or-site")
-        ctx = types.SimpleNamespace(settings=settings, conn=None, uk=None)   # no connection: nothing is read
-        with mock.patch.object(worker.keystore, "open_all", side_effect=AssertionError("a listener's keys opened")):
-            self.assertEqual(worker.Ctx.key_env(ctx), {"OPENROUTER_API_KEY": "sk-or-site"})
-            self.assertEqual(worker._writer(ctx), ({"openrouter": "sk-or-site"}, "openrouter"))
+        ctx = types.SimpleNamespace(settings=types.SimpleNamespace(openrouter_key="sk-or-site"), conn=None, uk=None)
+        self.assertEqual(worker.Ctx.key_env(ctx), {"OPENROUTER_API_KEY": "sk-or-site"})   # no connection: nothing read
 
 
 class HostedAgent(unittest.TestCase):
-    """The hosted site's voice: a minute is sold against one model's price, so no other records."""
+    """The site's voice: a minute is sold against one model's price, so no other records."""
     BUILD = ["build", "me/workouts/a/a.draft.txt", "Workout A", "--coach"]
     ROWS = [{"name": "Coach Dean", "slug": "coach-dean-openrouter", "service": "openrouter", "shipped": True,
              "model": hosted.VOICE_MODEL, "placeholder": False},
@@ -522,7 +512,7 @@ class HostedAgent(unittest.TestCase):
 
     def deps(self):
         return tools.Deps(engine_root=test_api.ROOT, home=os.path.join(test_api.ROOT, "me.example"), keys={},
-                          today="2026-10-28", now="2026-10-28 Wednesday 08:00", writers="three", hosted=True)
+                          today="2026-10-28", now="2026-10-28 Wednesday 08:00", writers="three")
 
     def test_only_the_sites_voice_is_offered_and_in_minutes(self):
         self.assertEqual([c["name"] for c in hosted.coaches(self.ROWS)], ["Coach Dean"])

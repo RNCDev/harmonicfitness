@@ -137,10 +137,9 @@ class Deps:
     # a job event other than a step, for the chat (the skeleton's plan while the writers' room fills it): (stage,
     # **fields); None in tests
     event: Callable[..., None] | None = field(default=None, repr=False)
-    # the hosted site (webapp.hosted, 0.85.0): the site's own key writes and speaks, a recording costs the listener
-    # minutes, and only the site's coaches speak. `hosted_rows` is their listing, read once a turn; `hosted_coach`
-    # the one a brief is run for when it names none; `minutes_refused`: Record without asking found too few minutes
-    hosted: bool = False
+    # the site's own key writes and speaks (webapp.hosted), a recording costs the listener minutes, and only the
+    # site's coaches speak. `hosted_rows` is their listing, read once a turn; `hosted_coach` the one a brief is run
+    # for when it names none; `minutes_refused`: Record without asking found too few minutes
     hosted_rows: list | None = None
     hosted_coach: str | None = None
     minutes_refused: bool = False
@@ -220,7 +219,7 @@ HOSTED_ONLY = ("this site runs on minutes, with its own ready-made coaches: ther
 
 
 def hosted_rows(deps: Deps) -> list[dict]:
-    """The hosted site's coaches (hosted.coaches of the engine's listing), read once a turn; none when the listing
+    """The site's coaches (hosted.coaches of the engine's listing), read once a turn; none when the listing
     can't be read, which is asked again next time."""
     if deps.hosted_rows is None:
         r = engine.run(deps.engine_root, deps.home, ["coaches", "list", "--json"], extra_env=deps.keys,
@@ -236,7 +235,7 @@ def hosted_rows(deps: Deps) -> list[dict]:
 
 
 def hosted_coach(deps: Deps, name: str | None) -> tuple[str | None, str]:
-    """On the hosted site: (the coach to use, "") or (None, why this one can't be). With no name it's this turn's
+    """(The coach to use, "") or (None, why this one can't be). With no name it's this turn's
     coach, else the site's first. A listing that can't be read refuses nothing: the price's own check (in _record)
     is what keeps a dearer voice from recording."""
     rows = hosted_rows(deps)
@@ -268,9 +267,9 @@ def run(deps: Deps, args: list[str]) -> ToolResult:
                        "computer")
     if command in SUBCOMMANDS and sub not in SUBCOMMANDS[command]:
         return _refuse(f"{command} {sub} isn't available in the web client yet")
-    if deps.hosted and (command == "keys" or (command, sub) == ("coaches", "make")):
+    if command == "keys" or (command, sub) == ("coaches", "make"):
         return _refuse(HOSTED_ONLY)
-    if deps.hosted and command in ("brief", "build"):
+    if command in ("brief", "build"):
         named = _flag(args, "--coach")
         coach, why = hosted_coach(deps, named)
         if why:
@@ -336,7 +335,7 @@ FETCHERS = frozenset({"feeds", "topics", "youtube", "content"})
 
 
 def _keys(deps: Deps, argv: list[str]) -> dict:
-    """The listener's keys for an engine command's environment: none for a command that fetches pages, which keeps
+    """The keys for an engine command's environment (the site's own): none for a command that fetches pages, which keeps
     only the listener's clock (TZ), for today's date."""
     if argv and argv[0] in FETCHERS:
         return {k: v for k, v in deps.keys.items() if k == "TZ"}
@@ -1030,8 +1029,8 @@ def _record(deps: Deps, args: list[str], argv: list[str]) -> ToolResult:
     except ValueError:
         return _result(priced.code or 1, priced.stdout, priced.stderr)
     usd = float(cost.get("usd") or 0) + (float(cost.get("design_usd") or 0) if cost.get("pending_design") else 0)
-    # the hosted site's money rule: a minute is sold against one voice's price, so no other voice records there
-    if deps.hosted and (cost.get("service"), cost.get("model")) != (hosted.SERVICE, hosted.VOICE_MODEL):
+    # the site's money rule: a minute is sold against one voice's price, so no other voice records here
+    if (cost.get("service"), cost.get("model")) != (hosted.SERVICE, hosted.VOICE_MODEL):
         return _refuse(hosted_coach(deps, coach)[1] or f"{coach} doesn't speak on this site: use one of its coaches "
                                                        "(coaches list)")
     if deps.chars_left is not None and chars > deps.chars_left:
@@ -1045,33 +1044,19 @@ def _record(deps: Deps, args: list[str], argv: list[str]) -> ToolResult:
         deps.offer["log"] = list(deps.pending_log)
     if deps.told and deps.told.get("draft") == draft and deps.told.get("items"):
         deps.offer["told"] = list(deps.told["items"])
-    need = 0
-    if deps.hosted:   # what Record takes: the workout's planned length (by its characters when no plan was read)
-        seconds = (deps.offer.get("plan") or {}).get("seconds")
-        need = minutes.needed(seconds) if seconds else max(1, -(-chars // hosted.CHARS_A_MINUTE))
-        deps.offer["minutes"] = need
-    if deps.hosted and deps.ceiling is not None and chars > deps.ceiling:
+    # what Record takes: the workout's planned length (by its characters when no plan was read)
+    seconds = (deps.offer.get("plan") or {}).get("seconds")
+    need = minutes.needed(seconds) if seconds else max(1, -(-chars // hosted.CHARS_A_MINUTE))
+    deps.offer["minutes"] = need
+    if deps.ceiling is not None and chars > deps.ceiling:
         deps.auto_record = False
         return _result(0, (f"Not recorded: the script came out longer than the listener approved when they scheduled "
                            f"it ({need} minutes of theirs now). The page shows them a Record button with that when "
                            "they come back. End your turn: say in a line that the script is ready and checked but "
                            "came out longer than planned, so it waits for their Record."))
-    if deps.hosted:
-        return _result(0, (f"Not recorded yet: recording takes {need} of the listener's minutes. The page now shows "
-                           "the listener a Record button with that. End your turn: say in a line that the script is "
-                           "ready and checked (the button shows the minutes: don't say them). Don't build again "
-                           "until they approve."))
-    if deps.ceiling is not None and chars > deps.ceiling:   # over what "Schedule it" approved: the button decides
-        deps.auto_record = False
-        return _result(0, (f"Not recorded: the script speaks {chars:,} characters, over the {deps.ceiling:,} the "
-                           f"listener approved when they scheduled it, for about ${usd:.2f}. The page shows them a "
-                           "Record button with that price when they come back. End your turn: say in a line that "
-                           "the script is ready and checked but came out longer than planned, so it waits for "
-                           "their Record."))
-    return _result(0, (f"Not recorded yet: recording sends {chars:,} characters to {cost.get('service')} for about "
-                       f"${usd:.2f}{' (including the coach voice design)' if cost.get('pending_design') else ''}. "
-                       "The page now shows the listener a Record button with that price. End your turn: say in a "
-                       "line that the script is ready and checked (the button shows the price: don't say it). Don't build again "
+    return _result(0, (f"Not recorded yet: recording takes {need} of the listener's minutes. The page now shows "
+                       "the listener a Record button with that. End your turn: say in a line that the script is "
+                       "ready and checked (the button shows the minutes: don't say them). Don't build again "
                        "until they approve."))
 
 

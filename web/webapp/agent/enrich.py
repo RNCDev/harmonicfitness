@@ -1,6 +1,6 @@
 """Enrichment: what a listener's feedback on one workout teaches, as evidence for the engine's interests record.
 
-One model request (a few with the writer's web search, to pin down a name), on the listener's own writer key,
+One model request (a few with the writer's web search, to pin down a name), on the site's own key,
 returning a fixed shape: signals and a short summary. Nothing here writes a file or runs the engine: the worker
 applies the signals through `./harmonicfitness interests add`, which checks them. The shape has no field for
 health: pain stays in the feedback line, which the next check-in reads."""

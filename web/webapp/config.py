@@ -26,7 +26,6 @@ class Settings:
     engine_root: str = ""
     session_days: int = 90
     registration: bool = True
-    providers: tuple[str, ...] = ("anthropic", "openai", "google", "openrouter")
     daily_chars: int = spend.DEFAULT_DAILY_CHARS   # each listener's daily allowance for recordings
     writers: str = "three"       # who writes a script's words (WRITERS)
     worker_slots: int = 2        # main-lane loops a worker runs side by side (1 to MAX_SLOTS)
@@ -36,9 +35,7 @@ class Settings:
     # Minute packs through Stripe: Checkout needs the secret key, the webhook its signing secret
     stripe_secret_key: str = field(default="", repr=False)
     stripe_webhook_secret: str = field(default="", repr=False)
-    # The hosted site: the site's own OpenRouter key writes and speaks every workout, paid for in minutes; a
-    # listener's stored keys are never opened
-    hosted: bool = False
+    # The site's own OpenRouter key: it writes and speaks every workout, paid for in minutes (webapp.hosted)
     openrouter_key: str = field(default="", repr=False)
     # The admin screen (0.87.0): the account ids (never usernames, which can be taken again) that may open it
     admins: tuple[str, ...] = ()
@@ -100,7 +97,6 @@ def _admins(env: Mapping[str, str]) -> tuple[str, ...]:
 
 
 def load(env: Mapping[str, str]) -> Settings:
-    from . import providers     # providers imports ConfigError from here
     database_url = _required(env, "DATABASE_URL")
     base_url = _required(env, "HARMONICFITNESS_BASE_URL")
     raw = _required(env, "HARMONICFITNESS_MASTER_KEY")
@@ -123,16 +119,11 @@ def load(env: Mapping[str, str]) -> Settings:
     if bool(clerk[0]) != bool(clerk[1]):
         raise ConfigError("CLERK_PUBLISHABLE_KEY and CLERK_SECRET_KEY go together: set both, or neither")
     stripe = (get("STRIPE_SECRET_KEY", "STRIPE_API_SECRET_KEY"), get("STRIPE_WEBHOOK_SECRET"))
-    hosted = get("HARMONICFITNESS_HOSTED").lower() in ("1", "true", "yes", "on")
-    openrouter = get("OPENROUTER_API_KEY") if hosted else ""
-    if hosted and not openrouter:
-        raise ConfigError("HARMONICFITNESS_HOSTED needs OPENROUTER_API_KEY, the site's own key")
-    if hosted and "openrouter" not in providers.offered(env):
-        raise ConfigError("HARMONICFITNESS_HOSTED needs openrouter among HARMONICFITNESS_PROVIDERS")
+    openrouter = _required(env, "OPENROUTER_API_KEY")   # the site's own key: it writes and speaks every workout
     return Settings(database_url=database_url, master_key=master, base_url=base_url,
                     role=role, engine_root=root, registration=reg == "open",
-                    providers=tuple(providers.offered(env)), daily_chars=_daily_chars(env), writers=_writers(env),
+                    daily_chars=_daily_chars(env), writers=_writers(env),
                     worker_slots=_worker_slots(env), clerk_publishable_key=clerk[0], clerk_secret_key=clerk[1],
-                    stripe_secret_key=stripe[0], stripe_webhook_secret=stripe[1], hosted=hosted,
+                    stripe_secret_key=stripe[0], stripe_webhook_secret=stripe[1],
                     openrouter_key=openrouter, admins=_admins(env), fly_token=get("FLY_API_TOKEN"),
                     fly_app=get("FLY_APP_NAME"))

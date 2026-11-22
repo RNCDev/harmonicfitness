@@ -55,7 +55,7 @@ class Explain(unittest.TestCase):
     def test_a_refused_key_or_a_server_error_is_sent_once_and_never_shows_the_key(self):
         for status, body, kind, message in (
                 (401, {"error": {"type": "authentication_error", "message": "bad " + KEY}}, "auth",
-                 "Claude refused the key. Replace it in Settings."),
+                 "Claude refused the key."),
                 (500, {"error": {"type": "api_error", "message": "boom"}}, "unavailable",
                  "Claude didn't answer. Try again in a minute.")):
             with self.subTest(status=status):

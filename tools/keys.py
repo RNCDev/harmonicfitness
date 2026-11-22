@@ -14,7 +14,6 @@ opens the file).
     ./harmonicfitness keys paste fish      # save the key on the clipboard as FISH_AUDIO_API_KEY (never shown)
     ./harmonicfitness keys init fish       # add an empty FISH_AUDIO_API_KEY= line to me/.env
     ./harmonicfitness keys open            # open me/.env in the system's editor, to paste a key
-    ./harmonicfitness keys upload          # send them to your key store on the web app (tools/webkeys.py)
 """
 import functools
 import os
@@ -87,8 +86,8 @@ def clean_value(var, value):
 # The listener's web app account, for ./harmonicfitness pull: their username and password, and optionally the
 # app's address. Read like a key (the environment first, then me/.env); the password is scrubbed like one.
 ACCOUNT_VARS = ("HARMONIC_USERNAME", "HARMONIC_PASSWORD", "HARMONIC_URL")
-# Keys only the web app uses, to write workouts there (keys upload sends them; the engine never does). Gemini's
-# and OpenRouter's keys write there too, under their voice service's name.
+# Keys the web app once took to write workouts with, before it ran on its own key (0.88.0). The engine never reads
+# them; an older me/.env may still hold them, so they're still scrubbed from what it prints.
 WRITER_VARS = {"anthropic": "ANTHROPIC_API_KEY", "openai": "OPENAI_API_KEY"}
 # SERVICE_VARS (service -> its key's variable), KEY_PAGES (service -> where a key is made) and SECRET_VARS (every
 # variable whose value is scrubbed) come from knowledge/services.toml, read on first use, not at import: a damaged
@@ -145,12 +144,6 @@ def get(service, path=None):
     return value or None
 
 
-def writer_key(provider, path=None):
-    """A web app writer's key (WRITER_VARS), as get() reads a voice key. None when unset or empty."""
-    var = WRITER_VARS[provider]
-    return clean_value(var, os.environ.get(var) or _read(path or paths.ENV_FILE).get(var)) or None
-
-
 def is_set(service, path=None):
     """Whether a usable key is set. A key that can't be read (BadKey) counts as not set here, so listing coaches
     or picking a default still works; get() raises where the key would be used, and ./harmonicfitness keys names it."""
@@ -198,7 +191,7 @@ CLIPBOARD_READERS = {
     "linux": (["wl-paste", "--no-newline"], ["xclip", "-selection", "clipboard", "-o"],
               ["xsel", "--clipboard", "--output"]),
 }
-KEY_LENGTH = (16, 1024)   # the web app's bounds (webapp/routes/settings.py), so a key saved here is taken there too
+KEY_LENGTH = (16, 1024)   # shorter or longer than any real key
 
 
 class KeyExists(errors.HarmonicFitnessError):
@@ -322,7 +315,6 @@ def main(argv=None):
     p = sub.add_parser("paste", help="save the key on the clipboard for the service in me/.env (never shown)")
     p.add_argument("service", choices=list(_service_vars()))
     p.add_argument("--replace", action="store_true", help="put it in place of a key already set")
-    # `keys upload` is tools/webkeys.py's (the dispatcher sends it there), above this module and webpull
     args = ap.parse_args(argv)
     if args.cmd in ("init", "paste") and paths.WEB:
         print(f"Add your {args.service} key in {APP_SETTINGS}. Never paste it into the chat.")

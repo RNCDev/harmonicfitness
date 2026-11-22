@@ -4,8 +4,6 @@ import { api, ApiError, type LevelState, type MinutesState } from "../../lib/api
 import { SiteContext } from "../../lib/site";
 import { Settings } from "./Settings";
 
-vi.mock("./KeysBox", () => ({ KeysBox: () => null }));
-
 describe("Settings", () => {
   it("credits the backgrounds to Book of Shapes", () => {
     render(<Settings username="sam" open onClose={vi.fn()} onSignOut={vi.fn()} onSky={vi.fn()} />);
@@ -17,25 +15,24 @@ describe("Settings", () => {
   });
 });
 
-describe("Settings, on a site that sells minutes", () => {
+describe("Settings, with minutes", () => {
   afterEach(() => vi.restoreAllMocks());
 
-  it("opens on the minutes left and the packs, sends a pack to the checkout, and says nothing of keys or a password", async () => {
+  it("opens on the minutes left and the packs, sends a pack to the checkout, and says nothing of a password where Clerk signs in", async () => {
     const state: MinutesState = {
-      paid: false, minutes: 20, can_buy: true, packs: [{ id: "hf_minutes_60", minutes: 60, cents: 500 }],
+      minutes: 20, can_buy: true, packs: [{ id: "hf_minutes_60", minutes: 60, cents: 500 }],
       history: [{ at: "2026-11-20T10:00:00Z", kind: "grant", minutes: 20, what: "A welcome" }],
     };
     // the checkout page is another site's: the answer never comes here, so the page never leaves
     const checkout = vi.spyOn(api, "checkout").mockReturnValue(new Promise(() => {}));
     render(
-      <SiteContext.Provider value={{ hosted: true, clerk: true }}>
+      <SiteContext.Provider value={{ clerk: true }}>
         <Settings username="sam" open onClose={vi.fn()} onSignOut={vi.fn()}
           minutes={{ state, error: null, reload: vi.fn(), settle: vi.fn() }} />
       </SiteContext.Provider>,
     );
     expect(screen.getByText("20").closest("p")).toHaveTextContent("20 minutes left");
     expect(screen.getByText("+20")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Keys" })).toBeNull();
     expect(screen.queryByLabelText(/password/i)).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Buy for $5" }));
     expect(checkout).toHaveBeenCalledWith("hf_minutes_60");
