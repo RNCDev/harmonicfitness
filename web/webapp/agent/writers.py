@@ -389,9 +389,20 @@ def words_a_second(segs: list, budget: dict) -> float:
     return sum(budget.get(n, 0) for n, _ in plain) / seconds if seconds else 2.5
 
 
+# The places a session has for a piece, by its minutes, before the skeleton says: since timed sets carry pieces too
+# (0.82.0) five 20-minute sessions had 15 to 22 (2026-11-22), where minutes / 2.6 asked for 8, so every session
+# paid for a second research request, with searches of its own, to write the other 7 to 14.
+PIECES_A_MINUTE = 0.9
+# The web searches one research request may make. A search is the dearest thing a script buys (about 1.4 cents each
+# through OpenRouter, against a cent or so for the whole request's tokens), and a session made 6 to 10 across its two
+# requests: one page on a topic feeds a serial's beats, a quiz and a profile, so the researcher is told to make each count.
+SEARCHES = 4
+TOP_UP_SEARCHES = 1
+
+
 def pieces_for(minutes: int) -> int:
-    """How many stories to ask for before the skeleton exists: a 30-minute session has had 11 or 12 rests."""
-    return max(2, round(minutes / 2.6))
+    """How many stories to ask for before the skeleton exists."""
+    return max(2, round(minutes * PIECES_A_MINUTE))
 
 
 def aim(model) -> float:
@@ -623,7 +634,7 @@ async def stories(deps, model, usage, draft: str, minutes: int, search=()) -> li
               f"steady timed work, while they move, and some in the rests. {count} pieces, each with notes enough for "
               f"about {STORY_WORDS} words once told (anywhere from {STORY_WORDS // 2} to {STORY_WORDS * 4 // 3}), each "
               "marked steady or rest by where it suits (the plan's formats say where each kind lands). The last two are spares, told only if "
-              "there's room: nothing else depends on them.")
+              f"there's room: nothing else depends on them. Search the web at most {SEARCHES} times in all.")
     told = await _ask(deps, "research", RESEARCHER, model, prompt, usage, LEVEL["research"], capabilities=search)
     deps.research_history = told.all_messages()   # what a top-up goes on from, once the skeleton's places are known
     found = {s.number: s for s in told.output.stories}
@@ -658,7 +669,8 @@ async def top_up(deps, model, usage, got: list, places: int, titles, search=()) 
         more = await _ask(deps, "top-up", RESEARCHER, model, (
             f"The session has {places} places for a piece, {short} more than these. Write {short} more the same "
             f"way, numbered from {first}, each a different item from those above and nothing the plan lists as "
-            "told; return only the new ones."), usage, LEVEL["research"], capabilities=search, history=history)
+            f"told; return only the new ones. Write them from what you already found where it holds more than "
+            f"you used, and search at most {TOP_UP_SEARCHES} more time{'s' if TOP_UP_SEARCHES != 1 else ''}."), usage, LEVEL["research"], capabilities=search, history=history)
     except Exception:  # noqa: BLE001 - the places it would have filled get coaching only
         logline(deps, "top-up failed: those places get coaching only")
         return got

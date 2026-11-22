@@ -37,7 +37,7 @@ def opening(draft):
         return []
     body = STORY.sub(" ", "\n".join(segs[0][3]))
     out = []
-    if not re.search(r"\b(?:AI|A\.I\.|artificial intelligence)\b", body):
+    if not re.search(r"(?<![A-Za-z])(?:AI|A\.? ?I\b\.?|artificial intelligence)(?![A-Za-z])", body):
         out.append("no made-by-AI line")
     if not re.search(r"\bstop\b", body, re.IGNORECASE):
         out.append("no stop rule")
