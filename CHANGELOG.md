@@ -2,6 +2,14 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.85.7] - 2026-11-21
+
+### Changed
+- **The sign-in form is evenly spaced** (`styles/signin.css`): more room around the edges and under the title, one gap between its parts, a smaller title, and room above the Google button for Clerk's "Last used" mark, which had sat against the title.
+
+### For forks
+- Nothing to migrate.
+
 ## [0.85.6] - 2026-11-21
 
 ### Fixed

@@ -15,9 +15,13 @@
    page's display face at a heading's size, and less room around everything */
 .auth-clerk .cl-cardBox { background: var(--veil-light); box-shadow: var(--ring) var(--border); border-radius: var(--radius-sheet) }
 .auth-clerk .cl-card, .auth-clerk .cl-footer { background: transparent; box-shadow: none }
-.auth-clerk .cl-card { padding: var(--s-5) var(--s-5) var(--s-4); gap: var(--s-4) }
-.auth-clerk .cl-headerTitle { font: var(--w-bold) var(--fs-d3)/var(--lh-solid) var(--display); letter-spacing: var(--track-head); text-transform: uppercase }
-.auth-clerk .cl-footer { padding-block: var(--s-2) }
+.auth-clerk .cl-card { padding: var(--s-6) var(--s-6) var(--s-5); gap: var(--s-5) }
+.auth-clerk .cl-header { gap: var(--s-1) }
+.auth-clerk .cl-headerTitle { font: var(--w-bold) var(--fs-d2)/var(--lh-tight) var(--display); letter-spacing: var(--track-head); text-transform: uppercase }
+.auth-clerk .cl-main { gap: var(--s-5) }
+.auth-clerk .cl-socialButtonsRoot { margin-top: var(--s-2) }   /* room for Clerk's "Last used" mark, which sits over the button's top edge */
+.auth-clerk .cl-form { gap: var(--s-4) }
+.auth-clerk .cl-footer { padding: var(--s-3) var(--s-6) var(--s-4); gap: var(--s-2) }
 .auth-again { margin: var(--s-4) 0 var(--s-5h) }
 
 /* the sign-in form with its pitch (Solo's `pitch`): on a wide screen the pitch on the left with the way to the
