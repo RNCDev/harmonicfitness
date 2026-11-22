@@ -82,6 +82,8 @@ class Record(unittest.TestCase):
         with self.assertRaises(ValueError) as got:   # a topic not theirs names theirs
             content.log("2026-10-23", ["Krakn | quick hit | A result"], path=self.told, profile=p)
         self.assertIn("Kraken", str(got.exception))
+        self.assertEqual(content.parse_item("Kraken: scores and trades | quick hit | A result", "2026-10-23",
+                                            content.recipe(), p)["topic"], "Kraken")   # the plan's line, note and all
         self.assertEqual(content.parse_item("Anything | quiz | Q", "2026-10-23", content.recipe(), profile())["topic"],
                          "Anything")   # with no topics at all, any topic is taken
         r = content.recipe()

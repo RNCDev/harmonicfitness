@@ -2,6 +2,14 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.91.2] - 2026-11-22
+
+### Fixed
+- **A story's topic written with the listener's note is logged** (`content log`, `content thread`): the researcher often gives a topic as the plan lists it, note and all ("Music: jazz (Miles Davis) and new albums"), and `content log` refused it as no topic of theirs, and with it the whole session's log. On the web app that left the sessions of 2026-11-05, 11-08 and 11-10 unrecorded, so their stories could come round again. A topic with a note after its colon is now taken as the topic it names.
+
+### For forks
+- Nothing to migrate.
+
 ## [0.91.1] - 2026-11-22
 
 ### Changed

@@ -454,6 +454,13 @@ def plan(minutes: int, today: datetime.date, r: Recipe = None, profile=None, ite
     return out
 
 
+def _named(topic: str, known: dict) -> str:
+    """A topic as the plan lists it, with the listener's note after it ("Music: jazz and new albums"), as its
+    name: a session's whole log was refused for one written so (2026-11-05, 11-08 and 11-10)."""
+    name = topic.split(":", 1)[0].strip()
+    return name if topic.casefold() not in known and name.casefold() in known else topic
+
+
 def parse_item(text: str, date: str, r: Recipe, profile=None) -> dict:
     """"topic | format | title [| source [| stock slug [| key words]]]" as a record item; ValueError says what's
     wrong. The key words (lowercase, by spaces) are what the story said, which the web app's repeat check matches a
@@ -471,6 +478,7 @@ def parse_item(text: str, date: str, r: Recipe, profile=None) -> dict:
         raise ValueError(f"'{text}': unknown format '{fmt}' (one of {', '.join(r.formats)})")
     if topic != NO_TOPIC:
         known = {t.name.casefold(): t.name for t in all_topics(profile)}
+        topic = _named(topic, known)
         if known and topic.casefold() not in known:
             raise ValueError(f"'{text}': '{topic}' isn't one of the listener's topics (one of "
                              f"{', '.join(known.values())}, or {NO_TOPIC} for none)")
@@ -554,6 +562,7 @@ def parse_thread(text: str, profile=None) -> tuple:
         raise ValueError(f"'{text}': unknown kind '{kind}' (one of {', '.join(THREAD_KINDS)})")
     if topic != NO_TOPIC:
         known = {t.name.casefold(): t.name for t in all_topics(profile)}
+        topic = _named(topic, known)
         if known and topic.casefold() not in known:
             raise ValueError(f"'{text}': '{topic}' isn't one of the listener's topics (one of "
                              f"{', '.join(known.values())}, or {NO_TOPIC} for none)")
