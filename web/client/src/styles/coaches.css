@@ -1,45 +1,64 @@
 /* The Coaches page. Part of theme.css, which imports every part in order. */
-/* ---------- the Coaches page (beside Logs): an audition, a stage across the top and name chips below it, the soft blue its one colour ---------- */
-.cg { display: grid; gap: var(--s-6); max-width: 52rem }
-.cg-roster { display: grid; gap: var(--s-5); min-width: 0 }
-.cg-group { display: grid; gap: var(--s-2h) }
+/* ---------- the Coaches page (beside Logs): an audition, a player bar held at the top and a grid of tiles below it, the soft blue its one colour ---------- */
+.cg { display: grid; gap: var(--s-6) }
+.cg-roster { display: grid; gap: var(--s-6); min-width: 0 }
+.cg-group { display: grid; gap: var(--s-3) }
 .cg-group-h { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--s-1h) var(--s-4) }
 .cg-h { margin: 0; letter-spacing: var(--track-wide); font-weight: var(--w-regular) }
-.cg-list { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--s-2) }
 
-/* a chip: the coach's first name; a tap puts them on the stage and plays them */
-.cg-chip > button {
-  display: inline-flex; align-items: center; gap: var(--s-1h); min-height: var(--control-sm); padding: 0 var(--s-4);
-  font: inherit; color: var(--text); background: var(--card); border: 0; border-radius: var(--radius-pill);
+/* the tiles: one grid, four across on a wide screen, every tile the same height in its row; a tile never moves */
+.cg-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--s-2) }
+.cg-tile { display: flex; min-width: 0 }
+.cg-tile > button {
+  flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: var(--s-2h); padding: var(--s-5);
+  font: inherit; color: var(--text); text-align: left; background: var(--card); border: 0; border-radius: var(--radius-sheet);
   box-shadow: var(--ring) var(--border); cursor: pointer;
   transition: box-shadow var(--t-fast) ease, background-color var(--t-fast) ease;
 }
-.cg-chip > button:hover:not(:disabled) { box-shadow: var(--ring) var(--border-strong) }
-.cg-chip > button:focus-visible { outline: var(--focus-ring); outline-offset: var(--focus-offset) }
-.cg-chip b { font-size: var(--fs-md); font-weight: var(--w-strong); color: var(--sample) }
-.cg-mark { font-size: var(--fs-sm); color: var(--sample) }
-/* the coach on the stage: a cream ring; the coach coaching you: the blue wash */
-.cg-chip.cur > button { background: var(--current-wash) }
-.cg-chip.on > button, .cg-chip.on > button:hover:not(:disabled) { box-shadow: var(--ring-strong) var(--text) }
+.cg-tile > button:hover:not(:disabled) { box-shadow: var(--ring) var(--border-strong); background: var(--surface-hover) }
+.cg-tile > button:focus-visible { outline: var(--focus-ring); outline-offset: var(--focus-offset) }
+.cg-tile-top { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--s-1) var(--s-3); width: 100% }
+.cg-tile-name { font-size: var(--fs-d3); line-height: var(--lh-solid); letter-spacing: var(--track-head); text-transform: uppercase; overflow-wrap: anywhere }
+.cg-tile-tone { font-size: var(--fs-md); line-height: var(--lh-ui); color: var(--text-2) }
+.cg-mark { font-size: var(--fs-sm); line-height: var(--lh-solid); color: var(--sample); white-space: nowrap }
+/* the coach coaching you: the blue wash; the one in the bar: a cream ring */
+.cg-tile.cur > button { background: var(--current-wash) }
+.cg-tile > button[aria-pressed="true"], .cg-tile > button[aria-pressed="true"]:hover:not(:disabled) { box-shadow: var(--ring-strong) var(--text) }
+.cg-tile > button[aria-pressed="true"] .cg-tile-name { color: var(--sample-strong) }
 
-/* the stage: the coach you're hearing, their sample, how they talk, and the button that makes them your coach */
+/* the bar: who you're hearing, their sample, and the button that makes them your coach. Held at the top of the page
+   as it scrolls, and the same height whoever is in it: every slot is there, empty or not, and never wraps */
 .cg-stage {
-  display: grid; gap: var(--s-3h); padding: var(--s-6); background: var(--panel); box-shadow: var(--ring) var(--border);
-  border-radius: var(--radius-sheet);
+  position: sticky; top: 0; z-index: var(--z-raised);
+  display: grid; grid-template-columns: minmax(0, 13rem) minmax(0, 1fr) minmax(0, 15rem); align-items: center; gap: var(--s-6);
+  padding: var(--s-4h) var(--s-6); background: var(--surface-raised); box-shadow: var(--ring) var(--border); border-radius: var(--radius-sheet);
 }
-.cg-svc { margin: 0; letter-spacing: var(--track-wide); font-weight: var(--w-regular) }
-.cg-name { margin: 0; font-size: var(--fs-d4); line-height: var(--lh-solid); letter-spacing: var(--track-head) }
-.cg-tone { margin: 0; max-width: 40em; font-size: var(--fs-body); line-height: var(--lh-body); color: var(--text-2) }
-.cg-price, .cg-note { margin: 0; font-size: var(--fs-sm); color: var(--text-muted) }
-.cg-act { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2) var(--s-4); margin-top: var(--s-1) }
+.cg-who, .cg-act { display: grid; gap: var(--s-1); min-width: 0 }
+.cg-name { margin: 0; font-size: var(--fs-d3); line-height: var(--lh-solid); letter-spacing: var(--track-head); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.cg-about, .cg-yours, .cg-note { margin: 0; font-size: var(--fs-sm); color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.cg-play { min-width: 0; min-height: var(--control-lg); display: flex; align-items: center }
+.cg-play .player { flex: 1; flex-wrap: nowrap }
+.cg-act { justify-items: end; text-align: right }
+.cg-act-main { height: var(--control-lg); display: flex; align-items: center }   /* the button, Coaching you now or the key: one height */
 .cg-now { margin: 0; font-size: var(--fs-md); font-weight: var(--w-strong); letter-spacing: var(--track-wide); text-transform: uppercase; color: var(--sample) }
-.cg-yours { margin: 0; font-size: var(--fs-md); color: var(--text-muted) }
 .cg-need { font-size: var(--fs-md); color: var(--text-muted) }
 .cg-more { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--s-1h) var(--s-4); margin: 0; font-size: var(--fs-md); color: var(--text-muted) }
 .cg-foot { margin: 0; font-size: var(--fs-sm); color: var(--text-muted) }
 
-/* a narrow screen: a tighter stage */
+/* narrower: three across, then two; on a phone the bar stacks into three rows (who, the sample, the button) and the
+   tiles go two across */
+@media (max-width: 1000px) {
+  .cg-grid { grid-template-columns: repeat(3, minmax(0, 1fr)) }
+  .cg-stage { gap: var(--s-4) }
+}
 @media (max-width: 760px) {
   .cg { gap: var(--s-5) }
-  .cg-stage { padding: var(--s-4) }
+  .cg-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) }
+  .cg-stage { grid-template-columns: minmax(0, 1fr); gap: var(--s-2); padding: var(--s-3) var(--s-4) }
+  .cg-act { display: flex; align-items: center; justify-content: space-between; gap: var(--s-3); text-align: left }
+  .cg-tile > button { padding: var(--s-4) }
+  .cg-tile-name { font-size: var(--fs-d1) }
+}
+@media (max-width: 480px) {
+  .cg-tile-tone { font-size: var(--fs-sm) }
 }

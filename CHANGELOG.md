@@ -2,6 +2,19 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.85.2] - 2026-11-21
+
+The Coaches page is a grid of coaches under one player bar. Tapping a coach plays them in the bar, and nothing else on the page moves.
+
+### Changed
+- **The Coaches page is a player bar over a grid of tiles** (`zones/Coaches.tsx`, `styles/coaches.css`), in place of the stage and name chips.
+  - The bar stays at the top of the page as it scrolls. It holds the coach you're hearing: their sample, what a workout costs, and Make them my coach, Coaching you now or the key they need. Every slot is always there, so the bar keeps its height whoever is in it.
+  - Each coach is a tile with their name and how they talk, four across on a wide screen, three on a tablet and two on a phone. A tap plays them in the bar; a tile never moves.
+  - On the hosted site the coaches are one grid, A to Z, in place of the Women and Men rows. Elsewhere they stay grouped by service.
+
+### For forks
+- Nothing to migrate.
+
 ## [0.85.1] - 2026-11-21
 
 The hosted site's coaches are twelve new ones, six men and six women, on Google's Gemini voices through Gemini 3.8 Flash Lite TTS on OpenRouter. In auditions against Microsoft's MAI-Voice, HeyGen and Speechify on a rounds-and-countdown script, every model said every word, but only Gemini counted in real seconds (about one a second; the others ran a ten-second count in six to eight), and it costs less: about $14 a million characters as billed, against MAI-Voice's $22. Minute packs on the live site are sold through Stripe's live account.

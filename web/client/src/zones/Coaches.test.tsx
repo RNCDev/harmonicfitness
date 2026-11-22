@@ -18,7 +18,7 @@ const page = (over: Partial<Parameters<typeof CoachesPage>[0]> = {}, hosted = fa
   return props;
 };
 
-const tiles = () => screen.getAllByRole("listitem").map((li) => li.querySelector("b")?.textContent);
+const tiles = () => screen.getAllByRole("listitem").map((li) => li.querySelector(".cg-tile-name")?.textContent);
 const groups = () => screen.getAllByRole("region").map((r) => r.getAttribute("aria-label")).filter((l) => l?.endsWith("coaches"));
 const stage = () => screen.getByRole("region", { name: /, on stage$/ });
 
@@ -43,7 +43,7 @@ describe("the Coaches page", () => {
     const p = page();
     expect(tiles()).toEqual(["Nolan", "Reed"]);   // Owen and Nora wait for a key
     expect(groups()).toEqual(["Gemini coaches", "Fish Audio coaches"]);   // grouped by service, OpenRouter and Gemini first
-    expect(screen.getByTitle("Your coach")).toBeInTheDocument();   // the mark on the chip of the coach coaching you
+    expect(screen.getByTitle("Your coach")).toBeInTheDocument();   // the mark on the tile of the coach coaching you
     // the coach coaching you starts on the stage
     expect(stage()).toHaveAccessibleName("Coach Nolan, on stage");
     expect(within(stage()).getByText("Coaching you now")).toBeInTheDocument();
@@ -72,8 +72,8 @@ describe("the Coaches page", () => {
     expect(screen.getByText("Gemini · 1 coach")).toBeInTheDocument();
     // the first coach starts on the stage, with their sample, price and the key that would let you choose them
     expect(stage()).toHaveAccessibleName("Coach Leah, on stage");
-    expect(within(stage()).getByText("Direct and precise.")).toBeInTheDocument();
-    expect(within(stage()).getByText("about $0.80 a workout")).toBeInTheDocument();
+    expect(screen.getAllByText("Direct and precise.").length).toBeGreaterThan(0);   // how each talks, on their tile
+    expect(within(stage()).getByText(/about \$0\.80 a workout/)).toBeInTheDocument();
     expect(screen.getByLabelText("Coach Leah's sample")).toHaveAttribute("src", "/api/coaches/coach-leah-openrouter/sample.mp3");
     expect(screen.getByRole("button", { name: "Play Coach Leah's sample" })).toBeInTheDocument();   // heard before any key
     fireEvent.click(screen.getByRole("button", { name: "Hear Coach Nora" }));
@@ -97,18 +97,21 @@ describe("the Coaches page", () => {
     expect(p.onCoach).toHaveBeenCalledWith("coach-tess-openrouter");
   });
 
-  it("on the hosted site: Women, then Men, no service on the stage, and who makes the voices at the foot", () => {
+  it("on the hosted site: one grid A to Z, no service in the bar, and who makes the voices at the foot", () => {
     const gem = (first: string, gender: "f" | "m", current = false): StartCoach => ({
       slug: `coach-${first.toLowerCase()}-openrouter`, name: `Coach ${first}`, first, service: "openrouter",
-      service_name: "OpenRouter", ready: true, own: false, current, sample: true, powered_by: "Google Gemini", gender });
+      service_name: "OpenRouter", ready: true, own: false, current, sample: true, powered_by: "Google Gemini", gender,
+      tone: `${first} talks like this.` });
     const p = page({ coaches: [gem("Cole", "m"), gem("Ana", "f", true), gem("Ruth", "f"), gem("Ben", "m")] }, true);
-    expect(groups()).toEqual(["Women coaches", "Men coaches"]);
-    expect(tiles()).toEqual(["Ana", "Ruth", "Ben", "Cole"]);   // A to Z within each
+    expect(groups()).toEqual([]);   // one grid, no headings
+    expect(tiles()).toEqual(["Ana", "Ben", "Cole", "Ruth"]);
+    expect(screen.getByText("Ruth talks like this.")).toBeInTheDocument();   // each tile says how the coach talks
     expect(stage()).toHaveAccessibleName("Coach Ana, on stage");
     expect(within(stage()).queryByText(/OpenRouter/)).toBeNull();
     expect(screen.getByText("Voices by Google Gemini, through OpenRouter")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Hear Coach Ruth" }));
     expect(play).toHaveBeenCalled();
+    expect(tiles()).toEqual(["Ana", "Ben", "Cole", "Ruth"]);   // hearing a coach moves no tile
     fireEvent.click(within(stage()).getByRole("button", { name: "Make Ruth my coach" }));
     expect(p.onCoach).toHaveBeenCalledWith("coach-ruth-openrouter");
   });
