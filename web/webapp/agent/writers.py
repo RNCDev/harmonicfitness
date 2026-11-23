@@ -405,8 +405,11 @@ def words_a_second(segs: list, budget: dict) -> float:
 
 # The places a session has for a piece, by its minutes, before the skeleton says: since timed sets carry pieces too
 # (0.82.0) five 20-minute sessions had 15 to 22 (2026-11-22), where minutes / 2.6 asked for 8, so every session
-# paid for a second research request, with searches of its own, to write the other 7 to 14.
-PIECES_A_MINUTE = 0.9
+# paid for a second research request, with searches of its own, to write the other 7 to 14. At 0.9 (18 for 20
+# minutes) the skeletons' 20 to 23 places still sent 7 of 14 paid runs to a top-up (2026-11-22), whose one search
+# isn't held: told "at most 1", it made 2 and 4, and OpenRouter doesn't hold max_uses on Gemini's search either (3 of
+# 3 with max_uses 1). A piece more costs about a twenty-fifth of a cent in words; a top-up, 2 to 6 cents.
+PIECES_A_MINUTE = 1.15
 # The web searches one research request may make. A search is the dearest thing a script buys (about 1.4 cents each
 # through OpenRouter, against a cent or so for the whole request's tokens), and a session made 6 to 10 across its two
 # requests: one page on a topic feeds a serial's beats, a quiz and a profile, so the researcher is told to make each count.
