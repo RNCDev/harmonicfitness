@@ -68,7 +68,10 @@ PATIENCE = {"research": 160, "trainer": 110, "host": 150, "review": 80, "top-up"
 # turn waited 80 s for nothing. The trainer stays at MEDIUM: at LOW it dropped the self-check a limit adds. The
 # researcher thinks at LOW (0.58.0): at MEDIUM it took 78 to 160 s, ran past its patience in five of fifteen timed
 # 15-minute runs and held the room up a median 110 s; at LOW it took 17 to 27 s, with six sourced stories every run.
-# The host stays at MEDIUM: at LOW its scripts ran long, with silences.
+# The host stays at MEDIUM: at LOW its scripts ran long, with silences. Asked again at LOW on five recorded 20-minute
+# prompts (2026-11-22, web/bench/host.py) it thought nothing and a blind read found it level, but its drafts landed
+# 9% off plan on average against MEDIUM's 6%. MEDIUM's 4,000-token budget isn't held: 2 of 15 paid runs thought
+# 18,500 and 27,000 tokens (9 and 12.5 cents for the host, against its usual 2 to 4).
 LEVEL = {"research": "LOW", "trainer": "MEDIUM", "host": "MEDIUM", "review": "LOW"}
 REVIEWS = 3   # the review's rounds at most: the first reads the whole script, each after it fixes what the check names
 
