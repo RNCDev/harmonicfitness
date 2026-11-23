@@ -97,11 +97,11 @@ def main() -> None:
 
     orig = writers._ask
 
-    async def ask(deps, who, ag, mdl, prompt, usage, level, capabilities=(), history=None):
+    async def ask(deps, who, ag, mdl, prompt, usage, level, capabilities=(), history=None, **more):
         token = WHO.set(who)
         began = stamp()
         try:
-            r = await orig(deps, who, ag, mdl, prompt, usage, level, capabilities, history)
+            r = await orig(deps, who, ag, mdl, prompt, usage, level, capabilities, history, **more)
         finally:
             WHO.reset(token)
         captured.append({"t": stamp(), "began": began, "who": who, "level": level, "prompt": prompt,
