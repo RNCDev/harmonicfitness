@@ -262,6 +262,10 @@ def _limit_lines(cat: catalog.Catalog, scr, h, request: dict, today: datetime.da
     pb = playbook.shipped()
     asked = list(request.get("limits") or [])
     own = [lim for lim in scr.limits if lim not in asked]
+    # a check-in limit the same as a health.md row (area, level, side) is that row, already listed with its note:
+    # printed twice, the writers read it as two limits and said its reminder twice (2026-11-22)
+    held = {(lim.area, lim.level, lim.side) for lim in own}
+    asked = [lim for lim in asked if (lim.area, lim.level, lim.side) not in held]
     out = []
     for lim in own + asked:
         side = f", {lim.side} side" if lim.side in ("left", "right") else ""

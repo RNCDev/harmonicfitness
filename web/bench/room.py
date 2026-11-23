@@ -156,7 +156,7 @@ def main() -> None:
     engine_mod.run = run_cmd
 
     today = datetime.date.today().strftime("%Y-%m-%d")
-    coach = (fx.get("offer") or {}).get("coach") or "Coach Freya"
+    coach = (fx.get("offer") or {}).get("coach") or "Coach Ana"
     name = (fx.get("offer") or {}).get("name") or tools.build_name(path)
     deps = agent.Deps(engine_root=REPO, home=home, keys={}, today=today,
                       now=datetime.date.today().strftime("%Y-%m-%d %A") + " 12:00",   # the same in every arm

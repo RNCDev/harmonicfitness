@@ -239,12 +239,23 @@ def coach_brief(brief: str, ids: list[str]) -> str:
     return brief.split("\n## ", 1)[0].strip() + "\n\n" + "\n\n".join(parts)
 
 
+def _plain(text: str) -> str:
+    return re.sub(r"[^a-z0-9]+", " ", text.lower()).strip()
+
+
+MENU_ENTRY = re.compile(r"^- \*\*(.+?)\*\* \(`([^`]+)`\)")
+
+
 def _menu_entries(menu: str, ids: list[str]) -> str:
+    """The safe menu's entries for the plan's movements, each named on the movements: line by its id or its name
+    ("wall-slide" or "wall slide": the agent writes either, and the build reads both)."""
     keep, group, entry, side_note = [], "", [], ""
     lines = menu.split("\n")
+    wanted = {_plain(i) for i in ids}
 
     def flush():
-        if entry and any(f"(`{i}`)" in entry[0] for i in ids):
+        m = MENU_ENTRY.match(entry[0]) if entry else None
+        if m and (_plain(m.group(1)) in wanted or _plain(m.group(2)) in wanted):
             keep.extend(entry)
     for i, ln in enumerate(lines):
         if ln.startswith("### "):
@@ -494,6 +505,22 @@ def _home_text(deps, rel: str) -> str:
     except OSError:
         return ""
     return text.split("+++", 2)[2] if text.startswith("+++") and text.count("+++") >= 2 else text
+
+
+def never_said(deps) -> str:
+    """The listener's Never bring up lines as a section for the writers who speak (the host and the review): the
+    researcher reads them with the rest of content.md, but the host is handed the date and the weather beside them,
+    and named the weekday to a listener whose list rules it out (2026-11-22). Template hints and "nothing" left
+    out, as interests.never reads them; "" when there are none."""
+    lines = []
+    for ln in _section(_home_text(deps, "content.md"), "Never bring up").split("\n")[1:]:
+        text = ln.strip().lstrip("-* ").strip()
+        if text and not text.startswith("[") and text.casefold() not in ("nothing", "none"):
+            lines.append(f"- {text}")
+    if not lines:
+        return ""
+    return ("# Never bring up\n\nThe listener's own list: none of it is said anywhere in the script, in a story or "
+            "a line of coaching, whatever the notes, the time or the weather here give.\n" + "\n".join(lines) + "\n\n")
 
 
 def _stock(deps, plan: str) -> str:
@@ -791,8 +818,9 @@ async def write(deps, model, usage, path: str, search=(), name: str | None = Non
 
     # the host: every word, from both, as one person talking
     limits = _section(brief, "Today's limits")
+    never = never_said(deps)
     host_prompt = (
-        f"Now: {deps.now}.\n\n{_section(brief, 'The listener')}\n\n{limits}\n\n# The weather\n\n{weather}\n\n"
+        f"Now: {deps.now}.\n\n{_section(brief, 'The listener')}\n\n{never}{limits}\n\n# The weather\n\n{weather}\n\n"
         f"# The plan\n\nThis coach says about {rate:.1f} words a second, so each segment's words fill its seconds: a "
         f"hold or pause you add takes {rate:.1f} words a second from them.\n\n"
         f"{host_plan(segs, budget, notes, placed, frozenset(marked), rests, model)}")
@@ -820,7 +848,7 @@ async def write(deps, model, usage, path: str, search=(), name: str | None = Non
         if attempt and check == "not checked":
             break
         draft = _read(full) if name and coach else draft
-        prompt = (f"Now: {deps.now}.\n\n{_section(brief, 'The listener')}\n\n{limits}\n\n"
+        prompt = (f"Now: {deps.now}.\n\n{_section(brief, 'The listener')}\n\n{never}{limits}\n\n"
                   + ("# Taken out\n\n" + "\n".join(
                       f"- #{n} told a story the researcher didn't bring, and it was taken out: fill its time with "
                       "coaching from your notes, nothing from outside them." for n in unasked) + "\n\n"

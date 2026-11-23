@@ -27,7 +27,7 @@ import sys
 import time
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-LINE = ("Hey, coach Freya, I'd like a {minutes}-minute strength workout at home, right now. Go easy on my "
+LINE = ("Hey, coach Ana, I'd like a {minutes}-minute strength workout at home, right now. Go easy on my "
         "left knee, and keep off my right shoulder today.")
 ANSWER = "Go with your pick."
 WHO = contextvars.ContextVar("who", default=None)   # the writer whose call is running; None for the agent itself
@@ -81,7 +81,10 @@ def main() -> None:
     if a.model:
         spec = providers.PROVIDERS[a.provider]
         providers.PROVIDERS[a.provider] = dataclasses.replace(spec, model=a.model)
-    model = providers.model_for(a.provider, env_keys["GEMINI_API_KEY" if a.provider == "google" else "OPENROUTER_API_KEY"])
+
+    def new_model():   # one a turn, as the worker makes one a job: a client kept past its turn's event loop fails
+        return providers.model_for(a.provider, env_keys["GEMINI_API_KEY" if a.provider == "google" else "OPENROUTER_API_KEY"])
+    model = new_model()
     t0 = time.monotonic()
     events, room, captured, requests, commands = [], [], [], [], []
     os.makedirs(os.path.join(a.out, "drafts"), exist_ok=True)
@@ -183,7 +186,7 @@ def main() -> None:
         context = agent.prefetch(deps, line) if turn == 0 else None
         err = None
         try:
-            outcome = agent.run_turn(model, deps, history, line, context=context)
+            outcome = agent.run_turn(model if turn == 0 else new_model(), deps, history, line, context=context)
             history, reply, usage = outcome.history_json, outcome.reply, outcome.usage
         except Exception as e:  # noqa: BLE001 - recorded as the run's failure
             err, reply, usage = f"{type(e).__name__}: {e}"[:500], None, {}
@@ -206,7 +209,7 @@ def main() -> None:
     deps_box["turn"] = "final check"
     if draft_path and deps.offer:
         r = tools.run(deps, ["build", draft_path, deps.offer.get("name") or tools.build_name(draft_path),
-                             "--coach", deps.offer.get("coach") or deps.brief_coach or "Coach Freya", "--lint-only"])
+                             "--coach", deps.offer.get("coach") or deps.brief_coach or "Coach Ana", "--lint-only"])
         lint, lint_code = r.output + "\n" + r.error, r.code
     result = {"minutes": a.minutes, "provider": a.provider, "model": providers.PROVIDERS[a.provider].model,
               "line": line if not turns else a.line.format(minutes=a.minutes), "set": a.set, "turns": turns, "events": events, "room": room,

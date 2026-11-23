@@ -67,6 +67,17 @@ class Brief(unittest.TestCase):
         self.assertIn("Dislikes (left off the menu): push-up", r.stdout)
         self.assertIn("knee off-limits** (today only", r.stdout)
 
+    def test_a_check_in_limit_the_same_as_a_health_row_is_listed_once_and_a_stricter_one_still_shows(self):
+        def rows(r):
+            part = r.stdout.split("## Today's limits", 1)[1].split("Clinician rules", 1)[0]
+            return [ln for ln in part.splitlines() if ln.startswith("- **wrist")]
+        same = brief("--goal", "general", "--minutes", "25", "--preset", "hotel-gym", "--limit", "wrist=delicate:left")
+        self.assertEqual(same.returncode, 0, same.stderr)
+        self.assertEqual(len(rows(same)), 1, rows(same))
+        stricter = brief("--goal", "general", "--minutes", "25", "--preset", "hotel-gym", "--limit", "wrist=off-limits:left")
+        self.assertEqual(len(rows(stricter)), 2, rows(stricter))
+        self.assertIn("wrist off-limits, left side** (today only", stricter.stdout)
+
     def test_a_sided_limit_lists_healthy_side_work_and_fills_the_cues(self):
         r = brief("--goal", "strength", "--minutes", "30", "--preset", "hotel-gym", "--limit", "knee=off-limits:right")
         self.assertEqual(r.returncode, 0, r.stderr)

@@ -7,7 +7,7 @@ to the listener. It's for the maintainer, and it isn't a test: each run calls Ge
 ## What a run is
 
 `run_one.py` runs the website's agent in this process, as the worker would but with no database: the page's starter
-sentence ("Hey, coach Freya, I'd like a 15-minute strength workout at home, right now. Go easy on my left knee, and
+sentence ("Hey, coach Ana, I'd like a 15-minute strength workout at home, right now. Go easy on my left knee, and
 keep off my right shoulder today."), "Go with your pick" to any question, and a stop at the price. Nothing is recorded
 or logged. Two one-sided limits on opposite sides make it a hard request: the menu, the opening and every set's side
 wording are all in play.
