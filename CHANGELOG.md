@@ -2,6 +2,26 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.91.3] - 2026-11-22
+
+### Changed
+- **The web app's script costs about a fifth less** (three paid 20-minute runs: $0.17 to $0.22, against $0.21 to $0.27 before), from three changes to the writers' room:
+  - **One research pass, on a search budget** (`writers.SEARCHES`, `PIECES_A_MINUTE`): the researcher is asked for the places a session of its length has had, may search at most four times and makes each search feed several pieces; the top-up writes from what was found, with one more search at most. Searches were the biggest cost (six to ten a script, about 1.4 cents each); now four or five.
+  - **A script the build's check passes goes without a review:** the check holds the opening's rules, the sides and the menu in code, and a review of a clean script spent a request restyling it. A script a story was taken out of is still reviewed.
+  - **The planning agent no longer looks up the movements' coaching notes** (`movements --about`) before the skeleton: the writers read them themselves.
+- **The host and the review are given the listener's Never bring up list:** the host is handed the date and the weather, and named the weekday to a listener whose list rules it out.
+
+### Fixed
+- **The opening's made-by-AI line may be spelled out** ("an A I"): the menu check refused it as no AI line.
+- **The trainer gets the menu's entries for every planned movement** when the `movements:` line names them by name rather than id ("wall slide"): it got none, and with them lost the light-only, one-side and easier and harder lines.
+- **A check-in limit the same as a `health.md` row is listed once in the brief:** printed twice, the writers read two limits. A stricter level or the other side from the check-in is still listed.
+
+### Maintainers
+- The bench (`web/bench/`) gains `room.py` (the writers' room alone on a recorded run, written by Claude through `claude -p`), `host.py` (the host asked again on a recorded prompt), `judge.py` (a blind pairwise read by Opus, run as subagents) and `claude_cli.py`; `run_one.py` builds a model each turn and the bench asks for Coach Ana.
+
+### For forks
+- Nothing to migrate.
+
 ## [0.91.2] - 2026-11-22
 
 ### Fixed
