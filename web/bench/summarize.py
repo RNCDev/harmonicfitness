@@ -89,6 +89,9 @@ def fidelity(r):
 
 WEEKDAYS = "Monday Tuesday Wednesday Thursday Friday Saturday Sunday".split()
 MONTHS = "January February March April June July August September October November December".split()  # not May: a verb
+# a month only as a name: "march" is a warm-up movement, and "March, and swing those arms" its cue, so March counts
+# only capitalised and mid-sentence
+CAPITAL_ONLY = {"march"}
 SEASONS = "spring summer autumn winter".split()
 WEATHER = "rain rainy raining sunny snow snowy snowing cloudy windy humid forecast".split()
 
@@ -113,7 +116,10 @@ def never_said(draft, content_md):
     spoken = re.sub(r"^@@.*$", " ", spoken, flags=re.MULTILINE)
     spoken = re.sub(r"\[[^\]]*\]", " ", spoken)
     found = []
-    for w in re.findall(r"[A-Za-z]+", spoken):
+    for m in re.finditer(r"[A-Za-z]+", spoken):
+        w = m.group(0)
+        if w.lower() in CAPITAL_ONLY and (not w[0].isupper() or re.search(r"(^|[.!?]\s*)$", spoken[:m.start()].rstrip(" ")[-3:] or "")):
+            continue
         if w.lower() in {x.lower() for x in words} and w not in found:
             found.append(w)
     return found
