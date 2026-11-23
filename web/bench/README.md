@@ -74,12 +74,59 @@ month, season or weather words a listener's `## Never bring up` rules out) and t
 than the baseline's. Bench Jo, whose rules the clips need, with `HARMONICFITNESS_HOME=docs/demos/listeners/jo`:
 `batch.sh` keeps one prepared copy per home, so Jo's and `me/`'s never share a folder.
 
+## The room alone, written by Claude
+
+A change to what the writers do can be tried many times before a paid run, with no provider bill:
+- `room.py <out> <fixture>` runs the writers' room alone (`writers.write`) on a recorded run's brief and first clean
+  skeleton (a `run_one.py` run, its home included), written by Claude Sonnet 5.5 through the Claude Code CLI
+  (`claude_cli.py`, `claude -p`). Every arm of a comparison starts from the same plan, and the CLI's answers are kept
+  in `.bench/claude-cache` by what was asked, so two arms differ only from the step under test; `--salt` asks
+  afresh. Each writer thinks at the effort the site gives it, and `--aim` (0.77) asks Sonnet for fewer words, since
+  it writes about a tenth long. Writes `result.json` in `run_one.py`'s shape and `checks.json`.
+- `host.py <out> <run>` asks the host again, alone and paid, on a recorded OpenRouter run's own prompt
+  (`--level LOW`), and lints the old answer and the new one on the same skeleton.
+- `judge.py <baseline> <candidate> --prepare` writes each pair as a blind folder (`.bench/judge/<hash>/<run>-a|b/`,
+  both orders), for a judge the CLI can't reach: a Claude Code subagent on Opus, told to read `task.md` there and
+  write `verdict.json`; `--tally` reads them. It scores each script 1 to 5 on safety, coaching, voice, stories and
+  personal, and lists defects with the words quoted.
+
+The judge is noisy: a baseline against its own rerun went 1 to 5 over three pairs. Count by pair (both orders
+agreeing), at fifteen pairs or more, and read every safety defect in the script.
+
 ## Results
+
+### 0.92.0 (2026-11-22): a fifth off the hosted script
+
+Paid 20-minute runs for Jo through OpenRouter on Gemini 3.8 Flash, five fixed requests, and Sonnet rooms judged
+blind by Opus. The baseline wrote a script for $0.21 to $0.32 (mean about $0.27), research and its top-up about
+45 percent of it, nearly all web searches at about 1.4 cents each.
+
+| Change | What it did | Kept? |
+|---|---|---|
+| One research pass on a four-search budget | searches 4 or 5 against 6 to 8; about 18 percent less; judged level | Yes |
+| The planning agent skips `movements --about` | its planning 3.0 to 3.5 cents against 3.9 to 6.3 | Yes |
+| A clean script goes without a review | one false stop removed ("an A I"); a request saved where it applies | Yes |
+| The researcher asked for 1.15 pieces a minute | a top-up (2 to 6 cents) in 1 of 5 Sonnet rooms, against 7 of 14 paid runs | Yes |
+| The trainer's notes put together by code | baseline better in 9 pairs of 15, code in 1; coaching -0.6, voice -0.8 | No |
+| No trainer; length fitted by segment | 9 percent less at MEDIUM, quality level over 15 pairs; the host's thinking ran away once | No |
+| The same, the host at LOW | 24 percent less, but it offered kneeling and sitting back on the heels under a delicate knee | No |
+| The host at LOW alone | no thinking, judged level at five pairs, but 9 percent off plan against 6 | No |
+
+All kept: $0.17 to $0.22 a script on three requests, against $0.21 to $0.27 for the same three before.
+
+Found along the way:
+- OpenRouter doesn't hold `max_uses` on Gemini's search (three searches with a cap of one), nor the host's
+  4,000-token thinking budget (18,500 and 27,000 in 2 of 15 runs, 9 and 12.5 cents for the host).
+- Fixed: the trainer lost the menu's entries when the `movements:` line named movements by name; the host named
+  the weekday against a never-bring-up list it was never shown; a check-in limit the same as a health.md row was
+  listed twice; the bench's model client failed on a second turn ("Event loop is closed"); the bench asked for
+  Coach Freya, who isn't on the site.
+
 
 ### 0.78.1 (2026-11-10): where the tokens go, Gemini and Opus
 
 Two 15-minute runs on Gemini 3.8 Flash and two on Opus 5.5 through OpenRouter, for the invented listener Jo, every
-request recorded: [docs/benchmark-script-writing/20261110/](../../docs/benchmark-script-writing/20261110/README.md).
+request recorded (the run files were removed in 0.92.0; the figures are kept here).
 All four priced and linted clean. Writing cost $0.17 and $0.21 on Gemini, $2.12 and $2.09 on Opus. On Gemini the
 agent's own requests sent three quarters of the input tokens.
 

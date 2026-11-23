@@ -1,8 +1,9 @@
 # Production and pricing: alternatives
 
 **Status:** a roadmap proposal, 2026-11-20. Nothing here is built. The numbers come from the token bench of
-2026-11-10 ([benchmark-script-writing/README.md](benchmark-script-writing/README.md)) and need measuring again
-before any price is set.
+2026-11-10 (four 15-minute runs: 17 to 21 cents to write one on Gemini) and need measuring again before any price is
+set. The bench of 2026-11-22 measured a 20-minute script at 17 to 22 cents in 0.91.3, with the web searches
+the largest share.
 
 **The question:** can the website sell a flat monthly plan, about $10 for up to 30 workouts, and stay above cost?
 And can research be shared across listeners so that its cost is spread over everyone?

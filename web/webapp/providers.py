@@ -21,7 +21,8 @@ PROVIDERS: dict[str, Provider] = {p.id: p for p in (
     Provider("google", "Gemini", "gemini-3.8-flash"),
     # OpenRouter: one key for any model; the same key voices its stock-voice coaches (one id, one row). It writes
     # with Gemini 3.8 Flash, as the Gemini key does, at the same thinking levels (writers.thinking_settings): a
-    # 15-minute workout cost 17 to 21 cents on Gemini and about $2.10 on Opus (docs/benchmark-script-writing/)
+    # 15-minute workout cost 17 to 21 cents on Gemini and about $2.10 on Opus (the bench, 2026-11-10), and a
+    # 20-minute one 17 to 22 cents on Gemini in 0.91.3 (2026-11-22)
     Provider("openrouter", "OpenRouter", "google/gemini-3.8-flash"),
 )}
 

@@ -2,6 +2,21 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.92.0] - 2026-11-22
+
+### Changed
+- **The researcher is asked for the places a session really has** (`writers.PIECES_A_MINUTE`, 1.15 a minute: 23 for a 20-minute session, from 18), so the second research request is rarely needed. Skeletons had 20 to 23 places, and in 7 of 14 paid runs the top-up wrote the rest at 2 to 6 cents, with searches it was told to keep to one and made up to four of: OpenRouter doesn't hold a search limit on Gemini either. A piece more costs about a twenty-fifth of a cent. In five rooms on the bench, one needed a top-up.
+
+### Removed
+- **The 2026-11-10 token bench's run files** (`docs/benchmark-script-writing/`): its figures are kept in `web/bench/README.md` and where they were cited.
+
+### Docs
+- `CLAUDE.md`, `docs/index.html` and `web/README.md` say the trainer's review runs only when the build's check finds something, how many pieces and searches the researcher is asked for, and that the host is given the listener's Never bring up list.
+- `web/bench/README.md` documents the room run alone and written by Claude (`room.py`, `claude_cli.py`), the host asked again (`host.py`) and the blind read by Opus (`judge.py`), with the results of 2026-11-22: what was kept, and what was tried and dropped (the trainer's notes by code, a room with no trainer, the host at LOW).
+
+### For forks
+- Nothing to migrate. A link to `docs/benchmark-script-writing/` no longer resolves: its figures are in `web/bench/README.md`.
+
 ## [0.91.3] - 2026-11-22
 
 ### Changed
