@@ -1,61 +1,63 @@
-/* The Admin page (0.87.0): the site's books. Part of theme.css, which imports every part in order. */
+/* The Admin page (0.87.0): the site's books. Part of theme.css, which imports every part in order.
+   Its classes start bk- (books), never ad-: ad blockers' lists (EasyList) hide .ad-block, .ad-head, .ad-table and
+   more on every site, which left the page blank. */
 /* ---------- Admin: four figures, the profit and loss, a chart, then the tables ---------- */
-.ad-range { display: flex; flex-wrap: wrap; gap: var(--s-2); margin: 0 0 var(--s-5) }
-.ad-range [aria-pressed="true"], .ad-range [aria-pressed="true"]:hover:not(:disabled) { box-shadow: var(--ring-strong) var(--text); color: var(--text-strong) }
-.ad { display: grid; gap: var(--s-6h); padding-bottom: var(--s-7) }
-.ad-span { margin: calc(-1 * var(--s-3)) 0 0; font-size: var(--fs-sm); color: var(--text-muted); font-variant-numeric: tabular-nums }
+.bk-range { display: flex; flex-wrap: wrap; gap: var(--s-2); margin: 0 0 var(--s-5) }
+.bk-range [aria-pressed="true"], .bk-range [aria-pressed="true"]:hover:not(:disabled) { box-shadow: var(--ring-strong) var(--text); color: var(--text-strong) }
+.bk { display: grid; gap: var(--s-6h); padding-bottom: var(--s-7) }
+.bk-span { margin: calc(-1 * var(--s-3)) 0 0; font-size: var(--fs-sm); color: var(--text-muted); font-variant-numeric: tabular-nums }
 
 /* the four figures: what's left after every cost leads, in the display face */
-.ad-heads { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--s-2) }
-.ad-head { padding: var(--s-4h) var(--s-5); background: var(--card); box-shadow: var(--ring) var(--border); border-radius: var(--radius-sheet); min-width: 0 }
-.ad-head p { margin: 0 }
-.ad-head-k { font-size: var(--fs-sm); color: var(--text-muted); letter-spacing: var(--track-wide); text-transform: uppercase }
-.ad-head-v { font: var(--w-bold) var(--fs-d4)/var(--lh-solid) var(--display); letter-spacing: var(--track-tight); margin: var(--s-2) 0 !important; font-variant-numeric: tabular-nums }
-.ad-head-n { font-size: var(--fs-sm); color: var(--text-2) }
-.ad-head-n.warn { color: var(--danger) }
+.bk-heads { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--s-2) }
+.bk-head { padding: var(--s-4h) var(--s-5); background: var(--card); box-shadow: var(--ring) var(--border); border-radius: var(--radius-sheet); min-width: 0 }
+.bk-head p { margin: 0 }
+.bk-head-k { font-size: var(--fs-sm); color: var(--text-muted); letter-spacing: var(--track-wide); text-transform: uppercase }
+.bk-head-v { font: var(--w-bold) var(--fs-d4)/var(--lh-solid) var(--display); letter-spacing: var(--track-tight); margin: var(--s-2) 0 !important; font-variant-numeric: tabular-nums }
+.bk-head-n { font-size: var(--fs-sm); color: var(--text-2) }
+.bk-head-n.warn { color: var(--danger) }
 
-.ad-block { display: grid; gap: var(--s-3); min-width: 0 }
-.ad-h { margin: 0; font: var(--w-bold) var(--fs-d1)/var(--lh-head) var(--display); letter-spacing: var(--track-head); text-transform: uppercase }
-.ad-note { display: block; font-size: var(--fs-sm); font-weight: var(--w-regular); color: var(--text-muted) }
-.ad-none { margin: 0; font-size: var(--fs-md); color: var(--text-muted) }
-.ad-neg { color: var(--danger) }
+.bk-block { display: grid; gap: var(--s-3); min-width: 0 }
+.bk-h { margin: 0; font: var(--w-bold) var(--fs-d1)/var(--lh-head) var(--display); letter-spacing: var(--track-head); text-transform: uppercase }
+.bk-note { display: block; font-size: var(--fs-sm); font-weight: var(--w-regular); color: var(--text-muted) }
+.bk-none { margin: 0; font-size: var(--fs-md); color: var(--text-muted) }
+.bk-neg { color: var(--danger) }
 
 /* tables: numbers right-aligned in tabular figures, a hairline between rows */
-.ad-scroll { overflow-x: auto; min-width: 0 }
-.ad-table { width: 100%; border-collapse: collapse; font-size: var(--fs-md); font-variant-numeric: tabular-nums }
-.ad-table th, .ad-table td { padding: var(--s-2h) var(--s-3); text-align: right; border-bottom: 1px solid var(--border); white-space: nowrap }
-.ad-table th:first-child, .ad-table td:first-child { text-align: left; padding-left: 0 }
-.ad-table thead th { font-size: var(--fs-sm); font-weight: var(--w-medium); color: var(--text-muted); letter-spacing: var(--track-wide); text-transform: uppercase }
-.ad-table tbody th { font-weight: var(--w-regular); color: var(--text-2) }
-.ad-pl { max-width: 40rem }
-.ad-pl tbody th { white-space: normal }
-.ad-pl tr.strong th, .ad-pl tr.strong td { color: var(--text); font-weight: var(--w-strong); border-bottom-color: var(--border-strong) }
-.ad-people tbody th { color: var(--text) }
+.bk-scroll { overflow-x: auto; min-width: 0 }
+.bk-table { width: 100%; border-collapse: collapse; font-size: var(--fs-md); font-variant-numeric: tabular-nums }
+.bk-table th, .bk-table td { padding: var(--s-2h) var(--s-3); text-align: right; border-bottom: 1px solid var(--border); white-space: nowrap }
+.bk-table th:first-child, .bk-table td:first-child { text-align: left; padding-left: 0 }
+.bk-table thead th { font-size: var(--fs-sm); font-weight: var(--w-medium); color: var(--text-muted); letter-spacing: var(--track-wide); text-transform: uppercase }
+.bk-table tbody th { font-weight: var(--w-regular); color: var(--text-2) }
+.bk-pl { max-width: 40rem }
+.bk-pl tbody th { white-space: normal }
+.bk-pl tr.strong th, .bk-pl tr.strong td { color: var(--text); font-weight: var(--w-strong); border-bottom-color: var(--border-strong) }
+.bk-people tbody th { color: var(--text) }
 
 /* facts: a label and a figure, in a grid of cards */
-.ad-facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr)); gap: var(--s-2); margin: 0 }
-.ad-fact { padding: var(--s-3h) var(--s-4); box-shadow: var(--ring) var(--border); border-radius: var(--radius-sheet) }
-.ad-fact dt { font-size: var(--fs-sm); color: var(--text-muted) }
-.ad-fact dd { margin: var(--s-1) 0 0 }
-.ad-fact-v { font: var(--w-bold) var(--fs-d2)/var(--lh-tight) var(--display); font-variant-numeric: tabular-nums }
+.bk-facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr)); gap: var(--s-2); margin: 0 }
+.bk-fact { padding: var(--s-3h) var(--s-4); box-shadow: var(--ring) var(--border); border-radius: var(--radius-sheet) }
+.bk-fact dt { font-size: var(--fs-sm); color: var(--text-muted) }
+.bk-fact dd { margin: var(--s-1) 0 0 }
+.bk-fact-v { font: var(--w-bold) var(--fs-d2)/var(--lh-tight) var(--display); font-variant-numeric: tabular-nums }
 
 /* the chart: money in the soft blue, money out the coral; each bar's numbers on hover, and as a table */
-.ad-chart { display: grid; gap: var(--s-2); justify-items: start; max-width: 60rem }
-.ad-chart svg { width: 100%; height: auto; display: block }
-.ad-legend { display: flex; gap: var(--s-4); font-size: var(--fs-sm); color: var(--text-2) }
-.ad-key { display: inline-block; width: var(--s-2h); height: var(--s-2h); border-radius: var(--radius-sheet); margin-right: var(--s-1h); vertical-align: -1px }
-.ad-key.in, .ad-bar .in { background: var(--sample); fill: var(--sample) }
-.ad-key.out, .ad-bar .out { background: var(--accent); fill: var(--accent) }
-.ad-hit { fill: transparent }
+.bk-chart { display: grid; gap: var(--s-2); justify-items: start; max-width: 60rem }
+.bk-chart svg { width: 100%; height: auto; display: block }
+.bk-legend { display: flex; gap: var(--s-4); font-size: var(--fs-sm); color: var(--text-2) }
+.bk-key { display: inline-block; width: var(--s-2h); height: var(--s-2h); border-radius: var(--radius-sheet); margin-right: var(--s-1h); vertical-align: -1px }
+.bk-key.in, .bk-bar .in { background: var(--sample); fill: var(--sample) }
+.bk-key.out, .bk-bar .out { background: var(--accent); fill: var(--accent) }
+.bk-hit { fill: transparent }
 @media (hover: hover) {
-  .ad-bar:hover .ad-hit { fill: var(--hover) }
+  .bk-bar:hover .bk-hit { fill: var(--hover) }
 }
-.ad-grid { stroke: var(--border); stroke-width: 1 }
-.ad-base { stroke: var(--border-strong); stroke-width: 1 }
-.ad-axis { fill: var(--text-muted); font-size: var(--fs-sm); font-family: var(--font) }
+.bk-grid { stroke: var(--border); stroke-width: 1 }
+.bk-base { stroke: var(--border-strong); stroke-width: 1 }
+.bk-axis { fill: var(--text-muted); font-size: var(--fs-sm); font-family: var(--font) }
 
 @media (max-width: 760px) {
-  .ad-heads { grid-template-columns: repeat(2, minmax(0, 1fr)) }
-  .ad-head { padding: var(--s-3h) var(--s-4) }
-  .ad-head-v { font-size: var(--fs-d2) }
+  .bk-heads { grid-template-columns: repeat(2, minmax(0, 1fr)) }
+  .bk-head { padding: var(--s-3h) var(--s-4) }
+  .bk-head-v { font-size: var(--fs-d2) }
 }

@@ -23,7 +23,7 @@ export function AdminPage({ onClose }: { onClose: () => void }) {
       <PageHeader id="admin-title" title="Admin" onClose={onClose}>
         <p className="page-note">How HarmonicFitness is used, and what it earns and costs. Every day is a UTC day.</p>
       </PageHeader>
-      <div className="ad-range" role="group" aria-label="Range">
+      <div className="bk-range" role="group" aria-label="Range">
         {RANGES.map((r) => (
           <Button key={r.days} variant="secondary" pressed={days === r.days} onClick={() => setDays(r.days)}>{r.label}</Button>
         ))}
@@ -39,10 +39,10 @@ function BooksView({ b }: { b: Books }) {
   const m = b.money;
   const costs = [m.write, m.voice, m.unattributed, m.fly].reduce<number>((s, v) => s + (v ?? 0), 0) + m.fees;
   return (
-    <div className="ad">
-      <p className="ad-span">{b.from === b.to ? b.from : `${b.from} to ${b.to}`}</p>
+    <div className="bk">
+      <p className="bk-span">{b.from === b.to ? b.from : `${b.from} to ${b.to}`}</p>
 
-      <section className="ad-heads" aria-label="Profit">
+      <section className="bk-heads" aria-label="Profit">
         <Head label="Net revenue" value={usd(m.net)} note={`${count(b.units.sales)} ${b.units.sales === 1 ? "pack" : "packs"} sold`} />
         <Head label="Costs" value={usd(costs)} note={m.missing.length ? "Incomplete" : "Stripe, OpenRouter, Fly"} warn={m.missing.length > 0} />
         <Head label={m.missing.length ? "Profit so far" : "Profit"} value={usd(m.profit)} note={m.missing.length ? `Leaves out ${m.missing.join(", ")}` : "After every cost"} warn={m.missing.length > 0} />
@@ -50,9 +50,9 @@ function BooksView({ b }: { b: Books }) {
           note={m.missing.length ? "Before the costs left out" : "Of net revenue"} warn={m.missing.length > 0} />
       </section>
 
-      <section className="ad-block" aria-labelledby="ad-pl">
-        <h2 className="ad-h" id="ad-pl">Profit and loss</h2>
-        <table className="ad-table ad-pl">
+      <section className="bk-block" aria-labelledby="bk-pl">
+        <h2 className="bk-h" id="bk-pl">Profit and loss</h2>
+        <table className="bk-table bk-pl">
           <tbody>
             <Row k="Packs sold" v={usd(m.sales)} />
             <Row k="Refunds" v={usd(-m.refunds)} />
@@ -69,15 +69,15 @@ function BooksView({ b }: { b: Books }) {
         </table>
       </section>
 
-      <section className="ad-block" aria-labelledby="ad-days">
-        <h2 className="ad-h" id="ad-days">Day by day</h2>
+      <section className="bk-block" aria-labelledby="bk-days">
+        <h2 className="bk-h" id="bk-days">Day by day</h2>
         <DayChart days={b.daily} />
       </section>
 
-      <section className="ad-block" aria-labelledby="ad-units">
-        <h2 className="ad-h" id="ad-units">A minute, sold and made</h2>
-        <div className="ad-scroll">
-          <table className="ad-table">
+      <section className="bk-block" aria-labelledby="bk-units">
+        <h2 className="bk-h" id="bk-units">A minute, sold and made</h2>
+        <div className="bk-scroll">
+          <table className="bk-table">
             <thead><tr><th>Pack</th><th>Price</th><th>A minute</th><th>After Stripe</th><th>Cost to make</th><th>Margin a minute</th></tr></thead>
             <tbody>
               {b.units.packs.map((p) => {
@@ -93,7 +93,7 @@ function BooksView({ b }: { b: Books }) {
             </tbody>
           </table>
         </div>
-        <dl className="ad-facts">
+        <dl className="bk-facts">
           <Fact k="Minutes sold" v={count(b.units.minutes_sold)} note={b.units.per_minute_sold === null ? undefined : `${usd(b.units.per_minute_sold, true)} a minute on average`} />
           <Fact k="Minutes recorded" v={count(b.units.minutes_recorded)} note={`${count(b.units.recordings)} ${b.units.recordings === 1 ? "recording" : "recordings"}`} />
           <Fact k="Minutes given away" v={count(b.units.minutes_given)} note="to start with, and by hand" />
@@ -102,9 +102,9 @@ function BooksView({ b }: { b: Books }) {
         </dl>
       </section>
 
-      <section className="ad-block" aria-labelledby="ad-usage">
-        <h2 className="ad-h" id="ad-usage">Who's using it</h2>
-        <dl className="ad-facts">
+      <section className="bk-block" aria-labelledby="bk-usage">
+        <h2 className="bk-h" id="bk-usage">Who's using it</h2>
+        <dl className="bk-facts">
           <Fact k="Accounts" v={count(b.usage.accounts)} note={`${count(b.usage.new_accounts)} new in this range`} />
           <Fact k="Active" v={count(b.usage.active)} note="talked to a coach or recorded" />
           <Fact k="Conversations" v={count(b.usage.turns)} note={`${count(b.usage.talking)} ${b.usage.talking === 1 ? "person" : "people"}, last ${b.usage.turn_days} days (kept no longer)`} />
@@ -114,13 +114,13 @@ function BooksView({ b }: { b: Books }) {
         </dl>
       </section>
 
-      <section className="ad-block" aria-labelledby="ad-people">
-        <h2 className="ad-h" id="ad-people">Listeners</h2>
-        {m.costs_since && <p className="ad-none">Cost is what OpenRouter charged since {m.costs_since}; profit is what
+      <section className="bk-block" aria-labelledby="bk-people">
+        <h2 className="bk-h" id="bk-people">Listeners</h2>
+        {m.costs_since && <p className="bk-none">Cost is what OpenRouter charged since {m.costs_since}; profit is what
           they paid, less Stripe's fee and that cost.</p>}
-        {b.listeners.length === 0 ? <p className="ad-none">No one did anything in this range.</p> : (
-          <div className="ad-scroll">
-            <table className="ad-table ad-people">
+        {b.listeners.length === 0 ? <p className="bk-none">No one did anything in this range.</p> : (
+          <div className="bk-scroll">
+            <table className="bk-table bk-people">
               <thead><tr><th>Listener</th><th>Joined</th><th>Paid</th><th>Bought</th><th>Recorded</th><th>Left</th><th>Cost</th><th>Profit</th></tr></thead>
               <tbody>
                 {b.listeners.map((p) => (
@@ -129,7 +129,7 @@ function BooksView({ b }: { b: Books }) {
                     <td>{p.bought ? `${count(p.bought)} min` : "—"}</td>
                     <td>{p.recorded ? `${count(p.recorded)} min (${p.recordings})` : "—"}</td>
                     <td>{count(p.balance)} min</td><td>{p.cost === null ? "Not tracked" : usd(p.cost)}</td>
-                    <td className={p.profit < 0 ? "ad-neg" : undefined}>{usd(p.profit)}</td>
+                    <td className={p.profit < 0 ? "bk-neg" : undefined}>{usd(p.profit)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -139,15 +139,15 @@ function BooksView({ b }: { b: Books }) {
       </section>
 
       {b.fly.monthly !== null && (
-        <section className="ad-block" aria-labelledby="ad-fly">
-          <h2 className="ad-h" id="ad-fly">Fly, a month</h2>
-          <table className="ad-table ad-pl">
+        <section className="bk-block" aria-labelledby="bk-fly">
+          <h2 className="bk-h" id="bk-fly">Fly, a month</h2>
+          <table className="bk-table bk-pl">
             <tbody>
               {b.fly.lines.map((l, i) => <Row key={i} k={l.what} v={usd(l.monthly)} />)}
               <Row k="Estimated" v={usd(b.fly.monthly)} strong />
             </tbody>
           </table>
-          <p className="ad-none">Leaves out {b.fly.left_out.join(", ")}.</p>
+          <p className="bk-none">Leaves out {b.fly.left_out.join(", ")}.</p>
         </section>
       )}
     </div>
@@ -159,10 +159,10 @@ const tracking = (m: Books["money"]) => (m.costs_since ? `tracked since ${m.cost
 
 function Head({ label, value, note, warn = false }: { label: string; value: string; note: string; warn?: boolean }) {
   return (
-    <div className="ad-head">
-      <p className="ad-head-k">{label}</p>
-      <p className="ad-head-v">{value}</p>
-      <p className={`ad-head-n${warn ? " warn" : ""}`}>{note}</p>
+    <div className="bk-head">
+      <p className="bk-head-k">{label}</p>
+      <p className="bk-head-v">{value}</p>
+      <p className={`bk-head-n${warn ? " warn" : ""}`}>{note}</p>
     </div>
   );
 }
@@ -170,7 +170,7 @@ function Head({ label, value, note, warn = false }: { label: string; value: stri
 function Row({ k, v, note, strong = false }: { k: string; v: string; note?: string; strong?: boolean }) {
   return (
     <tr className={strong ? "strong" : undefined}>
-      <th scope="row">{k}{note && <span className="ad-note">{note}</span>}</th>
+      <th scope="row">{k}{note && <span className="bk-note">{note}</span>}</th>
       <td>{v}</td>
     </tr>
   );
@@ -178,9 +178,9 @@ function Row({ k, v, note, strong = false }: { k: string; v: string; note?: stri
 
 function Fact({ k, v, note }: { k: string; v: string; note?: string }) {
   return (
-    <div className="ad-fact">
+    <div className="bk-fact">
       <dt>{k}</dt>
-      <dd><span className="ad-fact-v">{v}</span>{note && <span className="ad-note">{note}</span>}</dd>
+      <dd><span className="bk-fact-v">{v}</span>{note && <span className="bk-note">{note}</span>}</dd>
     </div>
   );
 }
@@ -204,37 +204,37 @@ function DayChart({ days }: { days: BooksDay[] }) {
   const y = (v: number) => H - 20 - (Math.max(0, v) / top) * (H - 36);
   const [show, setShow] = useState(false);
   return (
-    <div className="ad-chart">
-      <div className="ad-legend" aria-hidden="true">
-        <span><i className="ad-key in" />Money in (net)</span>
-        <span><i className="ad-key out" />Money out{groups.some((g) => !g.known) ? " (what's tracked)" : ""}</span>
+    <div className="bk-chart">
+      <div className="bk-legend" aria-hidden="true">
+        <span><i className="bk-key in" />Money in (net)</span>
+        <span><i className="bk-key out" />Money out{groups.some((g) => !g.known) ? " (what's tracked)" : ""}</span>
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`Money in and money out, ${weekly ? "week" : "day"} by ${weekly ? "week" : "day"}`}>
         {[0, 0.5, 1].map((f) => (
           <g key={f}>
-            <line className="ad-grid" x1={pad} x2={W} y1={y(top * f)} y2={y(top * f)} />
-            <text className="ad-axis" x={pad - 4} y={y(top * f) + 4} textAnchor="end">{top * f >= 10 ? `$${Math.round(top * f)}` : `$${(top * f).toFixed(1)}`}</text>
+            <line className="bk-grid" x1={pad} x2={W} y1={y(top * f)} y2={y(top * f)} />
+            <text className="bk-axis" x={pad - 4} y={y(top * f) + 4} textAnchor="end">{top * f >= 10 ? `$${Math.round(top * f)}` : `$${(top * f).toFixed(1)}`}</text>
           </g>
         ))}
         {groups.map((g, i) => {
           const x = pad + i * gw + gw / 2;
           return (
-            <g key={g.label} className="ad-bar">
+            <g key={g.label} className="bk-bar">
               <title>{`${g.label}: in ${usd(g.inn)}, out ${usd(g.out)}${g.known ? "" : " (some costs not tracked)"}`}</title>
-              <rect className="ad-hit" x={pad + i * gw} y={0} width={gw} height={H - 20} />
+              <rect className="bk-hit" x={pad + i * gw} y={0} width={gw} height={H - 20} />
               <rect className="in" x={x - bw - 1} y={y(g.inn)} width={bw} height={Math.max(0, H - 20 - y(g.inn))} rx={2} />
               <rect className="out" x={x + 1} y={y(g.out)} width={bw} height={Math.max(0, H - 20 - y(g.out))} rx={2} />
             </g>
           );
         })}
-        <line className="ad-base" x1={pad} x2={W} y1={H - 20} y2={H - 20} />
-        <text className="ad-axis" x={pad} y={H - 4}>{groups[0]?.label.replace("Week of ", "")}</text>
-        <text className="ad-axis" x={W} y={H - 4} textAnchor="end">{groups[groups.length - 1]?.label.replace("Week of ", "")}</text>
+        <line className="bk-base" x1={pad} x2={W} y1={H - 20} y2={H - 20} />
+        <text className="bk-axis" x={pad} y={H - 4}>{groups[0]?.label.replace("Week of ", "")}</text>
+        <text className="bk-axis" x={W} y={H - 4} textAnchor="end">{groups[groups.length - 1]?.label.replace("Week of ", "")}</text>
       </svg>
       <Button variant="text" onClick={() => setShow((s) => !s)} aria-expanded={show}>{show ? "Hide the table" : "Show as a table"}</Button>
       {show && (
-        <div className="ad-scroll">
-          <table className="ad-table">
+        <div className="bk-scroll">
+          <table className="bk-table">
             <thead><tr><th>{weekly ? "Week of" : "Day"}</th><th>Money in</th><th>Money out</th><th>Difference</th></tr></thead>
             <tbody>{groups.map((g) => (
               <tr key={g.label}><th scope="row">{g.label.replace("Week of ", "")}</th><td>{usd(g.inn)}</td>

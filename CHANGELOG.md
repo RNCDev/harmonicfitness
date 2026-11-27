@@ -2,6 +2,14 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.92.1] - 2026-11-26
+
+### Fixed
+- **The admin screen is no longer blank under an ad blocker.** Its classes started `ad-`, and EasyList, the list most ad blockers use, hides `.ad-block`, `.ad-head`, `.ad-span`, `.ad-table`, `.ad-scroll`, `.ad-note` and `.ad-bar` on every site, which took everything under the range buttons. They now start `bk-` (books), and `admin.css` says why.
+
+### For forks
+- Nothing to migrate.
+
 ## [0.92.0] - 2026-11-22
 
 ### Changed
