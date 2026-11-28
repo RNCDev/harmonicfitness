@@ -320,7 +320,7 @@ Short, steady breaths. [hold 5s]
 Ribs pulled down. [hold 5s]
 Halfway, keep the back on the floor. [hold 5s]
 If it lifts, bend the knees. [hold 5s]
-Last ten seconds, hold it. [hold 4s]
+Last ten seconds, hold it. [hold 7s]
 And rest.
 
 Let everything down. [pause 4s]
@@ -359,7 +359,7 @@ Keep breathing. [hold 5s]
 Hold the shape. [hold 5s]
 Halfway, stay long. [hold 5s]
 Ribs down. [hold 5s]
-Last ten seconds. [hold 4s]
+Last ten seconds. [hold 7s]
 And rest.
 
 Down, and breathe. [pause 4s]
@@ -407,7 +407,7 @@ Keep breathing. [hold 5s]
 Stay long. [hold 5s]
 Halfway there. [hold 5s]
 Ribs down, chin tucked. [hold 5s]
-Last ten seconds, everything you've got. [hold 4s]
+Last ten seconds, everything you've got. [hold 7s]
 And rest.
 
 That's eighteen hard sets. Stay down for a breath. [pause 4s]

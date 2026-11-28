@@ -1,5 +1,5 @@
 """Checks the engine holds on a written script: "heavy" under a limit, the opening's side and AI line, the menu
-check's reading of ordinary speech, and a set's [reps N] timing."""
+check's reading of ordinary speech, a set's [reps N] timing, and a time said in words."""
 import os
 import sys
 import unittest
@@ -198,6 +198,34 @@ class Reps(unittest.TestCase):
         for fine in ("[count 3 go] [reps 8]", "[cue go] [reps 8]", "Ready, and go. [reps 8]",
                      "[count 3 go] [reps 8] [hold 3s] Switch sides. [reps 8]"):
             self.assertNotIn("go before", self.issues(f"@@ 60 | Goblet squat\n{fine}\n"), fine)
+
+
+class TimeChecks(unittest.TestCase):
+    """A time the coach says in words ("fifteen seconds left") is true where the render lays it (2026-11-22: "twenty-two
+    down", "fifteen left" and "ten left" came seconds apart)."""
+    V = {"name": "x", "key": "x", "engine": "chatterbox", "model": "m"}
+
+    def issues(self, body, seconds=60):
+        with mock.patch("voices.pace", return_value=(14.5, True)):
+            report = tts_build.lint(draft.parse(f"@@ {seconds} | Plank\n{body}\n"), self.V, headroom=False)
+        return [i for r in report.rows for i in r.clip_issues if "takes the coach's word" in i]
+
+    def test_time_checks_bunched_together_are_refused(self):
+        bunched = ("Plank, forty seconds, hips level. [count 3 go]\nBreathe, long and slow. [hold]\n"
+                   "Twenty-two seconds down. Fifteen seconds left. Ten seconds left, stay tall. [cue rest]")
+        self.assertEqual(len(self.issues(bunched, 45)), 3)
+
+    def test_time_checks_where_they_are_true_pass(self):
+        placed = ("Plank, forty seconds, hips level. [count 3 go]\nBreathe, long and slow. [hold 5s]\n"
+                  "Squeeze the glutes and keep the ribs down. [hold 5s]\nHalfway, keep breathing. [hold 5s]\n"
+                  "Long through the heels, stay with it. [hold]\nTen seconds left. [hold 4s] [count 5 rest]")
+        self.assertEqual(self.issues(placed, 50), [])
+
+    def test_a_storys_clock_is_the_storys(self):
+        told = ("Plank, forty seconds. [count 3 go]\n[story] Ten seconds left in the final, and she shot from the "
+                "halfway line. Twenty seconds down and it went in. [/story]\n[hold]\nStay with it. "
+                "[hold 4s] [count 5 rest]")
+        self.assertEqual(self.issues(told, 50), [])
 
 
 if __name__ == "__main__":

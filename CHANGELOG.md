@@ -2,6 +2,21 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.93.0] - 2026-11-28
+
+### Changed
+- **A time the coach says is true when it's heard.** A web script of 2026-11-22 said "twenty-two seconds down", "fifteen seconds left" and "ten seconds left" a few seconds apart: each line was placed by its words, and a timed set's spare time went to its bare `[hold]` before them, so they all played just before the rest cue. The lint (`tts_build.time_checks`) now lays each segment out as the render will and refuses a time check more than four seconds off, or three tenths of the time said (`TIME_SLACK`):
+  - "N seconds left", "to go", "remaining", "last N seconds", "N more seconds" and "a minute left", measured to the next cue or count, or the segment's end;
+  - "N seconds down", "in" or "done", measured from the go or switch;
+  - "halfway", against the middle of the work.
+  
+  Not checked: a story's own clock ("ten seconds left in the final"), anything before the go (a tempo like "three seconds down"), a tempo under five seconds, and halfway in a set counted by `[reps]`.
+- **The writers are told where a time check goes:** `knowledge/tts-rules.md` (Markers, "A time said is a time true"), `knowledge/script.md` (the timed set's worked example now ends `Last ten seconds, ... [hold 4s] [count 5 rest]`), and the web app's trainer and review prompts. After "ten seconds left", only short cues and fixed holds up to the cue, about ten seconds in all; the bare `[hold]` goes before the time check, never after it.
+- **The demo and ready-made drafts are fixed to pass it** (frank, jo, lena, mo, ravi, ready-strength): time checks with nothing after them say no number ("Last few seconds"), "last ten seconds" followed by a four-second hold now gets seven, and halfway lines that came early or late have moved. The published clips and workouts are unchanged.
+
+### For forks
+- **A draft that linted clean may now be refused** for a time check in the wrong place. Run `./harmonicfitness build <draft> "<name>" --lint-only --coach "<coach>"` on any draft you keep and re-make; for each "takes the coach's word for the time" line, move the time check, give it fixed holds up to the cue, or drop its number. Your own worked examples or prompts that end a set with "Last ten seconds. [cue rest]" teach the old way: follow `knowledge/script.md`'s example.
+
 ## [0.92.1] - 2026-11-26
 
 ### Fixed

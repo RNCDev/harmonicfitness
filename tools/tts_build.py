@@ -27,7 +27,7 @@ from typing import List, Optional
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from draft import (BEAT, CHIME, CHIME_SECONDS, CUE_NAMES, HOLD, HOLD_RE, MARK_RE, MAX_CLIP, MAX_FILL, max_silence,  # noqa: E402
                    PAUSE_DEFAULT, PAUSE_MAX, PAUSE_RE, MIN_FILL, NUMBER_WORDS, PARAGRAPH_GAP, TOTAL_TOLERANCE, fill_flag, held_quiet, holds, is_held, is_mark,
-                   layout, mark_issue, mark_pieces, mark_words, paragraphs, plan, rep_stretches, REPS_TALK, silences, spans,
+                   count_of, cue_of, layout, mark_issue, mark_pieces, mark_words, paragraphs, plan, rep_stretches, REPS_TALK, silences, spans,
                    spoken, story_split, unstory)
 import counts  # noqa: E402
 
@@ -323,6 +323,14 @@ def lint(segments, voice=None, wpm=DEFAULT_WPM, min_fill=MIN_FILL, max_fill=MAX_
                        "are left) or give the segment fewer seconds" if holds(seg)[0] else
                        "Coach through it (a cue, the breath, how many are left) in holds of a few seconds, or give "
                        "the segment fewer seconds"))
+        if timeline:   # a time said in words is checked against the layout the render will give it
+            extra, length = timeline[i - 1]
+            lead = CHIME_SECONDS if i > 1 and chime else 0.0
+            if holds(seg)[0]:
+                extras, share = held_quiet(plans[i - 1], length - spokens[i - 1], limit)
+            else:
+                extras, share = extra, 0.0
+            row.clip_issues += time_checks(i, seg, plans[i - 1], voice, rate, lead, extras, share, length)
         has_cues = bool(voice and voice.get("cues"))
         for para in plans[i - 1]:
             for text, _ in para:
@@ -364,6 +372,118 @@ def lint(segments, voice=None, wpm=DEFAULT_WPM, min_fill=MIN_FILL, max_fill=MAX_
     if voice:
         report.predicted = sum(length for _, length in timeline)
     return report
+
+
+# A time said in words ("fifteen seconds left", "twenty down", "halfway") must be true when it's heard: with no screen,
+# the listener's only clock is the coach. A draft that said "twenty-two seconds down", "fifteen left" and "ten left"
+# within a few seconds of each other (2026-11-22) had each line placed by its words, not by the time. The lint lays
+# the segment out as the render will and refuses a time check further off than this many seconds, or this share of it.
+TIME_SLACK = (4.0, 0.3)
+_UNITS = ("one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen "
+          "seventeen eighteen nineteen").split()
+_TENS = "twenty thirty forty fifty sixty seventy eighty ninety".split()
+_NUM = (r"(?:(?:" + "|".join(_TENS) + r")(?:[- ](?:" + "|".join(_UNITS[:9]) + r"))?|"
+        + "|".join(sorted(_UNITS, key=len, reverse=True)) + r")")
+TIME_LEFT = re.compile(r"\b(?:(?:last|final) (?P<a>" + _NUM + r") seconds?|(?P<b>" + _NUM
+                       + r") (?:more )?seconds? (?:of \w+ )?(?:left|to go|remaining|more)|(?P<c>" + _NUM
+                       + r") more seconds?|(?P<m>a|one|" + _NUM + r") (?:more )?minutes? (?:left|to go|remaining))\b",
+                       re.IGNORECASE)
+TIME_DONE = re.compile(r"\b(?P<a>" + _NUM + r") seconds? (?:down|done|gone|in|behind you)(?=\s*(?:[,.!;:]|$|now\b|"
+                       r"already\b|and\b))", re.IGNORECASE)
+HALFWAY = re.compile(r"\bhalf ?way\b(?! through (?!(?:the |this )?(?:set|one|interval|minute|hold|effort)\b))"
+                     r"(?! (?:through|done with) )", re.IGNORECASE)
+STARTS_WORK = re.compile(r"\[(?:count\s+\d+\s+|cue\s+)(?:go|switch(?:\s+sides)?)\s*\]|^\W*(?:and\s+)?(?:go|switch"
+                         r"(?:\s+sides)?)\b", re.IGNORECASE)
+GOES = re.compile(r"\b(?:and )?go\W*$", re.IGNORECASE)   # "Roll onto your right side, and go."
+ENDS_WORK = re.compile(r"\b(?:rest|stop|switch(?: sides)?)\W*$", re.IGNORECASE)   # "Last one, push it up, and rest."
+
+
+def _number(word):
+    """Seconds in a number word ("fifteen", "twenty-two", "twenty two")."""
+    word = word.lower().replace("-", " ").split()
+    if word[0] in ("a", "one") and len(word) == 1:
+        return 1
+    total = 0
+    for w in word:
+        total += (_TENS.index(w) + 2) * 10 if w in _TENS else _UNITS.index(w) + 1
+    return total
+
+
+def _anchor(text):
+    """'start' for a go or switch (the work starts after it), 'end' for any other cue or a count (what the time
+    left runs down to), or None. A short spoken line counts too ("And rest.", "Switch sides, go.")."""
+    if is_mark(text):
+        if STARTS_WORK.search(text):
+            return "start"
+        return "end" if (count_of(text) or cue_of(text)) else None
+    if spoken(text) and len(WORD_RE.findall(text)) <= 4:
+        if STARTS_WORK.search(text):
+            return "start"
+        if re.search(r"\b(?:rest|stop|switch|time)\b", text, re.IGNORECASE):
+            return "end"
+    if spoken(text) and GOES.search(text):
+        return "start"
+    if spoken(text) and ENDS_WORK.search(text):
+        return "end"
+    return None
+
+
+def time_checks(i, seg, paras, voice, rate, lead, extra, share, end):
+    """[issue] for each time said in words outside a [story] that the segment, as the render lays it out, makes
+    untrue: "N seconds left" (or "last N seconds") measured to the next cue or count (or the segment's end), "N
+    seconds down" from the last go or switch (or the segment's start), "halfway" between the two. `extra` is the
+    break each paragraph break adds (one number or a list), `share` each bare hold's seconds, `end` the
+    segment's laid-out length."""
+    from voices import clip_seconds
+    items, t = [], lead
+    for j, para in enumerate(paras):
+        if j:
+            t += PARAGRAPH_GAP + (extra[j - 1] if isinstance(extra, (list, tuple)) else extra)
+        for text, pause in para:
+            d = (clip_seconds(text, voice, rate) if spoken(text) else CHIME_SECONDS if text == CHIME else
+                 mark_seconds(text, voice, rate) if is_mark(text) else 0.0)
+            items.append((text, t, t + d))
+            t += d + (share if text == HOLD and not pause else 0.0) + pause
+    coaching = " ".join(story_split(seg)[0].split()).lower()
+    reps = bool(rep_stretches(seg))
+    issues = []
+    for k, (text, start, stop) in enumerate(items):
+        if not spoken(text):
+            continue
+        for kind, rx in (("left", TIME_LEFT), ("done", TIME_DONE), ("half", HALFWAY)):
+            for m in rx.finditer(text):
+                said = " ".join(m.group(0).split()).lower()
+                if said not in coaching:
+                    continue   # a story's clock ("ten seconds left in the game"), not the listener's
+                at = start + (stop - start) * m.end() / max(len(text), 1)
+                began = max((e for x, _, e in items[:k] if _anchor(x) == "start"), default=None)
+                ends = next((b if not count_of(x) else e for x, b, e in items[k + 1:] if _anchor(x)), end)
+                if kind != "left" and (began is None or reps):
+                    continue   # before any go it's a tempo ("three seconds down") or the session's; in reps, theirs
+                if kind == "half":
+                    want, got = (ends - began) / 2, at - began
+                    slack = max(TIME_SLACK[0], 0.2 * (ends - began))
+                    what = f"\"{m.group(0)}\" comes {got:.0f} s into {ends - began:.0f} s of work"
+                else:
+                    word = next(g for g in m.groups() if g)
+                    want = _number(word) * (60 if m.groupdict().get("m") else 1)
+                    if kind == "done" and want < 5:
+                        continue   # a tempo said in the work ("three seconds down, one up")
+                    got = ends - at if kind == "left" else at - began
+                    slack = max(TIME_SLACK[0], TIME_SLACK[1] * want)
+                    what = (f"\"{m.group(0)}\" comes about {got:.0f} s before "
+                            + ("the next cue" if ends < end else "the segment ends") if kind == "left" else
+                            f"\"{m.group(0)}\" comes about {got:.0f} s after the go")
+                if abs(got - want) > slack:
+                    fix = ("after it, only short cues and fixed holds ([hold 5s]) up to the cue, about its seconds "
+                           "in all, with the segment's bare [hold] before the time check, never after it"
+                           if kind == "left" else
+                           "the talk and fixed holds ([hold 5s]) between the go and it fill that time")
+                    issues.append(
+                        f"  #{i} {seg['label']}: {what}, as the render lays it out; a listener with no screen takes "
+                        f"the coach's word for the time. Put the time check where it's true ({fix}), or say no "
+                        "number (\"keep it going\")")
+    return issues
 
 
 REPS_SLACK = (4.0, 0.25)   # a set's lines may miss its reps' time by this many seconds, or this share of it
