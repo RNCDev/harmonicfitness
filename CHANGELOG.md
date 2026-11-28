@@ -2,6 +2,24 @@
 
 All notable changes to HarmonicFitness (called sweatcast through 0.19.0). The format follows [Keep a Changelog](https://keepachangelog.com), and versions follow [Semantic Versioning](https://semver.org).
 
+## [0.94.0] - 2026-11-28
+
+### Added
+- **`./harmonicfitness` runs from PowerShell on Windows,** so Codex and Antigravity, whose shells are PowerShell there, can run HarmonicFitness on a PC. `harmonicfitness.cmd`, beside the shell script, finds Git for Windows' own `bash.exe` (by `where git`, then its usual install folders; never the `bash` on PATH, which in PowerShell is often WSL's), hands it the same command and passes its exit code back. PowerShell 7 and Windows PowerShell 5.1 both pick the `.cmd` for `./harmonicfitness`, so the command is typed, allowed and matched the same on every system, and `.codex/rules/` and the Antigravity allow list are unchanged. In cmd it's `.\harmonicfitness`. Without Git for Windows it says where to get it and exits 1. `HARMONICFITNESS_BASH` names another `bash.exe`.
+
+### Changed
+- **`.gitattributes` checks out `*.cmd` with CRLF** (everything else stays LF), since cmd reads a batch file with LF endings wrongly; `test_contract` holds it.
+- **`AGENTS.md` has an "On Windows" section** (`tools/harness.py`): type `./harmonicfitness` as written, never through `bash`, `sh` or `wsl`; ask the listener to install Git for Windows when it's missing; the PowerShell forms of the skills' other shell lines (`Test-Path`, `Get-Command git`, `$HOME`).
+- **The setup skill** says what to do on a PC without Git for Windows, and gives each delivery service's folder on Windows as well as a Mac (iCloud for Windows `~/iCloudDrive`, Dropbox `~/Dropbox`, Google Drive `G:/My Drive`).
+- **`me.example/settings.toml`** shows `deliver_to` examples for a Mac, Windows and both.
+
+### Docs
+- The README (What you need, Start here for Antigravity, the terminal line, Where it runs, and the steps for an assistant setting someone up, now naming Antigravity in the first), `CLAUDE.md`, `docs/index.html` and `SHARE-HARMONIC.md` say Git for Windows comes first on a PC and how the commands reach Git Bash from PowerShell.
+
+### For forks
+- **Keep `harmonicfitness.cmd` and the `*.cmd text eol=crlf` line in `.gitattributes`**: without them, Codex and Antigravity on Windows can't run any command. If you renamed the entry point, rename the `.cmd` to match and change its `HF_SCRIPT` line.
+- **Your own `me/settings.toml` is unchanged;** the new examples are only in the template. A Windows listener's `deliver_to` uses forward slashes, as before.
+
 ## [0.93.0] - 2026-11-28
 
 ### Changed

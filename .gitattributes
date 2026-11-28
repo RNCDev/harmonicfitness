@@ -1,6 +1,8 @@
 # One line ending on every computer: LF in the repository and in each checkout, Windows included, whatever
 # core.autocrlf says. The shell scripts run under Git Bash, and a file reads and hashes the same on a Mac and a PC.
 * text=auto eol=lf
+# Except the Windows launcher: cmd reads a batch file with LF endings wrongly (a jump to a label can miss).
+*.cmd text eol=crlf
 
 # Never touched as text.
 *.mp3 binary

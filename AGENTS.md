@@ -23,8 +23,13 @@ Rules that always hold:
 - Run HarmonicFitness's tools only as `./harmonicfitness <command>` from this folder.
 - During a session, write only inside `me/`.
 
+On Windows (Codex and Antigravity both run commands in PowerShell there):
+- `./harmonicfitness <command>` works in PowerShell as written: `harmonicfitness.cmd` beside it runs the command in Git Bash, which comes with Git for Windows. Type it exactly that way, never through `bash`, `sh` or `wsl`, so the allow rules match it (in cmd, `.\harmonicfitness <command>`).
+- If it says Git for Windows isn't on this computer, ask the listener to install it from https://git-scm.com/download/win (the default options are fine), then open a new terminal and run it again. Never install it yourself.
+- The skills' other shell lines are written for Git Bash: use PowerShell's own for them (`Test-Path` for a folder check, `Get-Command git` for `command -v git`, `$HOME` for `~` in a native command's argument). Put an argument holding `$` or a backtick in single quotes.
+
 On ChatGPT's Codex:
-- This project's rule (`.codex/rules/harmonicfitness.rules`) runs `./harmonicfitness` outside the sandbox, since it needs downloads, the Mac's GPU for a local voice, git's settings for the privacy hook, and `me/.env` for a web coach's key (HarmonicFitness reads it; you never do). If one fails with "Operation not permitted" or a GPU message, run it again outside the sandbox.
+- This project's rule (`.codex/rules/harmonicfitness.rules`) runs `./harmonicfitness` outside the sandbox, since it needs downloads, the GPU for a local voice (a Mac's, or an NVIDIA card), git's settings for the privacy hook, and `me/.env` for a web coach's key (HarmonicFitness reads it; you never do). If one fails with "Operation not permitted" or a GPU message, run it again outside the sandbox.
 - Once, before the first workout, say plainly: ChatGPT may use what it reads here, including the listener's health notes, to improve its models unless "Improve the model for everyone" is off (Settings, Data Controls).
 
 On Google's Antigravity (not yet tried end to end):

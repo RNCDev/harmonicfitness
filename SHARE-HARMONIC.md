@@ -18,7 +18,7 @@ Google's Antigravity should work too, but it hasn't been tried end to end yet. T
 
 ## What they'll need
 
-- **A Mac or a Windows PC.** Setup runs on their own computer, not on a phone or in a plain chat.
+- **A Mac or a Windows PC.** Setup runs on their own computer, not on a phone or in a plain chat. On Windows, [Git for Windows](https://git-scm.com/download/win) too (free; the assistant asks them to install it if it's missing).
 - **The voice, either way:**
   - **Free, on their computer:** on an Apple Silicon Mac or a Windows or Linux PC, after a one-time download of about 4 GB.
   - **A web coach, on any computer:** a pay-as-you-go key from a voice service, about $0.30 a workout on Fish Audio. Setup walks them through it, and the key goes from their clipboard straight into a private file, never into the chat.

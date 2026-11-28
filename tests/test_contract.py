@@ -328,6 +328,9 @@ class SameOnEveryComputer(unittest.TestCase):
         with open(os.path.join(paths.ROOT, ".gitattributes"), encoding="utf-8") as f:
             rules = [line.split() for line in f if line.strip() and not line.startswith("#")]
         self.assertIn(["*", "text=auto", "eol=lf"], rules)
+        # ...except the Windows launcher (harmonicfitness.cmd), which cmd reads wrongly with LF endings.
+        self.assertIn(["*.cmd", "text", "eol=crlf"], rules)
+        self.assertLess(rules.index(["*", "text=auto", "eol=lf"]), rules.index(["*.cmd", "text", "eol=crlf"]))
 
 
 class NoPrintInLibrary(unittest.TestCase):

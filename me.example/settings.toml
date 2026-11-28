@@ -4,7 +4,11 @@ schema = 6
 setup = "quick"
 # The audio routes to try, in order (local, fish, elevenlabs, gemini, inworld or openrouter), when the coach doesn't settle it: a local coach always renders on this computer, and a web coach always speaks through its own service, with its key in me/.env.
 render = ["local"]
-# Where finished MP3s go: a folder that syncs to your phone. ~ is your home folder and * matches anything (any Google account). Once the copy is there the local MP3 is removed; empty keeps MP3s in me/workouts/. A list gives one folder per computer; each copies to those it has.
+# Where finished MP3s go: a folder that syncs to your phone. ~ is your home folder and * matches anything (any Google account). Once the copy is there the local MP3 is removed; empty keeps MP3s in me/workouts/. A list gives one folder per computer; each copies to those it has. Forward slashes on Windows too.
+#   iCloud Drive: "~/Library/Mobile Documents/com~apple~CloudDocs/Workouts" on a Mac, "~/iCloudDrive/Workouts" on Windows
+#   Google Drive: "~/Library/CloudStorage/GoogleDrive-*/My Drive/Workouts" on a Mac, usually "G:/My Drive/Workouts" on Windows
+#   Dropbox:      "~/Library/CloudStorage/Dropbox/Workouts" on a Mac, "~/Dropbox/Workouts" on Windows
+#   A Mac and a PC: ["~/Library/CloudStorage/GoogleDrive-*/My Drive/Workouts", "G:/My Drive/Workouts"]
 deliver_to = ""
 # A rough speaking rate (./harmonicfitness get wpm prints it); builds use each coach's measured pace.
 words_per_minute = 165
